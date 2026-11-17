@@ -62,6 +62,7 @@ const CONTRACT_CHECKS = [
   ['REMAR real SQLite progress and asset uniqueness vs A2 duplication', '.github/scripts/test_remar_progress.js'],
   ['REMAR photos by exact CTA/child/reserve and UI-only tab hiding', '.github/scripts/test_remar_photo_context.js'],
   ['Terrain reserve verification is independent from lifted state', '.github/scripts/test_reserve_verification_terrain.js'],
+  ['site deletion with real REMAR FKs and Intranet detach', '.github/scripts/test_site_intranet_lifecycle.js'],
   ['Terrain site address and typed housing/building counts', '.github/scripts/test_terrain_site_address.js'],
   ['Terrain polymorphic SQL cleanup across visits', '.github/scripts/test_terrain_data_cleanup.js'],
   ['Companion removal and credits safety', '.github/scripts/check_no_companion_credits.js'],
