@@ -16,10 +16,12 @@ requireText(carry, 'async function listPriorLocalVisits', 'same-local history ac
 requireText(carry, "if (trame.id === 'pre_allumage') return 0;", 'pre-allumage controls stay blank');
 requireText(carry, 'async function collectSemanticSnapshot', 'cross-trame semantic snapshot');
 requireText(carry, 'const commentaire = clean(source.commentaire) || clean(source.textValue) || null;', 'field/control values can cross representation boundaries');
-requireText(carry, 'SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id', 'network values selected');
+requireText(carry, 'SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,t_retour_ecs_c,t_stockage_ecs_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id', 'network values selected');
 requireText(carry, "entite_type='reseau' AND entite_id=? AND origine='api_symfony'", 'network Intranet provenance carried forward');
 requireText(carry, 'row.t_ext_c ?? null', 'external temperature carry-forward');
 requireText(carry, 'row.t_dep_c ?? null', 'departure temperature carry-forward');
+requireText(carry, 'row.t_retour_ecs_c ?? null', 'ECS return temperature carry-forward');
+requireText(carry, 'row.t_stockage_ecs_c ?? null', 'ECS storage temperature carry-forward');
 requireText(carry, 'SELECT id,label,valeur,unite,compteur_site_id,destination FROM compteurs', 'meter values selected');
 requireText(carry, 'row.valeur ?? null', 'meter value carry-forward');
 requireText(carry, 'copiedControls', 'control copy summary');
