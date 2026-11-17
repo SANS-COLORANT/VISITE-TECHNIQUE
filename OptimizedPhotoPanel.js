@@ -19,6 +19,8 @@ import { ajouterPhoto } from './db.js';
 import { supprimerPhotoComplete, reglerPublicationPhotoLibre } from './photoDb.js';
 import { sauvegarderLegendePhoto, legendePhotoValide } from './photoCaptionPersistence.js';
 import { capturerPhotoLibre } from './photoLibreCapture.js';
+import { PhotoGalleryImportSheet } from './PhotoGalleryImportSheet.js';
+import { choisirPhotoDansGalerie, compresserPhotoDeGalerie, nettoyerPhotoTemporaireGalerie } from './photoGalleryImport.js';
 import { estPhotoLibre, photoIncluseDansExports, legendePhotoEditable } from './photoExportPolicy.js';
 import { prendrePhoto, preparerPhotoNommee } from './PhotoButton.js';
 import { COLORS, FONTS, styles } from './styles.js';
@@ -110,6 +112,9 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
   const [libelleSaisi, setLibelleSaisi] = useState('');
   const [savingMetadata, setSavingMetadata] = useState(false);
   const [cameraEnCours, setCameraEnCours] = useState(false);
+  const [galerieAsset,setGalerieAsset] = useState(null);
+  const [galerieBusy,setGalerieBusy] = useState(false);
+  const [galeriePickerBusy,setGaleriePickerBusy] = useState(false);
   const [filtre, setFiltre] = useState('toutes');
   const sections = useSectionsOuvertes(`${visiteId}:p-photos`);
   const { listRef, onScroll } = useListScrollMemory(`visit-panel:${visiteId}:p-photos`, photos.length);
@@ -225,6 +230,41 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
     }
   }, [cameraEnCours, visiteId, sections.open]);
 
+  const ouvrirGalerie = useCallback(async () => {
+    if (galeriePickerBusy || galerieBusy || cameraEnCours) return;
+    setGaleriePickerBusy(true);
+    try {
+      const photo = await choisirPhotoDansGalerie();
+      if (photo) setGalerieAsset(photo);
+    } catch(error) {
+      Alert.alert('Galerie indisponible', String(error?.message||error));
+    } finally {
+      setGaleriePickerBusy(false);
+    }
+  },[galeriePickerBusy,galerieBusy,cameraEnCours]);
+
+  const enregistrerGalerie = useCallback(async titre => {
+    if (!galerieAsset?.uri || galerieBusy) return;
+    setGalerieBusy(true);
+    let photoOptimisee=null;
+    try {
+      photoOptimisee=await compresserPhotoDeGalerie(galerieAsset);
+      const ok=await capturerPhotoLibre(visiteId,
+        error=>Alert.alert('Photo de galerie',String(error?.message||error)),
+        null, {uri:photoOptimisee.uri,titre});
+      if(ok){
+        setGalerieAsset(null);
+        sections.open(['libre']);
+        showToast('Photo importée, renommée et compressée · locale uniquement');
+      }
+    } catch(error) {
+      Alert.alert('Import impossible',String(error?.message||error));
+    } finally {
+      if(photoOptimisee?.uri) await nettoyerPhotoTemporaireGalerie(photoOptimisee.uri);
+      setGalerieBusy(false);
+    }
+  },[galerieAsset,galerieBusy,visiteId,sections.open]);
+
   const enregistrerLibelle = useCallback(async () => {
     if (!viewerPhoto || viewerPhoto.pending || savingMetadata) return;
     setSavingMetadata(true);
@@ -322,6 +362,15 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
           <CvcIcon name="camera" size={16} color={t.dark} strokeWidth={2.2} />
           <Text style={[st.addBtnText, { color: t.dark }]}>{cameraEnCours ? 'Appareil photo…' : 'Photo libre'}</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[st.addBtn, {borderColor:t.solid+'55',backgroundColor:t.light}, (galerieBusy||galeriePickerBusy)&&{opacity:0.5}]}
+          onPress={ouvrirGalerie}
+          disabled={cameraEnCours||galerieBusy||galeriePickerBusy}
+          accessibilityRole="button" accessibilityLabel="Importer une photo de la galerie"
+        >
+          <CvcIcon name="gallery" size={16} color={t.dark} strokeWidth={2.2}/>
+          <Text style={[st.addBtnText,{color:t.dark}]}>Galerie</Text>
+        </TouchableOpacity>
       </View>
       {groupes.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.filters} keyboardShouldPersistTaps="handled">
@@ -344,7 +393,7 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
         </ScrollView>
       ) : null}
     </View>
-  ), [photos.length, groupes, filtreEffectif, cameraEnCours, onAjouter, visiteId, t]);
+  ), [photos.length, groupes, filtreEffectif, cameraEnCours, galerieBusy, galeriePickerBusy, ouvrirGalerie, onAjouter, visiteId, t]);
 
   const renderItem = useCallback(({ item }) => {
     if (item.type === 'head') {
@@ -475,12 +524,16 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
           </View>
         </View>
       </Modal>
+      <PhotoGalleryImportSheet asset={galerieAsset} contextLabel="Photo libre"
+        busy={galerieBusy}
+        onCancel={()=>setGalerieAsset(null)}
+        onConfirm={enregistrerGalerie}/>
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 },
+  headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap:'wrap', marginBottom: 10 },
   headTitle: { fontSize: 18, fontFamily: FONTS.black, color: COLORS.ink },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, minHeight: 36 },
   addBtnText: { fontSize: 12.5, fontFamily: FONTS.bodyBold },
