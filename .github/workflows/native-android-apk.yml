@@ -29,6 +29,7 @@ on:
       - fix/rcu-six-network-slots-20261110
       - fix/crous-first-visits-remar-binding-20261116
       - fix/metra-crous-field-feedback-20261116
+      - fix/visit-three-bottom-actions-20261117
     paths:
       - '**/*.js'
       - '**/*.json'
