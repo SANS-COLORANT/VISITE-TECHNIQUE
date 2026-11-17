@@ -412,7 +412,7 @@ function valueResumeReseau(remarques, mapping) {
     .filter((r) => r.perimetre === mapping.perimetre && categorieResumeReseau(r.poste) === mapping.categorie)
     .map((r) => clean(r.prestation)).filter(Boolean);
   return { avis: textes.length ? 'N.S' : 'S.O',
-    commentaire: textes.length ? textes.join('\n\n') : 'Sans Objet.' };
+    commentaire: textes.length ? textes.join('\n\n') : '/' };
 }
 
 /**
@@ -762,10 +762,10 @@ function counterValue(counters, criterion, candidate) {
 
 function applicableAvis(value, issues, path) {
   const current = nullable(value);
-  // Une conformité non renseignée n'est pas une erreur de structure : le
-  // contrat Intranet prévoit explicitement N.V (non vérifié). Cela permet
-  // l'envoi d'une visite partielle sans inventer un avis favorable ou défavorable.
-  if (current == null) return 'N.V';
+  // Règle de transmission demandée : un avis vide devient S.O sur le fil
+  // Intranet uniquement, tandis que la base METRA conserve son état vide.
+  // Tout avis explicitement saisi (dont N.V, N.R, S.O et N.S) reste inchangé.
+  if (current == null) return 'S.O';
   if (!INTRANET_AVIS.includes(current)) {
     issues.push(`${path} : avis « ${current} » invalide (${INTRANET_AVIS.join(', ')}).`);
     return null;
@@ -1251,29 +1251,29 @@ function groupRemarDetailsForIntranet(projection, definition, issues, remoteTram
     const familyCount=family==='cta'?cta.length:family==='vmc'?vmc.length:family==='froid'?froid.length:0;
     const multiline=entries.length>1||familyCount>0||entries.some(e=>e.forceName===true);
     if(mapping.type==='controle'){
-      // Missing avis/comments are permitted: the source value remains absent
-      // in METRA and is rendered as [Non renseigné] for each named object.
-      // A non-empty *invalid* code is still unsafe and must fail closed.
+      // Missing avis/comments remain blank in METRA; only the outbound
+      // representation shows [S.O] and / for each named equipment.
+      // A non-empty *invalid* code must still fail closed.
       const valid=entries.filter(e=>['S','N.S','N.R','S.O','N.V'].includes(e.avis));
       for(const e of entries.filter(e=>e.avis && !['S','N.S','N.R','S.O','N.V'].includes(e.avis)))
         report(e.label+' / '+mapping.cle,'code avis inconnu');
       const explicit=priority.find(s=>valid.some(e=>e.avis===s))||null;
       const hasUnfilled=entries.some(e=>!e.avis);
-      // Symfony V1 requires an applicable wire status; N.V is its existing
-      // transport fallback, NOT an inspection recorded in local SQLite.
-      // Never assert S/S.O for a group containing an unassessed CTA.
-      const avis=hasUnfilled&&(!explicit||['S','S.O'].includes(explicit))?'N.V':explicit;
+      // Symfony V1 requires a wire status. An unassessed CTA/filter is
+      // reported as S.O only in transport, never written back to SQLite.
+      // Explicit N.S, N.R or N.V always wins over this empty-field fallback.
+      const avis=hasUnfilled&&(!explicit||['S','S.O'].includes(explicit))?'S.O':explicit;
       const commentaire=multiline?entries.map(e=>{
-        const status=e.avis||'Non renseigné';
+        const status=e.avis||'S.O';
         if(/[\r\n]/.test(e.label)||e.label.includes(' : '))report(e.label,'nom ambigu pour le format multiligne');
-        return e.label+' : ['+status+']'+(e.commentaire?' '+escapeLine(e.commentaire):'');
+        return e.label+' : ['+status+'] '+escapeLine(e.commentaire||'/');
       }).join('\n'):entries[0]?.commentaire||'';
       result.set(target,{type:'controle',avis,commentaire});
     }else{
       const value=multiline?entries.map(e=>{
         const v=displayValue(e);
         if(/[\r\n]/.test(e.label)||e.label.includes(' : '))report(e.label,'nom ambigu pour le format multiligne');
-        return e.label+' : '+escapeLine(v)+(e.commentaire?' — '+escapeLine(e.commentaire):'')+
+        return e.label+' : '+escapeLine(v||'/')+(e.commentaire?' — '+escapeLine(e.commentaire):'')+
           (e.avis&&v!==e.avis?' ['+e.avis+']':'');
       }).join('\n'):entries.length===1?displayValue(entries[0])+
         (entries[0].commentaire?' — '+entries[0].commentaire:''):'';
@@ -1338,9 +1338,9 @@ async function buildCriteria(db, visite, details, issues) {
           issues.push('REMAR dynamique non transmissible sans perte : '+warning);
       }
       // Unfilled REMAR CTA/filter controls are not transmission errors.
-      // The group serializer keeps per-equipment [Non renseigné] markers,
-      // and applicableAvis preserves Symfony's existing N.V wire fallback.
-      // Do not change the stricter, non-REMAR safety checks.
+      // The group serializer writes per-equipment [S.O] / on the wire,
+      // without modifying local controls, comments or inherited readings.
+      // All other structural and non-REMAR checks remain strict.
       const byOfficial = new Map(mappingsForRemarRemote(definition,remoteTrame)
         .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
       for (const [key,value] of remap.replacements) {
@@ -1540,8 +1540,8 @@ async function buildCriteria(db, visite, details, issues) {
           // and "Accessibilité", as well as counters and temperatures, are
           // legitimate text/measurement fields. Always preserve their actual
           // value in commentaire, even when Symfony also requires an avis.
-          // Never manufacture S or N.S: for an unassessed technical field,
-          // retain the established N.V wire fallback only.
+          // Never manufacture S or N.S: an empty opinion is S.O only on
+          // the outbound wire; the technical measurement remains untouched.
           const control=candidateStoredValue(controlMap,candidate,issues,path);
           avis=applicableAvis(control?.avis,issues,`${path} / avis`);
           let value;

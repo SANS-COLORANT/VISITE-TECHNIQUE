@@ -176,8 +176,8 @@ async function main() {
     );
     const partialVisit = await payloadModule.buildIntranetVisitPayload('missing-control', '33333333-3333-4333-8333-333333333333');
     const partialWire = partialVisit.payload.visites[0];
-    check(partialWire.criteres[0].avis === 'N.V' && partialWire.criteres[0].commentaire === '/',
-      'empty applicable control is sent as N.V with slash instead of blocking the visit');
+    check(partialWire.criteres[0].avis === 'S.O' && partialWire.criteres[0].commentaire === '/',
+      'empty applicable control is sent as S.O with slash instead of blocking the visit');
     check(partialWire.criteres.slice(1).every((criterion) => criterion.commentaire === '/'),
       'empty fields, networks and missing counter values are sent as slash');
     check(partialWire.remarques.length === 0 && partialWire.materiels.length === 0 && partialWire.notes.length === 0,

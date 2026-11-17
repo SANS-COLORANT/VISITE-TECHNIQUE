@@ -223,7 +223,7 @@ async function main() {
     rcuSummary.values[8].commentaire === 'Installer une sonde' &&
     rcuSummary.values[9].commentaire === 'Vérifier le compteur',
     'RCU: secondary P3, improvements and miscellaneous remarks remain in their own categories');
-  check(rcuSummary.values[1].commentaire === 'Sans Objet.' &&
+  check(rcuSummary.values[1].commentaire === '/' &&
     rcuSummary.values[4].avis === 'S.O' && rcuSummary.values[5].avis === 'S.O',
     'RCU: empty synthesis cells match Excel without inventing observations');
   // Chaque variante homologuée passe par la même matrice métier
@@ -264,7 +264,7 @@ async function main() {
   check(unknownSummary.issues.some((x) => /Critère métier nouveau non publié.*aucun champ METRA/.test(x)),
     'RCU: never guess semantic mapping for unknown future criteria');
   const rcuEmpty = await build('reseau_chaleur_v1', rcuSummaryRemote);
-  check(rcuEmpty.issues.length === 0 && rcuEmpty.values.every((x) => x.commentaire === 'Sans Objet.'),
+  check(rcuEmpty.issues.length === 0 && rcuEmpty.values.every((x) => x.commentaire === '/'),
     'RCU: an existing visit with no reserves can still serialize all ten synthesis criteria');
   const generalRemark = { id: 'r-general', poste: 'Sécurité incendie',
     prestation: 'Vérifier les extincteurs', perimetre: null, intranet_date_reserve: '2026-10-28' };
@@ -272,7 +272,7 @@ async function main() {
     remarks: [generalRemark],
   });
   check(rcuUnclassified.issues.length === 0 &&
-    rcuUnclassified.values.every((x) => x.commentaire === 'Sans Objet.'),
+    rcuUnclassified.values.every((x) => x.commentaire === '/'),
     'RCU: general legacy reserve does not fabricate a primary/secondary summary or block it');
   const remarksIssues = [];
   const generalWire = await payload.buildRemarks(fakeDb({ remarks: [generalRemark] }), 'test', remarksIssues);
@@ -284,7 +284,7 @@ async function main() {
     remarks: [summaryRemarks[0], generalRemark],
   });
   check(mixed.issues.length === 0 && mixed.values[0].commentaire === 'Nettoyer les filtres' &&
-    mixed.values[4].commentaire === 'Sans Objet.',
+    mixed.values[4].commentaire === '/',
     'RCU: classified reserve reaches exactly its summary and general reserve remains independent');
   const rcuOversized = await build('reseau_chaleur_v1', rcuSummaryRemote, {
     remarks: [{ id: 'r-long', poste: 'P2', prestation: 'x'.repeat(1501), perimetre: 'Primaire' }],
