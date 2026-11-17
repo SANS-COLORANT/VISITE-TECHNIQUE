@@ -52,6 +52,7 @@ const CONTRACT_CHECKS = [
   ['Intranet selected-trame preparation executable tests', '.github/scripts/test_intranet_selected_trame.js'],
   ['Intranet focused upload audit', '.github/scripts/test_intranet_visit_upload_audit.js'],
   ['photo workflow executable regression tests', '.github/scripts/test_photo_workflow.js'],
+  ['gallery import: compression, captions, privacy and JSX syntax', '.github/scripts/test_photo_gallery_import.js'],
   ['Missions LAB isolation contract', '.github/scripts/check_missions_lab_contract.js'],
   ['Missions app compatibility contract', '.github/scripts/check_missions_app_compat.js'],
   ['Pilotage SQLite, RCU Intranet and numeric field regressions', '.github/scripts/test_terrain_bugfixes.js'],
