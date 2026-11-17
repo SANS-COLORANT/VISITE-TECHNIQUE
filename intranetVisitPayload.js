@@ -668,7 +668,7 @@ function remarNetworkText(row,index) {
   const title=clean(row?.nom_reseau)||'Réseau '+index;
   const ecs=/\becs\b/i.test(title)&&/boucle|bouclage|retour|distribution/i.test(title);
   const attrs=(ecs
-    ? [['t_dep_c','Température départ ECS','°C'],['t_retour_ecs_c','Température retour bouclage ECS','°C']]
+    ? [['t_dep_c','Température départ ECS','°C'],['t_retour_ecs_c','Température retour ECS','°C'],['t_stockage_ecs_c','Température de stockage ECS','°C']]
     : [['t_ext_c','T° extérieure','°C'],['t_dep_c','T° départ','°C'],
        ['courbe_de_chauffe','Courbe de chauffe',''],['tnc','TNC','°C'],
        ['consigne_programme_horaire','Consigne / programme','']])

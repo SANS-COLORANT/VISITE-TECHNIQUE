@@ -93,6 +93,7 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
   const [ext, setExt] = useColonneReseau(reseau, 't_ext_c', onPatch);
   const [dep, setDep] = useColonneReseau(reseau, 't_dep_c', onPatch);
   const [retourEcs,setRetourEcs] = useColonneReseau(reseau,'t_retour_ecs_c',onPatch);
+  const [stockageEcs,setStockageEcs] = useColonneReseau(reseau,'t_stockage_ecs_c',onPatch);
   const isEcsLoop=isEcsLoopNetwork(nom);
   const [courbe, setCourbe] = useColonneReseau(reseau, 'courbe_de_chauffe', onPatch);
   const [tnc, setTnc, flushTnc] = useColonneReseau(reseau, 'tnc', onPatch);
@@ -120,7 +121,7 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
       picto="dist/reseaux"
       title={nom}
       onRename={renommer}
-      subtitle={isEcsLoop?ecsTemperatureSummary({t_dep_c:dep,t_retour_ecs_c:retourEcs})
+      subtitle={isEcsLoop?ecsTemperatureSummary({t_dep_c:dep,t_retour_ecs_c:retourEcs,t_stockage_ecs_c:stockageEcs})
         :resumeReseau({ t_ext_c: ext, t_dep_c: dep, courbe_de_chauffe: courbe })}
       open={open}
       onToggle={onToggle}
@@ -134,16 +135,25 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
         },
       ]} />}
     >
-      {isEcsLoop ? <TileRow>
-        <ValueTile compactNumber label="Température départ ECS" unit="°C"
+      {isEcsLoop ? <>
+      <TileRow>
+        <ValueTile compactNumber label="Température Départ" unit="°C"
           value={versAffichage(dep)} onChange={num(setDep)}
           step={cfgDep.step} min={cfgDep.min} max={cfgDep.max}
           picto="dist/t-de-depart" />
-        <ValueTile compactNumber label="Température retour bouclage ECS" unit="°C"
+        <ValueTile compactNumber label="Température Retour" unit="°C"
           value={versAffichage(retourEcs)} onChange={num(setRetourEcs)}
           step={cfgDep.step} min={cfgDep.min} max={cfgDep.max}
           picto="dist/reseau-ecs" />
-      </TileRow> : <>
+      </TileRow>
+      <TileRow>
+        <ValueTile compactNumber label="Température de Stockage" unit="°C"
+          value={versAffichage(stockageEcs)} onChange={num(setStockageEcs)}
+          step={cfgDep.step} min={cfgDep.min} max={cfgDep.max}
+          picto="dist/reseau-ecs" />
+        <View style={{flex:1}} />
+      </TileRow>
+      </> : <>
       <TileRow>
         <ValueTile compactNumber label="T°ext" unit="°C" value={versAffichage(ext)} onChange={num(setExt)} step={cfgExt.step} min={cfgExt.min} max={cfgExt.max}
           start={prec(precedent?.tExt, DEPART_DEFAUT['T°ext(°C)'])} picto="dist/t-exterieure" />

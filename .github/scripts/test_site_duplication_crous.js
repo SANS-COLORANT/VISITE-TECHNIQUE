@@ -37,7 +37,7 @@ function harness(name){
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'metra-clone-'));
 const db=harness(path.join(dir,'clone.db'));
 try{
-  await db.send('migrate','',[0,50]);
+  await db.send('migrate','',[0,51]);
   await db.db.execAsync(`
     INSERT INTO clients(id,nom) VALUES('c','CROUS');
     INSERT INTO sites(id,client_id,nom_site) VALUES('old','c','Résidence origine');
@@ -53,8 +53,8 @@ try{
     INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
       VALUES('old-v','test.local','Conformité','N.S','Correction urgente');
     INSERT INTO notes(visite_id,contenu) VALUES('old-v','Note enregistrée');
-    INSERT INTO reseaux(id,visite_id,reseau_site_id,ordre,nom_reseau,t_dep_c,t_retour_ecs_c)
-      VALUES('old-network','old-v','network1',1,'Boucle ECS','60','53');
+    INSERT INTO reseaux(id,visite_id,reseau_site_id,ordre,nom_reseau,t_dep_c,t_retour_ecs_c,t_stockage_ecs_c)
+      VALUES('old-network','old-v','network1',1,'Boucle ECS','60','53','62');
     INSERT INTO compteurs(id,visite_id,compteur_site_id,label,valeur,unite)
       VALUES('old-meter','old-v','meter1','Energie','1250','kWh');
     INSERT INTO materiel(id,visite_id,equipement_id,categorie,designation,etat)
@@ -91,7 +91,7 @@ try{
     "SELECT * FROM remar_values WHERE visite_id=? AND owner_type='equipement'",[copy.id]);
   assert.equal(cta.avis,'N.S');assert.equal(cta.commentaire,'Erreur GTB');
   const ecs=await db.db.getFirstAsync('SELECT * FROM reseaux WHERE visite_id=?',[copy.id]);
-  assert.equal(ecs.t_dep_c,'60');assert.equal(ecs.t_retour_ecs_c,'53');
+  assert.equal(ecs.t_dep_c,'60');assert.equal(ecs.t_retour_ecs_c,'53');assert.equal(ecs.t_stockage_ecs_c,'62');
   assert.equal((await db.db.getFirstAsync(
     "SELECT valeur FROM champs_visite WHERE visite_id=? AND cle='Nom du site'",[copy.id])).valeur,
     result.nomSite);

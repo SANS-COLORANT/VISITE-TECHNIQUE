@@ -14,5 +14,5 @@ export function ecsTemperatureSummary(row={}) {
     const v=String(row[key]??'').trim();
     return v?v+' °C':'—';
   };
-  return 'Départ '+value('t_dep_c')+' · Retour bouclage '+value('t_retour_ecs_c');
+  return 'Départ '+value('t_dep_c')+' · Retour '+value('t_retour_ecs_c')+' · Stockage '+value('t_stockage_ecs_c');
 }

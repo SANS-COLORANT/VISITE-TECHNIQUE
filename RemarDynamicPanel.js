@@ -45,7 +45,7 @@ const ENFANT_PAR_ONGLET = Object.freeze({
   'p-remar-releves': 'temperature_chaufferie',
 });
 const PRESETS = Object.freeze({
-  cta: ['CTA soufflage', 'CTA extraction', 'CTA double flux', 'CTA ventilation'],
+  cta: ['CTA soufflage', 'CTA double flux', 'CTA ventilation'],
   vmc: ['Caisson extraction', 'Caisson VMC', 'Tourelle extraction'],
   froid: ['Groupe froid', 'PAC reversible', 'Groupe eau glacee', 'Dry cooler'],
   filtre_cta: ['Filtre G4', 'Filtre M5', 'Filtre F7', 'Filtre F9', 'Filtre HEPA', 'Filtre ePM1'],
