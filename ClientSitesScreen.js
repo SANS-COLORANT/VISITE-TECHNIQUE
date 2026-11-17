@@ -13,6 +13,7 @@ import { SiteRadialActionMenu } from './SiteRadialActionMenu.js';
 import { PatrimoineImageCard, PatrimoineThumbnail } from './PatrimoineImageCard.js';
 import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
 import { IntranetSiteCreationModal } from './IntranetStructureUi.js';
+import { getSiteIntranetLink, listSiteIntranetStatuses, supprimerSiteIntranetLie } from './siteIntranetLifecycle.js';
 import { SITE_SORT_OPTIONS, buildSiteGroupMap, siteGroupLabel, sortSites } from './siteSort.js';
 import { getNavigationScrollOffset, getNavigationState, hydrateNavigationState, setNavigationScrollOffset, setNavigationState } from './navigationMemory.js';
 import { peekClientSites, prewarmClientSites, prewarmSiteLocals, needsPrewarmRefresh } from './navigationPrewarm.js';
@@ -47,6 +48,8 @@ function ClientSitesScreen({ route, navigation }) {
   const [search, setSearch] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [intranetSiteVisible, setIntranetSiteVisible] = useState(false);
+  const [publishSite, setPublishSite] = useState(null);
+  const [siteIntranet, setSiteIntranet] = useState({});
   const [groupesVisible, setGroupesVisible] = useState(false);
   const [radialMenu, setRadialMenu] = useState(null);
   const [renameSite, setRenameSite] = useState(null);
@@ -69,9 +72,13 @@ function ClientSitesScreen({ route, navigation }) {
   const charger = useCallback(async ({ reusePrewarm = false } = {}) => {
     if (!clientId) { setSites([]); setMemberships([]); return []; }
     const force = !reusePrewarm || needsPrewarmRefresh(peekClientSites(clientId));
-    const bundle = await prewarmClientSites(clientId, { force });
+    const [bundle, intranetLinks] = await Promise.all([
+      prewarmClientSites(clientId, { force }),
+      listSiteIntranetStatuses(clientId),
+    ]);
     setSites(bundle?.sites || []);
     setMemberships(bundle?.memberships || []);
+    setSiteIntranet(Object.fromEntries((intranetLinks || []).map(row=>[String(row.site_id),row])));
     return bundle?.sites || [];
   }, [clientId]);
 
@@ -299,28 +306,84 @@ function ClientSitesScreen({ route, navigation }) {
     navigation.navigate('IntranetStructure', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient });
   };
 
-  const confirmerSuppressionSite = async (site) => {
-    try {
-      const resume = await getResumeSuppressionSite(site.id);
-      if (!resume) return;
-      Alert.alert('Supprimer ce site ?', `« ${resume.nom_site} » contient ${resume.visites} visite(s) et ${resume.equipements} équipement(s) permanent(s). Tout sera définitivement supprimé.`, [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Supprimer tout', style: 'destructive', onPress: async () => { try { await supprimerSiteComplet(site.id); await charger(); } catch (e) { Alert.alert('Suppression impossible', String(e?.message || e)); } } },
-      ]);
-    } catch (e) { Alert.alert('Suppression impossible', String(e?.message || e)); }
+  const lancerPublicationSite = site => {
+    setPublishSite(site);
+    setIntranetSiteVisible(true);
   };
 
-  const demanderDuplication = (site) => Alert.alert(
+  const supprimerLocal = async site => {
+    try {
+      await supprimerSiteComplet(site.id);
+      await charger();
+      Alert.alert('Site supprimé dans METRA', 'La suppression locale est terminée. Aucun site Intranet n’a été supprimé.');
+    } catch (error) {
+      Alert.alert('Suppression locale impossible', String(error?.message || error));
+    }
+  };
+
+  const confirmerSuppressionSite = async site => {
+    try {
+      const [resume,remote]=await Promise.all([
+        getResumeSuppressionSite(site.id), getSiteIntranetLink(site.id),
+      ]);
+      if (!resume) return;
+      const detail=`« ${resume.nom_site} » contient ${resume.visites} visite(s) et ${resume.equipements} équipement(s) permanent(s).`;
+      const remoteInfo=remote
+        ? `Site lié à l’Intranet : client n°${remote.remote_client_id}, site n°${remote.remote_site_id}. Choisis précisément le périmètre de suppression.`
+        : 'Aucun site Intranet actif lié et confirmé. Seule la suppression METRA est disponible.';
+      const options=[
+        {text:'Annuler',style:'cancel'},
+        {text:'METRA uniquement',style:'destructive',onPress:()=>supprimerLocal(site)},
+      ];
+      if(remote) options.push({
+        text:'METRA + Intranet',style:'destructive',
+        onPress:()=>Alert.alert('Confirmer la suppression Intranet',
+          `Client n°${remote.remote_client_id} · Site Intranet n°${remote.remote_site_id}. Cette suppression peut affecter ses locaux et visites sur le serveur. METRA ne sera supprimé qu’après confirmation de l’API.`,
+          [
+            {text:'Annuler',style:'cancel'},
+            {text:'Supprimer les deux',style:'destructive',onPress:async()=>{
+              let remoteDeleted=false;
+              try {
+                await supprimerSiteIntranetLie(site.id);
+                remoteDeleted=true;
+                await supprimerSiteComplet(site.id);
+                await charger();
+                Alert.alert('Site supprimé', 'Suppression Intranet confirmée, puis suppression locale terminée.');
+              } catch(error) {
+                Alert.alert('Suppression interrompue',
+                  (remoteDeleted
+                    ? 'L’Intranet a confirmé la suppression mais METRA conserve encore la copie locale. Réessaie sa suppression locale.\n\n'
+                    : 'Aucune suppression locale effectuée.\n\n')
+                  +String(error?.message||error));
+              }
+            }},
+          ]),
+      });
+      Alert.alert('Supprimer ce site ?',detail+'\n\n'+remoteInfo+'\n\nLes données supprimées ne pourront pas être récupérées automatiquement.',options);
+    } catch(error) {
+      Alert.alert('Suppression impossible',String(error?.message||error));
+    }
+  };
+
+  const demanderDuplication = site => Alert.alert(
     'Dupliquer ce site ?',
-    `METRA va créer « ${site.nom_site} - copie » avec son patrimoine et la dernière visite de chaque local/trame : champs, avis S/NS/SO, matériel, relevés et réserves. Les identifiants du site, des locaux et des équipements seront nouveaux. Les signatures et fichiers photo ne sont pas copiés : ils nécessitent une nouvelle preuve sur ce site. Aucune ancienne visite Intranet ne sera renvoyée automatiquement.`,
+    `METRA créera « ${site.nom_site} - copie » avec le patrimoine et les dernières visites (avis, relevés et réserves). Les identifiants seront nouveaux. Les signatures et photos ne sont pas copiées. Aucun site ni visite ne sera créé automatiquement dans l’Intranet.`,
     [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Dupliquer', onPress: async () => {
+      {text:'Annuler',style:'cancel'},
+      {text:'Dupliquer',onPress:async()=>{
         try {
-          await dupliquerSite(site.id, { copierPatrimoine: true, copierLab3d: true, copierVisites: true });
+          const copie=await dupliquerSite(site.id,{copierPatrimoine:true,copierLab3d:true,copierVisites:true});
           await charger();
-        } catch (e) { Alert.alert('Duplication impossible', String(e?.message || e)); }
-      } },
+          Alert.alert('Copie locale créée',
+            `« ${copie.nomSite} » est indépendant de son original. Tu peux aussi publier cette copie sur l’Intranet avec son propre identifiant.`,
+            [
+              {text:'Rester local',style:'cancel'},
+              {text:'Publier sur Intranet',onPress:()=>lancerPublicationSite({
+                id:copie.siteId,nom_site:copie.nomSite,adresse:site.adresse,
+              })},
+            ]);
+        } catch(error) {Alert.alert('Duplication impossible',String(error?.message||error));}
+      }},
     ]
   );
 
@@ -468,6 +531,26 @@ function ClientSitesScreen({ route, navigation }) {
             <CvcIcon name="more" size={22} color={COLORS.inkSoft} strokeWidth={2.1} />
           </TouchableOpacity>
         </View>
+        {!siteIntranet[String(item.id)]?.remote_site_id &&
+         !['pending','retry','sending','synced'].includes(siteIntranet[String(item.id)]?.sync_status)
+          ? <TouchableOpacity accessibilityRole="button"
+              accessibilityLabel={`Publier ${item.nom_site} sur l’Intranet`}
+              onPress={e=>{e?.stopPropagation?.();lancerPublicationSite(item);}}
+              style={{minHeight:36,flexDirection:'row',alignItems:'center',justifyContent:'center',
+                borderRadius:14,borderWidth:1,borderColor:'rgba(242,100,38,0.25)',
+                paddingHorizontal:12,backgroundColor:COLORS.orangeLight,marginTop:1}}>
+              <CvcIcon name="export" size={15} color={COLORS.orangeDark}/>
+              <Text style={{fontFamily:FONTS.bodyBold,color:COLORS.orangeDark,fontSize:11,marginLeft:6}}>
+                Publier sur Intranet
+              </Text>
+            </TouchableOpacity> : siteIntranet[String(item.id)]?.remote_site_id
+            ? <Text style={{color:COLORS.green,fontFamily:FONTS.bodyBold,fontSize:10.5,marginTop:2}}>
+                Intranet · site n°{siteIntranet[String(item.id)].remote_site_id}
+              </Text>
+            : siteIntranet[String(item.id)]?.sync_status
+            ? <Text style={{color:COLORS.orangeDark,fontFamily:FONTS.bodyBold,fontSize:10.5,marginTop:2}}>
+                Intranet · {siteIntranet[String(item.id)].sync_status}
+              </Text> : null}
         {/* Actions sous le nom : ne compressent jamais la zone centrale. */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
           {(() => {
@@ -534,7 +617,10 @@ function ClientSitesScreen({ route, navigation }) {
       onBackFromBinding={()=>setRattachementVisite(null)}
       onCancel={() => { if (!envoiEnCours) setSelectionEnvoiVisible(false); }}
       onSend={envoyerTout} />
-    <IntranetSiteCreationModal visible={intranetSiteVisible} clientId={clientId} onClose={() => setIntranetSiteVisible(false)} onCreated={charger} />
+    <IntranetSiteCreationModal visible={intranetSiteVisible} clientId={clientId}
+      existingSite={publishSite}
+      onClose={() => {setIntranetSiteVisible(false);setPublishSite(null);}}
+      onCreated={charger} />
 
     <Modal visible={!!renameSite} transparent animationType="fade" onRequestClose={() => setRenameSite(null)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Renommer le site</Text><TextInput autoFocus style={styles.input} value={renameValue} onChangeText={setRenameValue} selectTextOnFocus/><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setRenameSite(null)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerRenommage}><ButtonGlow /><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></View></View></Modal>
 
