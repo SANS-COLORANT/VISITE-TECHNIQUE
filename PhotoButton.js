@@ -10,6 +10,10 @@ import { openAppDatabase } from './database/index.js';
 import { supprimerPhotoComplete } from './photoDb.js';
 import { copierPhotoDansDocuments, supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
 import { styles, COLORS, FONTS } from './styles.js';
+import { BottomSheet } from './VisitKit.js';
+import { PhotoGalleryImportSheet } from './PhotoGalleryImportSheet.js';
+import { choisirPhotoDansGalerie, compresserPhotoDeGalerie, nettoyerPhotoTemporaireGalerie } from './photoGalleryImport.js';
+import { createId } from './database/ids.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { confirmerPhotoJournalisee, journaliserPhotoEnAttente } from './photoPersistenceJournal.js';
 import { forgetPhotoVariants, preparePhotoVariants } from './photoVariantCache.js';
@@ -150,7 +154,7 @@ async function supprimerPhotoGeree(uri) {
   try { await FileSystem.deleteAsync(uri, { idempotent: true }); } catch {}
 }
 
-async function preparerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo', uri }) {
+async function preparerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo', uri, titreImporte = null }) {
   if (!uri) return { uri: null, nom: null, label: null };
   const [entiteCanonique, context] = await Promise.all([
     clePhotoCanoniqueVmc(visiteId, entiteKey),
@@ -158,11 +162,14 @@ async function preparerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo'
   ]);
   const type = typePhotoDepuisEntite(entiteCanonique);
   const labelMetier = await libellePhotoMetier(visiteId, entiteCanonique, label);
-  const client = segmentNomPhoto(context?.clientName || context?.client, 'Client');
-  const site = segmentNomPhoto(context?.siteName || context?.site, 'Site');
-  const local = segmentNomPhoto(context?.localName || context?.local, 'Local');
+  // Avoid a filename collision when two photos are captured in the same second.
+  // Limit path segments for Android's per-file name size constraint.
+  const client = segmentNomPhoto(context?.clientName || context?.client, 'Client').slice(0,36);
+  const site = segmentNomPhoto(context?.siteName || context?.site, 'Site').slice(0,36);
+  const local = segmentNomPhoto(context?.localName || context?.local, 'Local').slice(0,36);
+  const motif = titreImporte ? ' - ' + segmentNomPhoto(titreImporte).slice(0,50) : '';
   const stamp = horodatagePhoto();
-  const nom = `${client} - ${site} - ${local} - ${stamp.date} - ${stamp.heure}.jpg`;
+  const nom = `${client} - ${site} - ${local}${motif} - ${stamp.date} - ${stamp.heure} - ${createId().slice(0,8)}.jpg`;
   const uriDurable = await copierPhotoDurable(uri, visiteId, nom);
   // La copie interne reste la source canonique pour le backup. Une seconde copie
   // est déposée dans Documents afin d'être directement visible par l'utilisateur.
@@ -213,6 +220,10 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   const [photos, setPhotos] = useState([]);
   const [photosChargees, setPhotosChargees] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
+  const [sourceVisible,setSourceVisible] = useState(false);
+  const [galerieAsset,setGalerieAsset] = useState(null);
+  const [galerieBusy,setGalerieBusy] = useState(false);
+  const [galerieRemplacement,setGalerieRemplacement] = useState(null);
   const [viewerHd, setViewerHd] = useState(false);
   const [index, setIndex] = useState(0);
   const canonicalKeyRef = useRef(String(entiteKey || ''));
@@ -224,6 +235,10 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     setPhotos([]);
     setPhotosChargees(false);
     setViewerVisible(false);
+    setSourceVisible(false);
+    setGalerieAsset(null);
+    setGalerieBusy(false);
+    setGalerieRemplacement(null);
     setViewerHd(false);
     setIndex(0);
     canonicalKeyRef.current = String(entiteKey || '');
@@ -318,14 +333,14 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   }, [visiteId, resoudreCible]);
 
 
-  const ajouter = async () => {
+  const ajouter = async ({uriImportee=null,titreImporte=null} = {}) => {
     let saveKey = null;
     let tempId = null;
     let journalKey = null;
     try {
       const ciblePromise = prechaufferCapture();
-      const captureUri = await prendrePhoto();
-      if (!captureUri) return;
+      const captureUri = uriImportee || await prendrePhoto();
+      if (!captureUri) return false;
       const ciblePrechauffee = await ciblePromise;
       targetPromiseRef.current = null;
 
@@ -335,7 +350,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
         visite_id: visiteId,
         entite_key: ciblePrechauffee.entiteKey || entiteKey || null,
         uri: captureUri,
-        label: ciblePrechauffee.label || label || 'Photo',
+        label: titreImporte || ciblePrechauffee.label || label || 'Photo',
         cree_le: new Date().toISOString(),
         pending: true,
       };
@@ -350,7 +365,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
         ? await resoudreCible({ createReserve: true })
         : ciblePrechauffee;
       canonicalKeyRef.current = String(cible.entiteKey || entiteKey || '');
-      const photo = await preparerPhotoNommee({ visiteId, entiteKey: cible.entiteKey, label: cible.label, uri: captureUri });
+      const photo = await preparerPhotoNommee({ visiteId, entiteKey: cible.entiteKey, label: titreImporte || cible.label, uri: captureUri, titreImporte });
       const labelFinal = photo.label || cible.label || typePhotoDepuisEntite(cible.entiteKey);
       const labelDb = photo.nom ? `${labelFinal}||${photo.nom}` : (labelFinal || null);
       const cibleKey = photo.entiteKey || cible.entiteKey;
@@ -383,6 +398,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       endExternalSave(saveKey);
       saveKey = null;
       onPhotoSaved?.({ id: photoId, entiteKey: cibleKey, uri: photo.uri, ocrUri: captureUri, label: labelFinal });
+      return true;
     } catch (e) {
       targetPromiseRef.current = null;
       // Si la copie durable a déjà été journalisée, on laisse la ligne optimiste :
@@ -390,6 +406,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       if (tempId && !journalKey) removeRuntimePhoto(visiteId, tempId);
       if (saveKey) endExternalSave(saveKey, e);
       Alert.alert('Erreur photo', String(e?.message || e));
+      return false;
     }
   };
 
@@ -414,18 +431,18 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
         setViewerVisible(true);
         return;
       }
-      await ajouter();
+      setSourceVisible(true);
     } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
   };
 
-  const reprendre = async () => {
-    const photoExistante = photos[index]; if (!photoExistante || photoExistante.pending) return;
+  const reprendre = async ({uriImportee=null,titreImporte=null,photoARemplacer=null} = {}) => {
+    const photoExistante = photoARemplacer || photos[index]; if (!photoExistante || photoExistante.pending) return false;
     const ancienne = { ...photoExistante };
     let saveKey = null;
     try {
       prewarmCameraRuntime().catch(() => {});
       prewarmPhotoCaptureContext(visiteId).catch(() => {});
-      const captureUri = await prendrePhoto(); if (!captureUri) return;
+      const captureUri = uriImportee || await prendrePhoto(); if (!captureUri) return false;
       const cibleKey = photoExistante.entite_key || await clePhotoCanoniqueVmc(visiteId, entiteKey);
 
       // La nouvelle prise remplace visuellement l'ancienne dès le retour caméra.
@@ -433,7 +450,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       saveKey = `photo-replace:${visiteId}:${photoExistante.id}`;
       beginExternalSave(saveKey);
 
-      const nouvelle = await preparerPhotoNommee({ visiteId, entiteKey: cibleKey, label, uri: captureUri });
+      const nouvelle = await preparerPhotoNommee({ visiteId, entiteKey: cibleKey, label: titreImporte || label, uri: captureUri, titreImporte });
       const labelDb = nouvelle.nom ? `${nouvelle.label || label || 'Photo'}||${nouvelle.nom}` : (nouvelle.label || label || null);
       upsertRuntimePhoto(visiteId, { ...photoExistante, uri: nouvelle.uri, label: labelDb, entite_key: nouvelle.entiteKey || cibleKey, pending: true });
 
@@ -448,11 +465,59 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       endExternalSave(saveKey);
       saveKey = null;
       onPhotoSaved?.({ id: photoExistante.id, entiteKey: nouvelle.entiteKey || cibleKey, uri: nouvelle.uri, ocrUri: captureUri, label: nouvelle.label || label });
+      return true;
     } catch (e) {
       upsertRuntimePhoto(visiteId, ancienne);
       if (saveKey) endExternalSave(saveKey, e);
       Alert.alert('Erreur photo', String(e?.message || e));
+      return false;
     }
+  };
+
+  const ouvrirGalerie = async ({remplacerExistante=false} = {}) => {
+    const cible = remplacerExistante ? photos[index] : null;
+    setSourceVisible(false);
+    setViewerVisible(false);
+    // Android must finish dismissing the current Modal before starting the OS picker.
+    await new Promise(resolve=>setTimeout(resolve,280));
+    try {
+      const asset = await choisirPhotoDansGalerie();
+      if (!asset) return;
+      setGalerieRemplacement(cible && !cible.pending ? cible : null);
+      setGalerieAsset(asset);
+    } catch(error) {
+      Alert.alert('Galerie indisponible',String(error?.message||error));
+    }
+  };
+
+  const enregistrerGalerie = async titre => {
+    if (!galerieAsset?.uri || galerieBusy) return;
+    setGalerieBusy(true);
+    let compactee = null;
+    try {
+      compactee = await compresserPhotoDeGalerie(galerieAsset);
+      const ok = galerieRemplacement
+        ? await reprendre({uriImportee:compactee.uri,titreImporte:titre,photoARemplacer:galerieRemplacement})
+        : await ajouter({uriImportee:compactee.uri,titreImporte:titre});
+      if (ok) {
+        setGalerieAsset(null);
+        setGalerieRemplacement(null);
+      }
+    } catch(error) {
+      Alert.alert('Import photo impossible',String(error?.message||error));
+    } finally {
+      if(compactee?.uri) await nettoyerPhotoTemporaireGalerie(compactee.uri);
+      setGalerieBusy(false);
+    }
+  };
+
+  const actionSource = source => {
+    setSourceVisible(false);
+    // Do not stack native Modal and Android camera/picker transitions.
+    setTimeout(()=>{
+      if(source==='gallery') ouvrirGalerie().catch(e=>Alert.alert('Galerie',String(e?.message||e)));
+      else ajouter().catch(e=>Alert.alert('Appareil photo',String(e?.message||e)));
+    },260);
   };
 
   const demanderSuppression = () => {
@@ -491,7 +556,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   return <>
     <TouchableOpacity
       accessibilityRole="button"
-      accessibilityLabel={hasPhotos ? `Voir les photos (${photos.length})` : 'Prendre une photo'}
+      accessibilityLabel={hasPhotos ? `Voir les photos (${photos.length})` : 'Ajouter une photo : appareil photo ou galerie'}
       style={[
         styles.photoBtn,
         hasPhotos && styles.photoBtnTaken,
@@ -534,13 +599,43 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
             <TouchableOpacity style={styles.photoViewerNavBtn} onPress={() => setIndex((index + 1) % photos.length)}><Text style={styles.photoViewerNavText}>Suivante ›</Text></TouchableOpacity>
           </View>
         )}
-        <View style={styles.photoViewerActions}>
+        <View style={[styles.photoViewerActions, {flexWrap:'wrap',gap:8}]}>
           <TouchableOpacity style={[styles.photoViewerSecondary, { flexDirection: 'row', gap: 7 }]} onPress={demanderSuppression}><CvcIcon name="trash" size={18} color={COLORS.white} /><Text style={styles.photoViewerSecondaryText}>Supprimer</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.photoViewerSecondary, { flexDirection: 'row', gap: 7 }]} onPressIn={() => { prechaufferCapture().catch(() => {}); }} onPress={ajouter}><CvcIcon name="plus" size={18} color={COLORS.white} /><Text style={styles.photoViewerSecondaryText}>Ajouter</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.photoViewerPrimary, { flexDirection: 'row', gap: 7 }]} onPressIn={() => { prewarmCameraRuntime().catch(() => {}); prewarmPhotoCaptureContext(visiteId).catch(() => {}); }} onPress={reprendre}><CvcIcon name="camera" size={18} color={COLORS.white} /><Text style={styles.photoViewerPrimaryText}>Reprendre</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.photoViewerSecondary, { flexDirection: 'row', gap: 7 }]} onPressIn={() => { prechaufferCapture().catch(() => {}); }} onPress={()=>ajouter()}><CvcIcon name="plus" size={18} color={COLORS.white} /><Text style={styles.photoViewerSecondaryText}>Photo</Text></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ajouter depuis la galerie" style={[styles.photoViewerSecondary, {flexDirection:'row',gap:7}]} onPress={()=>ouvrirGalerie()}>
+            <CvcIcon name="gallery" size={18} color={COLORS.white}/><Text style={styles.photoViewerSecondaryText}>Galerie</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.photoViewerPrimary, { flexDirection: 'row', gap: 7 }]} onPressIn={() => { prewarmCameraRuntime().catch(() => {}); prewarmPhotoCaptureContext(visiteId).catch(() => {}); }} onPress={()=>reprendre()}><CvcIcon name="camera" size={18} color={COLORS.white} /><Text style={styles.photoViewerPrimaryText}>Reprendre</Text></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Remplacer la photo depuis la galerie"
+            style={[styles.photoViewerSecondary,{flexDirection:'row',gap:7}]} onPress={()=>ouvrirGalerie({remplacerExistante:true})}>
+            <CvcIcon name="gallery" size={18} color={COLORS.white}/><Text style={styles.photoViewerSecondaryText}>Remplacer · galerie</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
+    <BottomSheet visible={sourceVisible} onClose={()=>setSourceVisible(false)}
+      title="Ajouter une photo" subtitle="Appareil photo ou galerie" maxHeight="53%">
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Prendre une photo avec l’appareil"
+        onPress={()=>actionSource('camera')} style={{minHeight:55,borderRadius:14,backgroundColor:COLORS.orangeLight,
+          flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:15,marginBottom:10}}>
+        <CvcIcon name="camera" size={23} color={COLORS.orangeDark}/>
+        <Text style={{fontFamily:FONTS.bodyBold,fontSize:15,color:COLORS.ink}}>Appareil photo</Text>
+      </TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choisir une photo dans la galerie"
+        onPress={()=>actionSource('gallery')} style={{minHeight:55,borderRadius:14,backgroundColor:COLORS.orangeLight,
+          flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:15,marginBottom:10}}>
+        <CvcIcon name="gallery" size={23} color={COLORS.orangeDark}/>
+        <View style={{flex:1}}>
+          <Text style={{fontFamily:FONTS.bodyBold,fontSize:15,color:COLORS.ink}}>Galerie</Text>
+          <Text style={{fontFamily:FONTS.bodyMedium,fontSize:11.5,color:COLORS.inkSoft}}>Choisir, renommer et compresser</Text>
+        </View>
+      </TouchableOpacity>
+    </BottomSheet>
+    <PhotoGalleryImportSheet asset={galerieAsset}
+      contextLabel={label || typePhotoDepuisEntite(entiteKey)}
+      busy={galerieBusy}
+      onCancel={()=>{setGalerieAsset(null);setGalerieRemplacement(null);}}
+      onConfirm={enregistrerGalerie}/>
   </>;
 }
 
