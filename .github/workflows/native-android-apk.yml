@@ -28,6 +28,7 @@ on:
       - fix/rcu-network-intranet-fallback-20261110
       - fix/rcu-six-network-slots-20261110
       - fix/crous-first-visits-remar-binding-20261116
+      - fix/metra-crous-field-feedback-20261116
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -85,6 +86,8 @@ jobs:
           node .github/scripts/test_visit_latest_copy_and_client_send.js
           node .github/scripts/test_intranet_error_diagnostics.js
           node .github/scripts/test_intranet_any_visit_binding.js
+          node .github/scripts/test_crous_field_feedback.js
+          node .github/scripts/test_site_duplication_crous.js
       - name: Test REMAR, editable trames and real SQLite round trips
         run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
       - name: Preserve large PDF report regression (457 photos)
