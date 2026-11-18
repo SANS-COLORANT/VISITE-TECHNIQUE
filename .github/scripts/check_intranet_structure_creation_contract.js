@@ -78,7 +78,7 @@ requireText(structure, "error?.code === 'idempotency_conflict'", 'idempotency co
 requireText(structure, "String(response?.creationId || '')", 'ack creationId verification');
 requireText(structure, "typeof response?.rejoue !== 'boolean'", 'ack replay verification');
 requireText(structure, 'local_installation_id', 'local installation binding');
-requireText(structure, 'UPDATE visites SET api_remote_client_id', 'pending visits upgraded after local ack');
+requireRegex(structure, /UPDATE visites\s+SET api_remote_client_id/, 'pending visits upgraded only for a matching local trame after remote ack');
 
 requireText(ui, 'IntranetSiteCreationModal', 'site creation UI');
 requireText(ui, 'IntranetSiteLocalsPanel', 'local creation UI');

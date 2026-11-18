@@ -148,19 +148,23 @@ export async function capturerPhotoMission({
   phaseRole = null,
   label = 'Photo',
   type = 'terrain',
+  sourceUri = null,
 } = {}) {
-  const permission = await ImagePicker.requestCameraPermissionsAsync();
-  if (!permission.granted) throw new Error("L'accès à l'appareil photo est nécessaire.");
-  const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false, base64: false });
-  if (result.canceled || !result.assets?.[0]?.uri) return null;
-
+  let selectedUri=sourceUri;
+  if (!selectedUri) {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) throw new Error("L'accès à l'appareil photo est nécessaire.");
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false, base64: false });
+    if (result.canceled || !result.assets?.[0]?.uri) return null;
+    selectedUri=result.assets[0].uri;
+  }
   const db = await getDb();
   const ctx = await resolveMissionContext(db, { missionId, siteId, visitId, pointId, equipmentId, locationId, actionId, geometryId });
 
   const id = createId('mphoto');
   const base = `${safe(label, 'Photo')}__${stamp()}__${safe(id)}`;
   const folder = await missionFolder(missionId, 'photos');
-  const originalUri = await copyDurable(result.assets[0].uri, `${folder}${base}.jpg`);
+  const originalUri = await copyDurable(selectedUri, `${folder}${base}.jpg`);
 
   let previewUri = null;
   let thumbnailUri = null;

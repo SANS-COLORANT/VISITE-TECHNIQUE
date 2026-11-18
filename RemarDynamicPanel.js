@@ -2,12 +2,14 @@
  * Panneaux REMAR multi-equipements. Affichage uniquement des objets reels,
  * avec choix type courant / nom libre. La definition Excel v1 reste figee.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, FONTS, styles as fieldStyles } from './styles.js';
 import { hapticTick } from './fieldFeedback.js';
 import { enrichirControleRemar, enrichirChampRemar } from './remarControlPresets.js';
 import { proposerNomUniqueRemar, afficherNomEquipementRemar } from './remarEquipmentNaming.js';
+import { shouldShowCtaField } from './remarCtaDirection.js';
+import { prochaineCtaDuParcours } from './remarJourneyPlan.js';
 import { getChampsVisite, getControlesVisite } from './db.js';
 import { obtenirTrame } from './trameRegistry.js';
 import { BottomSheet } from './VisitKit.js';
@@ -44,7 +46,7 @@ const ENFANT_PAR_ONGLET = Object.freeze({
   'p-remar-releves': 'temperature_chaufferie',
 });
 const PRESETS = Object.freeze({
-  cta: ['CTA soufflage', 'CTA extraction', 'CTA double flux', 'CTA ventilation'],
+  cta: ['CTA soufflage', 'CTA double flux', 'CTA ventilation'],
   vmc: ['Caisson extraction', 'Caisson VMC', 'Tourelle extraction'],
   froid: ['Groupe froid', 'PAC reversible', 'Groupe eau glacee', 'Dry cooler'],
   filtre_cta: ['Filtre G4', 'Filtre M5', 'Filtre F7', 'Filtre F9', 'Filtre HEPA', 'Filtre ePM1'],
@@ -405,14 +407,19 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
     finally{setBusy(false);}
   };
   const missingMeasures = childType==='mesure_cta'
-    ? MESURES_CTA_REMAR_USUELLES.filter(name=>!children.some(c=>clean(c.nom).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()===clean(name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()))
+    ? MESURES_CTA_REMAR_USUELLES.filter(name=>
+      shouldShowCtaField(equipment.designation,'mesure_cta',name) &&
+      !children.some(c=>clean(c.nom).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()===clean(name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()))
     : [];
   const reservedFields = Object.entries(sections||{}).flatMap(([section, fields])=>
     (fields||[]).filter(f=>!(family==='froid'&&/^Réseau \d+$/i.test(f.cle)) &&
       !(family==='vmc'&&f.cle==='Nombre de caissons') &&
       // La designation CTA est le nom editable de sa fiche patrimoine :
       // ne pas la redemander et ne jamais la qualifier de 'sans objet'.
-      !(family==='cta'&&panelId==='p-remar-cta'&&f.cle==='Désignation CTA'))
+      !(family==='cta'&&panelId==='p-remar-cta'&&f.cle==='Désignation CTA') &&
+      // Never turn the absent extraction path of a supply-only CTA into N.V.
+      // It is hidden; existing historical extraction readings are not erased.
+      !(family==='cta' && !shouldShowCtaField(equipment.designation,section,f.cle)))
       .map(f=>({section,field:enrichirControleRemar(enrichirChampRemar(f,panelId),panelId)})));
   const showFields = !childType || (panelId==='p-remar-froid');
   const bulkAvis=async prochain=>{
@@ -489,7 +496,9 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
         item={field} ownerType="equipement" ownerId={equipment.id} panelId={panelId}
         equipmentLabel={equipmentName} section={section} visiteId={visiteId} saved={values} onSaved={onSaved} />) : null}
       {childType ? <>
-        {children.map(child=><ChildRow key={child.id} visiteId={visiteId} parent={equipment}
+        {children.filter(child=>childType!=='mesure_cta' ||
+          shouldShowCtaField(equipment.designation,childType,child.nom))
+          .map(child=><ChildRow key={child.id} visiteId={visiteId} parent={equipment}
           item={child} typeCode={childType} data={child.data}
           onRefresh={load} onSaved={onSaved} />)}
         {missingMeasures.length ? <View style={{marginVertical:10}}>
@@ -610,19 +619,21 @@ function ValidationParCTA({visiteId,equipment,definition,onSaved}) {
       <Text style={ui.note}>{item.done} / {item.total} renseigné(s) pendant cette visite
         {item.issues ? ` · ${item.issues} N.S` : ''}</Text>
     </View>)}
-    <Text style={ui.historical}>Aucun contrôle n'est validé automatiquement en S. Vérifie les écarts avant de passer à la CTA suivante.</Text>
+    <Text style={ui.historical}>Les points manquants restent à compléter, mais ne bloquent pas le passage à une autre CTA ou aux VMC. Aucun contrôle n’est validé automatiquement en S.</Text>
     <TouchableOpacity onPress={()=>{refresh().catch(()=>{});onSaved?.();}} style={ui.addSmall}>
       <Text style={ui.addText}>Actualiser la vérification</Text>
     </TouchableOpacity>
   </View>;
 }
 
-export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',onRemarActiveCta}) {
+export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',onRemarActiveCta,onNextPanel,active=true}) {
   const definition = obtenirTrame(trameId);
   const family = FAMILLE_PAR_ONGLET[panelId] || null;
   const cta=family==='cta';
   const [equipments,setEquipments] = useState([]);
   const [adding,setAdding] = useState(false);
+  const [finCtaVisible,setFinCtaVisible] = useState(false);
+  const ctaScrollRef = useRef(null);
   const [busy,setBusy] = useState(false);
   const [selected,setSelected] = useState(null);
   const [activeCtaId,setActiveCtaId] = useState(null);
@@ -646,7 +657,7 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
         (rows.some(e=>e.id===old)?old:rows[0]?.id) || null);
     }
   },[visiteId,family]);
-  useEffect(()=>{refresh().catch(e=>console.warn('REMAR écran dynamique',e));},[refresh]);
+  useEffect(()=>{if(active)refresh().catch(e=>console.warn('REMAR écran dynamique',e));},[refresh,active]);
 
   // Le flush est bloquant avant toute navigation CTA. Si SQLite refuse une
   // ecriture, l'agent reste dans la fiche au lieu de perdre sa modification.
@@ -670,7 +681,35 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
       await choisirCtaParcours(visiteId,id);
       setActiveCtaId(id);
       setCurrentStep('p-remar-cta');
+      setFinCtaVisible(false);
+      ctaScrollRef.current?.scrollTo({y:0,animated:false});
     }catch(e){Alert.alert('Choix CTA impossible',String(e?.message||e));}
+  };
+  const continuerApresValidation=async()=>{
+    const destination=prochaineCtaDuParcours(equipments,activeCtaId);
+    if(destination.type==='suivante'){
+      // Naviguer sans attester que les contrôles incomplets sont satisfaisants.
+      await selectCta(destination.id);
+    }else if(destination.type==='options'){
+      // Dernière CTA : choix explicite, jamais une alerte bloquante.
+      setFinCtaVisible(true);
+    }else{
+      Alert.alert('CTA indisponible','Rouvre la CTA à visiter avant de poursuivre.');
+    }
+  };
+  const passerAuxVmc=async()=>{
+    if(!definition?.ui?.panels?.['p-remar-vmc'] || typeof onNextPanel!=='function'){
+      Alert.alert('VMC indisponible',"Cette trame ne comporte pas d’onglet VMC.");
+      return;
+    }
+    if(!await flushAvantNavigation())return;
+    setFinCtaVisible(false);
+    onNextPanel('p-remar-vmc');
+  };
+  const creerCtaDepuisFin=()=>{
+    setFinCtaVisible(false);
+    // Android évite deux modales natives simultanées (fin du parcours et ajout).
+    setTimeout(()=>setAdding(true),260);
   };
   const create=async name=>{
     if(busy)return;
@@ -713,7 +752,7 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
   const stepIndex=NOMS_ETAPES_CTA.findIndex(x=>x.id===currentStep);
   const nextStep=NOMS_ETAPES_CTA[stepIndex+1];
   if(cta)return <View style={{flex:1}}>
-    <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={ui.list}>
+    <ScrollView ref={ctaScrollRef} style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={ui.list}>
       <Text style={ui.groupLabel}>Parcours par CTA</Text>
       <Text style={ui.note}>Choisis une CTA : ses contrôles, ses filtres, ses mesures et ses améliorations restent regroupés. Les données sont sauvegardées avant tout changement de fiche.</Text>
       {equipments.length?<View style={ui.ctaSelector}>
@@ -771,12 +810,11 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
           {nextStep?<TouchableOpacity style={ui.action}
             onPress={()=>changeStep(nextStep.id)}>
             <Text style={ui.actionText}>Suivant · {nextStep.nom}</Text>
-          </TouchableOpacity>:<TouchableOpacity style={ui.action} onPress={()=>{
-            const index=equipments.findIndex(e=>e.id===activeCta.id);
-            if(equipments[index+1])selectCta(equipments[index+1].id);
-            else Alert.alert('Parcours CTA parcouru',
-              'Vérifie les points non renseignés. Aucune valeur ou avis n’est confirmé automatiquement.');
-          }}>
+          </TouchableOpacity>:<TouchableOpacity
+            accessibilityRole="button" accessibilityLabel="Passer à la CTA suivante ou poursuivre la visite"
+            style={ui.action}
+            onPress={()=>continuerApresValidation().catch(error=>
+              Alert.alert('Navigation CTA impossible',String(error?.message||error)))}>
             <Text style={ui.actionText}>Passer à la CTA suivante</Text>
           </TouchableOpacity>}
         </View>
@@ -786,6 +824,26 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
     </ScrollView>
     <AddSheet visible={adding} title="Ajouter une CTA" disabled={busy}
       choices={PRESETS.cta} onCancel={()=>setAdding(false)} onCreate={create}/>
+    <BottomSheet visible={finCtaVisible} onClose={()=>setFinCtaVisible(false)}
+      title="Dernière CTA du local" subtitle="Choisir la suite du parcours" maxHeight="62%">
+      <Text style={ui.note}>Il n’y a pas d’autre CTA enregistrée dans ce local. Les valeurs et les avis non renseignés restent inchangés : tu peux les compléter ultérieurement.</Text>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Créer une nouvelle CTA"
+        style={ui.action} onPress={creerCtaDepuisFin}>
+        <Text style={ui.actionText}>+ Créer une nouvelle CTA</Text>
+      </TouchableOpacity>
+      {definition?.ui?.panels?.['p-remar-vmc'] && typeof onNextPanel==='function'
+        ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Passer à l’onglet VMC"
+            style={ui.addSmall}
+            onPress={()=>passerAuxVmc().catch(error=>
+              Alert.alert('Navigation VMC impossible',String(error?.message||error)))}>
+            <Text style={ui.addText}>Passer aux VMC</Text>
+          </TouchableOpacity>
+        : <Text style={ui.note}>Aucun onglet VMC disponible dans cette trame.</Text>}
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Rester sur cette CTA"
+        style={ui.ctaEndCancel} onPress={()=>setFinCtaVisible(false)}>
+        <Text style={ui.ctaEndCancelText}>Rester sur cette CTA</Text>
+      </TouchableOpacity>
+    </BottomSheet>
   </View>;
   return <View style={{flex:1}}>
     <FlatList data={equipments} keyExtractor={item=>item.id}
@@ -834,6 +892,8 @@ const ui=StyleSheet.create({
   stepText:{fontSize:12,color:'#405A6A',fontWeight:'600'},
   stepTextSelected:{color:'#FFFFFF'},
   ctaActions:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',justifyContent:'space-between',gap:9},
+  ctaEndCancel:{minHeight:44,alignItems:'center',justifyContent:'center',marginTop:5},
+  ctaEndCancelText:{fontSize:13,color:COLORS.inkSoft,fontFamily:FONTS.bodyMedium},
   validationRow:{paddingVertical:10,borderBottomColor:'#E3E9EC',borderBottomWidth:1},
 
   renameBtn:{marginLeft:8,alignSelf:'center',minHeight:44,justifyContent:'center'},

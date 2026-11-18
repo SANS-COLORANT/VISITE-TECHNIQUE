@@ -293,9 +293,13 @@ export async function chargerDonneesVisiteRapport(visiteId) {
         title:reseau.nom_reseau||`Réseau ${i+1}`,
         rows:[
           {label:'Nom réseau',type:'champ',comment:reseau.nom_reseau||''},
-          {label:'Température extérieure',type:'champ',comment:reseau.t_ext_c||''},
-          {label:'Température départ',type:'champ',comment:reseau.t_dep_c||''},
-          {label:'Courbe de chauffe',type:'champ',comment:reseau.courbe_de_chauffe||''},
+          ...(/\becs\b/i.test(String(reseau.nom_reseau||''))&&/boucle|bouclage|retour|distribution/i.test(String(reseau.nom_reseau||''))
+            ? [{label:'Température départ ECS',type:'champ',comment:reseau.t_dep_c||''},
+               {label:'Température retour ECS',type:'champ',comment:reseau.t_retour_ecs_c||''},
+               {label:'Température de Stockage',type:'champ',comment:reseau.t_stockage_ecs_c||''}]
+            : [{label:'Température extérieure',type:'champ',comment:reseau.t_ext_c||''},
+               {label:'Température départ',type:'champ',comment:reseau.t_dep_c||''},
+               {label:'Courbe de chauffe',type:'champ',comment:reseau.courbe_de_chauffe||''}]),
           {label:'TNC',type:'champ',comment:reseau.tnc||''},
           {label:'Programmation',type:'champ',comment:reseau.consigne_programme_horaire||''},
         ],
@@ -329,10 +333,14 @@ export async function chargerDonneesVisiteRapport(visiteId) {
       reseauxRapport.forEach((r, i) => groups.push({
         title: r.nom_reseau || `Réseau n°${i + 1}`,
         rows: [
-          { label: 'T°ext(°C)', type: 'champ', avis: '', comment: r.t_ext_c || '' },
-          { label: 'T°dép(°C)', type: 'champ', avis: '', comment: r.t_dep_c || '' },
+          ...(/\becs\b/i.test(String(r.nom_reseau||''))&&/boucle|bouclage|retour|distribution/i.test(String(r.nom_reseau||''))
+            ? [{label:'Température départ ECS',type:'champ',avis:'',comment:r.t_dep_c||''},
+               {label:'Température retour ECS',type:'champ',avis:'',comment:r.t_retour_ecs_c||''},
+               {label:'Température de Stockage',type:'champ',avis:'',comment:r.t_stockage_ecs_c||''}]
+            : [{label:'T°ext(°C)',type:'champ',avis:'',comment:r.t_ext_c||''},
+               {label:'T°dép(°C)',type:'champ',avis:'',comment:r.t_dep_c||''},
+               {label:'Courbe de chauffe',type:'champ',avis:'',comment:r.courbe_de_chauffe||''}]),
           { label: 'Nom réseau', type: 'champ', avis: '', comment: r.nom_reseau || '' },
-          { label: 'Courbe de chauffe', type: 'champ', avis: '', comment: r.courbe_de_chauffe || '' },
           { label: 'TNC', type: 'champ', avis: '', comment: r.tnc || '' },
           { label: 'Consigne et Programme horaire', type: 'champ', avis: '', comment: r.consigne_programme_horaire || '' },
         ],

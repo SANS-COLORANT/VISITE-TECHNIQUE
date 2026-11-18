@@ -105,7 +105,12 @@ async function run() {
   ok(/maxFontSizeMultiplier=\{compactNumber \? 1\.25 : undefined\}/.test(kit), 'font scaling of regular tiles stays unchanged');
   ok(/cptInput:[\s\S]{0,200}fontSize: 16/.test(counters) && /maxFontSizeMultiplier=\{1\.25\}/.test(counters), 'meter index input has a compact font');
   ok((measurements.match(/<ValueTile compactNumber/g) || []).length === 2, 'temperature and supplemental measurements use compact tiles');
-  ok((regulation.match(/<ValueTile compactNumber/g) || []).length === 3, 'regulation numeric tiles use the same display adjustment');
+  ok((regulation.match(/<ValueTile compactNumber/g) || []).length === 6 &&
+    regulation.includes('isEcsLoop ? <>') &&
+    regulation.includes('Température Départ') &&
+    regulation.includes('Température Retour') &&
+    regulation.includes('Température de Stockage'),
+    'three heating tiles and three independent ECS departure/return/storage tiles use the compact display');
   ok(fields.includes('<ValueTile compactNumber label={libelleCourt}'), 'generic compact numeric controls use the adjustment');
   ok(kit.includes('tileBtn: { width: 40, height: 40'), 'temperature stepper touch targets remain 40 pixels');
   console.log('\n' + checks + ' targeted regression checks passed.');

@@ -12,13 +12,15 @@
  *   puis annulable quelques secondes.
  */
 
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ajouterPhoto } from './db.js';
 import { supprimerPhotoComplete, reglerPublicationPhotoLibre } from './photoDb.js';
 import { sauvegarderLegendePhoto, legendePhotoValide } from './photoCaptionPersistence.js';
 import { capturerPhotoLibre } from './photoLibreCapture.js';
+import { PhotoGalleryImportSheet } from './PhotoGalleryImportSheet.js';
+import { choisirPhotoDansGalerie, compresserPhotoDeGalerie, nettoyerPhotoTemporaireGalerie } from './photoGalleryImport.js';
 import { estPhotoLibre, photoIncluseDansExports, legendePhotoEditable } from './photoExportPolicy.js';
 import { prendrePhoto, preparerPhotoNommee } from './PhotoButton.js';
 import { COLORS, FONTS, styles } from './styles.js';
@@ -94,7 +96,7 @@ const MiniVignettes = memo(function MiniVignettes({ photos }) {
   );
 });
 
-function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
+function OptimizedPhotoPanel({ visiteId, onAllerAElement, active=true, galleryOpenRequest=0, galleryContext=null, onGalleryRequestHandled }) {
   const { width } = useWindowDimensions();
   const [photos, setPhotos] = useState(() => peekVisitPhotos(visiteId) || []);
   const [remarPhotoContext,setRemarPhotoContext] = useState({ctas:{},items:{},reserves:{}});
@@ -110,6 +112,11 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
   const [libelleSaisi, setLibelleSaisi] = useState('');
   const [savingMetadata, setSavingMetadata] = useState(false);
   const [cameraEnCours, setCameraEnCours] = useState(false);
+  const [galerieAsset,setGalerieAsset] = useState(null);
+  const [galerieLien,setGalerieLien] = useState(null);
+  const dernierSignalGalerie = useRef(0);
+  const [galerieBusy,setGalerieBusy] = useState(false);
+  const [galeriePickerBusy,setGaleriePickerBusy] = useState(false);
   const [filtre, setFiltre] = useState('toutes');
   const sections = useSectionsOuvertes(`${visiteId}:p-photos`);
   const { listRef, onScroll } = useListScrollMemory(`visit-panel:${visiteId}:p-photos`, photos.length);
@@ -225,6 +232,55 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
     }
   }, [cameraEnCours, visiteId, sections.open]);
 
+  const ouvrirGalerie = useCallback(async (context=null) => {
+    if (galeriePickerBusy || galerieBusy || cameraEnCours) return;
+    setGaleriePickerBusy(true);
+    try {
+      const photo = await choisirPhotoDansGalerie();
+      if (photo) { setGalerieLien(context?.entiteKey ? context : null); setGalerieAsset(photo); }
+    } catch(error) {
+      Alert.alert('Galerie indisponible', String(error?.message||error));
+    } finally {
+      setGaleriePickerBusy(false);
+    }
+  },[galeriePickerBusy,galerieBusy,cameraEnCours]);
+
+  useEffect(()=>{
+    if(!active || !galleryOpenRequest || dernierSignalGalerie.current===galleryOpenRequest) return;
+    dernierSignalGalerie.current=galleryOpenRequest;
+    // Let the visit pager settle before invoking Android's system picker.
+    const timer=setTimeout(()=>{
+      onGalleryRequestHandled?.();
+      ouvrirGalerie(galleryContext).catch(error=>
+        Alert.alert('Galerie indisponible',String(error?.message||error)));
+    },320);
+    return ()=>clearTimeout(timer);
+  },[active,galleryOpenRequest,galleryContext,ouvrirGalerie,onGalleryRequestHandled]);
+
+  const enregistrerGalerie = useCallback(async titre => {
+    if (!galerieAsset?.uri || galerieBusy) return;
+    setGalerieBusy(true);
+    let photoOptimisee=null;
+    try {
+      photoOptimisee=await compresserPhotoDeGalerie(galerieAsset);
+      const ok=await capturerPhotoLibre(visiteId,
+        error=>Alert.alert('Photo de galerie',String(error?.message||error)),
+        galerieLien, {uri:photoOptimisee.uri,titre});
+      if(ok){
+        setGalerieAsset(null);
+        if(!galerieLien) sections.open(['libre']);
+        showToast(galerieLien
+          ? 'Photo importée, nommée et rattachée à l’équipement'
+          : 'Photo importée, renommée et compressée · locale uniquement');
+      }
+    } catch(error) {
+      Alert.alert('Import impossible',String(error?.message||error));
+    } finally {
+      if(photoOptimisee?.uri) await nettoyerPhotoTemporaireGalerie(photoOptimisee.uri);
+      setGalerieBusy(false);
+    }
+  },[galerieAsset,galerieBusy,visiteId,sections.open,galerieLien]);
+
   const enregistrerLibelle = useCallback(async () => {
     if (!viewerPhoto || viewerPhoto.pending || savingMetadata) return;
     setSavingMetadata(true);
@@ -322,6 +378,15 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
           <CvcIcon name="camera" size={16} color={t.dark} strokeWidth={2.2} />
           <Text style={[st.addBtnText, { color: t.dark }]}>{cameraEnCours ? 'Appareil photo…' : 'Photo libre'}</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[st.addBtn, {borderColor:t.solid+'55',backgroundColor:t.light}, (galerieBusy||galeriePickerBusy)&&{opacity:0.5}]}
+          onPress={()=>ouvrirGalerie(null)}
+          disabled={cameraEnCours||galerieBusy||galeriePickerBusy}
+          accessibilityRole="button" accessibilityLabel="Importer une photo de la galerie"
+        >
+          <CvcIcon name="gallery" size={16} color={t.dark} strokeWidth={2.2}/>
+          <Text style={[st.addBtnText,{color:t.dark}]}>Galerie</Text>
+        </TouchableOpacity>
       </View>
       {groupes.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.filters} keyboardShouldPersistTaps="handled">
@@ -344,7 +409,7 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
         </ScrollView>
       ) : null}
     </View>
-  ), [photos.length, groupes, filtreEffectif, cameraEnCours, onAjouter, visiteId, t]);
+  ), [photos.length, groupes, filtreEffectif, cameraEnCours, galerieBusy, galeriePickerBusy, ouvrirGalerie, onAjouter, visiteId, t]);
 
   const renderItem = useCallback(({ item }) => {
     if (item.type === 'head') {
@@ -475,12 +540,16 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
           </View>
         </View>
       </Modal>
+      <PhotoGalleryImportSheet asset={galerieAsset} contextLabel={galerieLien?.label || 'Photo libre'}
+        busy={galerieBusy}
+        onCancel={()=>{setGalerieAsset(null);setGalerieLien(null);}}
+        onConfirm={enregistrerGalerie}/>
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 },
+  headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap:'wrap', marginBottom: 10 },
   headTitle: { fontSize: 18, fontFamily: FONTS.black, color: COLORS.ink },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, minHeight: 36 },
   addBtnText: { fontSize: 12.5, fontFamily: FONTS.bodyBold },

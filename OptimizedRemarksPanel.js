@@ -30,6 +30,7 @@ import {
 import { cleanLabel, ChipSelector } from './GenericFields.js';
 import { listerVerificationsRemarques, marquerRemarqueVerifiee } from './remarkVerificationDb.js';
 import { useDurableAutosave } from './durableAutosave.js';
+import { REMARK_CATEGORIES, categoryForRemark, storedCategory } from './remarkTaxonomy.js';
 import { PhotoButton } from './PhotoButton.js';
 import { RESERVE_SEVERITY_LEVELS, clampReserveSeverity, reserveSeverityLabel } from './reserveSeverity.js';
 import { BoundedLruMap } from './boundedCache.js';
@@ -54,7 +55,7 @@ const GROUPE_MANUELLES = '__manuelles';
 const GROUPE_REPRISES = '__reprises';
 // La création utilisait déjà "Observation" ; exposer la même valeur lors
 // de la modification pour conserver les réserves et exports historiques.
-const POSTES = ['Observation', 'Entretien P2', 'Entretien / P3', 'Travaux de conformité', 'Travaux d’amélioration'];
+const POSTES = [...REMARK_CATEGORIES];
 const ETATS_AVANCEMENT = ['Non réalisé', 'Devis émis', 'En cours', 'Terminé', 'Annulé'];
 
 // Couleur de chaque niveau de criticité (0 Information → 5 Critique).
@@ -140,6 +141,7 @@ const ReserveRow = memo(function ReserveRow({ remarque, onOpen, onToggleLevee, o
   const sous = [
     reseauChaleur && remarque.perimetre ? remarque.perimetre : null,
     reprise ? `Reprise${remarque.intranet_date_reserve ? ` · ${remarque.intranet_date_reserve}` : ''}` : null,
+    remarque.reference_onglet ? 'Origine : '+remarque.reference_onglet : null,
     remarque.prestation || 'Préconisation à compléter',
   ].filter(Boolean).join(' · ');
   return (
@@ -185,8 +187,8 @@ function ReserveFiche({ remarque, visiteId, onPatch, onDelete, onClose, onRattac
   const [prestation, setPrestation, blurPrestation] = useDurableAutosave(remarque.prestation, async (v) => {
     await modifierRemarqueVisite(remarque.id, { prestation: v });
   });
-  const [poste, setPoste] = useDurableAutosave(remarque.poste, async (v) => {
-    await modifierRemarqueVisite(remarque.id, { poste: v });
+  const [poste, setPoste] = useDurableAutosave(categoryForRemark(remarque.poste), async (v) => {
+    await modifierRemarqueVisite(remarque.id, { poste: storedCategory(v) });
   });
   const [prix, setPrix, blurPrix] = useDurableAutosave(remarque.estimatif == null ? '' : String(remarque.estimatif), async (v) => {
     await modifierRemarqueVisite(remarque.id, { estimatif: v });
@@ -206,7 +208,10 @@ function ReserveFiche({ remarque, visiteId, onPatch, onDelete, onClose, onRattac
   useEffect(() => { setCriticite(criticiteDe(remarque)); }, [remarque.criticite]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const changerPrestation = useCallback((v) => { setPrestation(v); onPatch(remarque.id, { prestation: v }); }, [onPatch, remarque.id, setPrestation]);
-  const changerPoste = useCallback((v) => { setPoste(v); onPatch(remarque.id, { poste: v }); }, [onPatch, remarque.id, setPoste]);
+  const changerPoste = useCallback((v) => {
+    setPoste(v);
+    onPatch(remarque.id, { poste: storedCategory(v) });
+  }, [onPatch, remarque.id, setPoste]);
   const changerPrix = useCallback((v) => { setPrix(v); onPatch(remarque.id, { estimatif: nombreOuNull(v) }); }, [onPatch, remarque.id, setPrix]);
   const changerDelai = useCallback((v) => { setDelai(v); onPatch(remarque.id, { delai: nombreOuNull(v) }); }, [onPatch, remarque.id, setDelai]);
   const changerDateReserve = useCallback((v) => { setDateReserve(v); onPatch(remarque.id, { intranet_date_reserve: v }); }, [onPatch, remarque.id, setDateReserve]);
@@ -248,7 +253,7 @@ function ReserveFiche({ remarque, visiteId, onPatch, onDelete, onClose, onRattac
 
   return (
     <View>
-      <Text style={st.ficheLabel}>Criticité · {reserveSeverityLabel(criticite)}{defaut !== null && defaut !== criticite ? `  (proposée : ${reserveSeverityLabel(defaut)})` : ''}</Text>
+      <Text style={st.ficheLabel}>Urgence / criticité · {reserveSeverityLabel(criticite)}{defaut !== null && defaut !== criticite ? `  (proposée : ${reserveSeverityLabel(defaut)})` : ''}</Text>
       <View style={st.sevRow} accessibilityRole="radiogroup">
         {RESERVE_SEVERITY_LEVELS.map((l) => {
           const on = l.value === criticite;
@@ -271,7 +276,9 @@ function ReserveFiche({ remarque, visiteId, onPatch, onDelete, onClose, onRattac
       <Text style={st.ficheLabel}>Prestation</Text>
       <TextInput style={[styles.input, { minHeight: 76, textAlignVertical: 'top' }]} multiline value={prestation} onChangeText={changerPrestation} onBlur={() => { blurPrestation().catch(() => {}); }} placeholder="Décrire la réserve…" placeholderTextColor={COLORS.inkFaint} />
 
-      <ChoiceField label="Poste" value={poste} options={POSTES} onChange={changerPoste} hint="Choisir le poste" />
+      <ChoiceField label="Catégorie de remarque" value={poste} options={POSTES} onChange={changerPoste} hint="Choisir une catégorie" />
+      {remarque.poste && !POSTES.includes(remarque.poste) && remarque.poste!=='Observation'
+        ? <Text style={st.ficheHint}>Ancien poste conservé : {remarque.poste}. Choisir une catégorie remplace explicitement ce poste.</Text> : null}
 
       {reseauChaleur ? <View style={{ marginTop: 8 }}>
         <Text style={st.ficheLabel}>Périmètre{remarque.controle_key ? ' · automatique' : ' · synthèse Primaire / Secondaire (facultatif)'}</Text>
@@ -518,35 +525,24 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
     if (n) feedback(`${pluriel(n, 'réserve')} des visites précédentes retirée${n > 1 ? 's' : ''}`, { tone: 'neutral' });
   }, [visiteId, charger]);
 
-  // Regroupement par onglet d'origine, lignes triées par criticité décroissante.
+  // Catégories métier fixes, dans l'ordre demandé par les techniciens.
+  // La criticité est indépendante et conserve son ordre décroissant DANS
+  // chaque catégorie. Les postes historiques non classés (P3 notamment)
+  // restent visibles en Remarques générales sans modification de SQLite.
   const groupes = useMemo(() => {
-    const source = filtre === 'levees' ? levees : actuelles;
-    const parCle = new Map();
-    for (const r of source) {
-      const key = ongletOrigine(r, sectionVersOnglet);
-      if (!parCle.has(key)) parCle.set(key, []);
-      parCle.get(key).push(r);
-    }
-    const ordre = (key) => {
-      if (key === GROUPE_REPRISES) return 10000;
-      if (key === GROUPE_MANUELLES) return 10001;
-      const i = tabOrder.indexOf(key);
-      return i >= 0 ? i : 9000;
-    };
-    return [...parCle.entries()]
-      .map(([key, rows]) => {
-        const tries = [...rows].sort((a, b) => criticiteDe(b) - criticiteDe(a) || String(a.cree_le || '').localeCompare(String(b.cree_le || '')));
-        return {
-          key,
-          rows: tries,
-          label: libelleGroupe(key, panelLabels),
-          picto: key === GROUPE_REPRISES ? ACTION_PICTOS.reprise : (pictoOnglet(key, trameId) || 'onglets/reserves'),
-          estimatif: rows.reduce((s, r) => s + (Number(r.estimatif) || 0), 0),
-          max: tries.length ? criticiteDe(tries[0]) : 0,
-        };
-      })
-      .sort((a, b) => ordre(a.key) - ordre(b.key));
-  }, [filtre, actuelles, levees, sectionVersOnglet, tabOrder, panelLabels, trameId]);
+    const source=filtre==='levees'?levees:actuelles;
+    return REMARK_CATEGORIES.map((category,index)=>{
+      const rows=source.filter(r=>categoryForRemark(r.poste)===category)
+        .sort((a,b)=>criticiteDe(b)-criticiteDe(a) ||
+          String(a.cree_le||'').localeCompare(String(b.cree_le||'')));
+      return {
+        key:'poste-'+index,rows,label:category,
+        picto:'onglets/reserves',
+        estimatif:rows.reduce((sum,r)=>sum+(Number(r.estimatif)||0),0),
+        max:rows.length?criticiteDe(rows[0]):0,
+      };
+    }).filter(group=>group.rows.length);
+  },[filtre,actuelles,levees]);
 
   const ouvertesSignature = groupes.map((g) => (sections.isOpen(g.key) ? '1' : '0')).join('');
 

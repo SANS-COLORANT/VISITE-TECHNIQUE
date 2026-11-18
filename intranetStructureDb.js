@@ -1,6 +1,7 @@
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { createIntranetUploadId, protectedRequest, syncClientPreparation } from './symfonyApi.js';
+import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 
 const listeners = new Set();
 let processorPromise = null;
@@ -149,7 +150,7 @@ export async function listStructureOutbox({ remoteClientId = null, localSiteId =
   return db.getAllAsync(`SELECT * FROM api_structure_outbox ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY queued_at`, params);
 }
 
-export async function queueMetraSiteCreation({ localClientId, remoteClientId, lotId, nom, sitePrincipal = 'Non', adresse = null, codePostal = null, ville = null, energie, typeBatiment } = {}) {
+export async function queueMetraSiteCreation({ localClientId, remoteClientId, existingLocalSiteId = null, lotId, nom, sitePrincipal = 'Non', adresse = null, codePostal = null, ville = null, energie, typeBatiment } = {}) {
   const clientId = clean(remoteClientId);
   if (!positiveInteger(clientId)) throw new Error('Client Intranet requis pour créer un site.');
   const referential = await getCachedStructureReferential(clientId);
@@ -170,14 +171,31 @@ export async function queueMetraSiteCreation({ localClientId, remoteClientId, lo
   const serialized = JSON.stringify(payload);
   const payloadBytes = utf8ByteLength(serialized);
   if (payloadBytes > 64 * 1024) throw structureError('La création du site dépasse la limite serveur de 64 Kio.', 'request_too_large');
-  const localSiteId = createId();
+  const localSiteId = existingLocalSiteId ? String(existingLocalSiteId) : createId();
   const operationId = createId();
   const db = await getDb();
   const localClient = await db.getFirstAsync(`SELECT id FROM clients WHERE id=?`, [String(localClientId)]);
   if (!localClient) throw new Error('Client METRA introuvable.');
+  const allowedClients = await db.getAllAsync(
+    'SELECT remote_client_id FROM api_client_links WHERE local_client_id=? AND autorise=1',
+    [String(localClientId)]);
+  if (allowedClients.length !== 1 || clean(allowedClients[0].remote_client_id) !== clientId)
+    throw structureError('Le client Intranet doit être lié de façon unique au client METRA. Réimporte ou vérifie le client avant publication.', 'client_binding_ambiguous');
   await db.withTransactionAsync(async () => {
-    await db.runAsync(`INSERT INTO sites(id,client_id,nom_site,adresse,statut) VALUES(?,?,?,?, 'Actif')`,
-      [localSiteId, String(localClientId), payload.nom, localAddress(payload.adresse, payload.codePostal, payload.ville)]);
+    if (existingLocalSiteId) {
+      const site = await db.getFirstAsync('SELECT id,client_id FROM sites WHERE id=?', [localSiteId]);
+      if (!site || String(site.client_id) !== String(localClientId))
+        throw structureError('Le site à publier ne fait pas partie de ce client METRA.', 'site_ownership');
+      const remote = await db.getFirstAsync(
+        'SELECT remote_site_id FROM api_site_links WHERE local_site_id=? AND remote_present=1 LIMIT 1', [localSiteId]);
+      if (remote) throw structureError('Ce site est déjà relié à un site Intranet. Aucune nouvelle création ne sera envoyée.', 'already_linked');
+      const waiting = await db.getFirstAsync(
+        "SELECT operation_id FROM api_structure_outbox WHERE resource_type='site' AND local_site_id=? AND status<>'cancelled' LIMIT 1", [localSiteId]);
+      if (waiting) throw structureError('Une publication Intranet existe déjà pour ce site. Utilise son état et son bouton de reprise.', 'already_queued');
+    } else {
+      await db.runAsync(`INSERT INTO sites(id,client_id,nom_site,adresse,statut) VALUES(?,?,?,?, 'Actif')`,
+        [localSiteId, String(localClientId), payload.nom, localAddress(payload.adresse, payload.codePostal, payload.ville)]);
+    }
     await db.runAsync(`INSERT INTO api_structure_outbox(operation_id,resource_type,creation_id,remote_client_id,local_site_id,payload_json,payload_bytes,status)
       VALUES(?,'site',?,?,?,?,?,'pending')`, [operationId, creationId, clientId, localSiteId, serialized, payloadBytes]);
   });
@@ -186,7 +204,7 @@ export async function queueMetraSiteCreation({ localClientId, remoteClientId, lo
   return { localSiteId, operationId, creationId, payload };
 }
 
-export async function queueMetraLocalCreation({ localSiteId, remoteClientId, designation, type, situation, trameId, periodiciteVisite = null } = {}) {
+export async function queueMetraLocalCreation({ localSiteId, remoteClientId, existingInstallationId = null, designation, type, situation, trameId, periodiciteVisite = null } = {}) {
   const clientId = clean(remoteClientId);
   if (!positiveInteger(clientId)) throw new Error('Client Intranet requis pour créer un local.');
   const referential = await getCachedStructureReferential(clientId);
@@ -213,12 +231,23 @@ export async function queueMetraLocalCreation({ localSiteId, remoteClientId, des
   if (!remoteSite && !siteOperation) throw structureError('Ce site METRA n’est pas encore relié à un site Intranet et aucune création de site n’est en attente.', 'remote_site_required');
   if (!remoteSite && siteOperation && TERMINAL_STATUSES.has(siteOperation.status)) throw structureError('La création Intranet du site est à corriger avant de pouvoir créer un local dessus.', 'site_creation_blocked');
 
-  const localInstallationId = createId();
+  const localInstallationId = existingInstallationId ? String(existingInstallationId) : createId();
   const operationId = createId();
   const trame = (referential.trames || []).find((row) => Number(row?.id) === Number(payload.trameId));
   await db.withTransactionAsync(async () => {
-    await db.runAsync(`INSERT INTO installations(id,site_id,type_code,nom,description,actif) VALUES(?,?,?,?,?,1)`,
-      [localInstallationId, String(localSiteId), 'intranet_local', payload.designation, payload.situation]);
+    if (existingInstallationId) {
+      const local = await db.getFirstAsync('SELECT id FROM installations WHERE id=? AND site_id=? AND actif=1',
+        [localInstallationId, String(localSiteId)]);
+      if (!local) throw structureError("Le local existant n'appartient pas à ce site.", 'local_ownership');
+      const linked = await db.getFirstAsync('SELECT remote_local_id FROM api_local_links WHERE local_installation_id=? AND remote_present=1 LIMIT 1',
+        [localInstallationId]);
+      const queued = await db.getFirstAsync("SELECT operation_id FROM api_structure_outbox WHERE local_installation_id=? AND status<>'cancelled' LIMIT 1",
+        [localInstallationId]);
+      if (linked || queued) throw structureError('Ce local est déjà rattaché à un local Intranet ou en cours de publication.', 'already_linked');
+    } else {
+      await db.runAsync(`INSERT INTO installations(id,site_id,type_code,nom,description,actif) VALUES(?,?,?,?,?,1)`,
+        [localInstallationId, String(localSiteId), 'intranet_local', payload.designation, payload.situation]);
+    }
     const attrs = [
       ['intranet.type', payload.type],
       ['intranet.situation', payload.situation],
@@ -227,7 +256,8 @@ export async function queueMetraLocalCreation({ localSiteId, remoteClientId, des
       ['intranet.remote_trame_nom', trame?.nom == null ? null : String(trame.nom)],
     ];
     for (const [cle, valeur] of attrs) {
-      await db.runAsync(`INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur,type_valeur) VALUES(?,?,?,?,?,'texte')`,
+      await db.runAsync(`INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur,type_valeur) VALUES(?,?,?,?,?,'texte')
+        ON CONFLICT(entite_type,entite_id,cle) DO UPDATE SET valeur=excluded.valeur,modifie_le=datetime('now')`,
         [createId(), 'installation', localInstallationId, cle, valeur]);
     }
     await db.runAsync(`INSERT INTO api_structure_outbox(operation_id,resource_type,creation_id,remote_client_id,local_site_id,local_installation_id,depends_on_id,payload_json,payload_bytes,status)
@@ -282,7 +312,13 @@ export async function listSiteStructureLocals(localSiteId) {
       syncStatus: 'synced',
     });
   }
-  return { context, locals: result };
+  const availableLocals = await db.getAllAsync(`
+    SELECT i.id,i.nom,i.description,i.type_code FROM installations i
+    WHERE i.site_id=? AND i.actif=1
+      AND NOT EXISTS (SELECT 1 FROM api_local_links l WHERE l.local_installation_id=i.id AND l.remote_present=1)
+      AND NOT EXISTS (SELECT 1 FROM api_structure_outbox o WHERE o.local_installation_id=i.id AND o.status<>'cancelled')
+    ORDER BY i.nom,i.id`, [String(localSiteId)]);
+  return { context, locals: result, availableLocals };
 }
 
 async function resolveRemoteSiteIdForOperation(db, row) {
@@ -350,9 +386,20 @@ async function materializeLocalAck(db, row, response, remoteSiteId) {
       remote_trame_nom=excluded.remote_trame_nom,reference_json=excluded.reference_json,local_installation_id=COALESCE(api_local_links.local_installation_id,excluded.local_installation_id),remote_present=1,synced_at=datetime('now')`,
     [remoteLocalId, remoteSiteId, remoteLocal.designation || payload.designation, clean(remoteLocal.trameId || payload.trameId), remoteTrameName, json(reference), row.local_installation_id]);
   if (row.local_installation_id) {
-    await db.runAsync(`UPDATE visites SET api_remote_client_id=COALESCE(api_remote_client_id,?),api_remote_local_id=COALESCE(api_remote_local_id,?),api_remote_trame_id=COALESCE(api_remote_trame_id,?),modifie_le=datetime('now')
-      WHERE installation_id=? AND (api_remote_local_id IS NULL OR trim(api_remote_local_id)='')`,
-      [row.remote_client_id, remoteLocalId, clean(remoteLocal.trameId || payload.trameId), row.local_installation_id]);
+    // Copies may contain different local trames. Never silently assign a remote
+    // trame to a visit whose local trame does not match the selected Symfony one.
+    const selectedLocalTrame = mapRemoteTrameToLocal({
+      id: clean(remoteLocal.trameId || payload.trameId), nom: remoteTrameName,
+    });
+    if (selectedLocalTrame) await db.runAsync(`UPDATE visites
+      SET api_remote_client_id=COALESCE(api_remote_client_id,?),
+          api_remote_local_id=COALESCE(api_remote_local_id,?),
+          api_remote_trame_id=COALESCE(api_remote_trame_id,?),
+          modifie_le=datetime('now')
+      WHERE installation_id=? AND trame_id=?
+        AND (api_remote_local_id IS NULL OR trim(api_remote_local_id)='')`,
+      [row.remote_client_id, remoteLocalId, clean(remoteLocal.trameId || payload.trameId),
+        row.local_installation_id, selectedLocalTrame]);
   }
   return remoteLocalId;
 }
@@ -372,7 +419,13 @@ async function sendRow(db, row) {
   const remoteSiteId = await resolveRemoteSiteIdForOperation(db, row);
   if (row.resource_type === 'local' && !positiveInteger(remoteSiteId)) return { status: 'deferred', row };
 
-  await db.runAsync(`UPDATE api_structure_outbox SET status='sending',attempt_count=attempt_count+1,last_attempt_at=datetime('now'),error_code=NULL,error_message=NULL,violations_json=NULL,updated_at=datetime('now') WHERE operation_id=?`, [row.operation_id]);
+  // Atomic claim: a site deletion may cancel/delete a pending operation
+  // after the outbox scan. The old snapshot must never send a stale POST.
+  const claimed = await db.runAsync(`UPDATE api_structure_outbox
+    SET status='sending',attempt_count=attempt_count+1,last_attempt_at=datetime('now'),
+        error_code=NULL,error_message=NULL,violations_json=NULL,updated_at=datetime('now')
+    WHERE operation_id=? AND status IN ('pending','retry')`, [row.operation_id]);
+  if (Number(claimed?.changes || 0) !== 1) return { status: 'deferred', row };
   notify();
   try {
     const path = row.resource_type === 'site'

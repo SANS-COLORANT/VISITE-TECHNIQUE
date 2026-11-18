@@ -272,6 +272,7 @@ export function analyserClasseur(wb, nomFichier) {
         ordre: index + 1, nom: String(row[1]), tExt: String(row[2] ?? ''),
         tDep: String(row[3] ?? ''), courbe: String(row[4] ?? ''),
         tnc: String(row[5] ?? ''), programme: String(row[6] ?? ''),
+        tRetourEcs: String(row[8] ?? ''), tStockageEcs: String(row[9] ?? ''),
       }));
   }
   if (modules.has('meters') && wb.Sheets.COMPTEURS_DETAIL) {
@@ -468,8 +469,8 @@ export async function importerAnalyseExcel(analyse, { installationId = null } = 
       }
       const idReseau = uuidv4();
       await db.runAsync(
-        `INSERT INTO reseaux (id, visite_id, reseau_site_id, ordre, nom_reseau, t_ext_c, t_dep_c, courbe_de_chauffe, tnc, consigne_programme_horaire) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [idReseau, visiteId, permanent.id, r.ordre, r.nom, r.tExt, r.tDep, r.courbe, r.tnc, r.programme]
+        `INSERT INTO reseaux (id, visite_id, reseau_site_id, ordre, nom_reseau, t_ext_c, t_dep_c, t_retour_ecs_c, t_stockage_ecs_c, courbe_de_chauffe, tnc, consigne_programme_horaire) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [idReseau, visiteId, permanent.id, r.ordre, r.nom, r.tExt, r.tDep, r.tRetourEcs||null, r.tStockageEcs||null, r.courbe, r.tnc, r.programme]
       );
       for (const [key,value] of [
         [NETWORK_POINTS_KEY,r.points?.length?JSON.stringify(validateNetworkPoints(r.points)):null],
@@ -481,8 +482,8 @@ export async function importerAnalyseExcel(analyse, { installationId = null } = 
           [uuidv4(),idReseau,key,value]);
       }
       await db.runAsync(
-        `INSERT OR REPLACE INTO observations_reseau (id, reseau_site_id, visite_id, t_ext_c, t_dep_c, courbe_de_chauffe, tnc, consigne_programme_horaire) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuidv4(), permanent.id, visiteId, r.tExt, r.tDep, r.courbe, r.tnc, r.programme]
+        `INSERT OR REPLACE INTO observations_reseau (id, reseau_site_id, visite_id, t_ext_c, t_dep_c, t_retour_ecs_c, t_stockage_ecs_c, courbe_de_chauffe, tnc, consigne_programme_horaire) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), permanent.id, visiteId, r.tExt, r.tDep, r.tRetourEcs||null, r.tStockageEcs||null, r.courbe, r.tnc, r.programme]
       );
     }
 

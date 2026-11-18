@@ -1,4 +1,5 @@
 import { getDb, uuidv4 } from './db.js';
+import { cloneLatestVisitsForSite } from './siteVisitCloneDb.js';
 
 function texte(v = '') { return String(v ?? '').trim().replace(/\s+/g, ' '); }
 
@@ -21,6 +22,7 @@ async function insererClone(db, table, source, overrides = {}, exclusions = []) 
 async function clonerAttributs(db, type, sourceId, cibleId) {
   const rows = await db.getAllAsync(`SELECT * FROM attributs_libres WHERE entite_type=? AND entite_id=?`, [type, sourceId]);
   for (const row of rows) {
+    if (/^(api_symfony|intranet\.|remote\.)/i.test(String(row.cle||''))) continue;
     await insererClone(db, 'attributs_libres', row, { id: uuidv4(), entite_id: cibleId }, ['cree_le', 'modifie_le']);
   }
 }
@@ -79,14 +81,14 @@ export async function definirSiteDansGroupe(siteId, groupeId, actif) {
   else await db.runAsync(`DELETE FROM site_groupe_membres WHERE groupe_id=? AND site_id=?`, [groupeId, siteId]);
 }
 
-export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrimoine = true, copierLab3d = true } = {}) {
+export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrimoine = true, copierLab3d = true, copierVisites = true } = {}) {
   const db = await getDb();
   const source = await db.getFirstAsync(`SELECT * FROM sites WHERE id=?`, [sourceSiteId]);
   if (!source) throw new Error('Site source introuvable.');
   const cibleId = uuidv4();
   const nomCible = texte(nomSite) || `${source.nom_site} - copie`;
 
-  await db.execAsync('BEGIN IMMEDIATE');
+  await db.runAsync('BEGIN IMMEDIATE');
   try {
     await insererClone(db, 'sites', source, { id: cibleId, nom_site: nomCible, statut: 'Actif' }, ['cree_le']);
 
@@ -94,11 +96,13 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
     for (const membre of memberships) await db.runAsync(`INSERT OR IGNORE INTO site_groupe_membres(groupe_id,site_id) VALUES(?,?)`, [membre.groupe_id, cibleId]);
     await clonerAttributs(db, 'site', sourceSiteId, cibleId);
 
-    const equipmentMap = new Map();
+    const equipmentMap = new Map(),installationMap=new Map();
+    const networkMap=new Map(),meterMap=new Map(),itemMap=new Map();
     if (copierPatrimoine) {
       const installations = await db.getAllAsync(`SELECT * FROM installations WHERE site_id=? ORDER BY cree_le,id`, [sourceSiteId]);
       for (const installation of installations) {
         const newInstallationId = uuidv4();
+        installationMap.set(installation.id,newInstallationId);
         await insererClone(db, 'installations', installation, { id: newInstallationId, site_id: cibleId }, ['cree_le', 'modifie_le']);
         await clonerAttributs(db, 'installation', installation.id, newInstallationId);
 
@@ -115,6 +119,7 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
         const reseaux = await db.getAllAsync(`SELECT * FROM reseaux_site WHERE installation_id=? ORDER BY ordre,id`, [installation.id]);
         for (const reseau of reseaux) {
           const newReseauId = uuidv4();
+          networkMap.set(reseau.id,newReseauId);
           await insererClone(db, 'reseaux_site', reseau, { id: newReseauId, installation_id: newInstallationId }, ['cree_le', 'modifie_le']);
           await clonerAttributs(db, 'reseau', reseau.id, newReseauId);
         }
@@ -122,11 +127,18 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
         const compteurs = await db.getAllAsync(`SELECT * FROM compteurs_site WHERE installation_id=? ORDER BY id`, [installation.id]);
         for (const compteur of compteurs) {
           const newCompteurId = uuidv4();
+          meterMap.set(compteur.id,newCompteurId);
           await insererClone(db, 'compteurs_site', compteur, { id: newCompteurId, installation_id: newInstallationId }, ['cree_le', 'modifie_le']);
           await clonerAttributs(db, 'compteur', compteur.id, newCompteurId);
         }
       }
     }
+
+    const copyResult=copierPatrimoine&&copierVisites
+      ?await cloneLatestVisitsForSite(db,sourceSiteId,cibleId,
+        {installationMap,equipmentMap,networkMap,meterMap,itemMap},
+        insererClone,clonerAttributs,uuidv4)
+      :{visites:0};
 
     if (copierPatrimoine && copierLab3d) {
       const scene = await db.getFirstAsync(`SELECT * FROM lab3d_scenes WHERE site_id=?`, [sourceSiteId]);
@@ -153,10 +165,10 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
       }
     }
 
-    await db.execAsync('COMMIT');
-    return { siteId: cibleId, nomSite: nomCible };
+    await db.runAsync('COMMIT');
+    return { siteId: cibleId, nomSite: nomCible, visitesCopiees:copyResult.visites };
   } catch (error) {
-    await db.execAsync('ROLLBACK').catch(() => {});
+    await db.runAsync('ROLLBACK').catch(() => {});
     throw error;
   }
 }

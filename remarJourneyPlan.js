@@ -48,3 +48,16 @@ export function firstIncompleteRemarTab(groups = []) {
   return groups.flatMap((group) => group.tabs || [])
     .find((tab) => tab.total > 0 && tab.done < tab.total)?.id || null;
 }
+
+/**
+ * Next CTA selection is navigation only. It must never alter avis, readings,
+ * confirmations or the report-reference CTA.
+ */
+export function prochaineCtaDuParcours(equipements = [], activeCtaId = null) {
+  const rows = Array.isArray(equipements) ? equipements : [];
+  if (!activeCtaId) return { type: 'inconnue' };
+  const index = rows.findIndex(row => row?.id === activeCtaId);
+  if (index < 0) return { type: 'inconnue' };
+  const prochaine = rows[index + 1];
+  return prochaine?.id ? { type: 'suivante', id: prochaine.id } : { type: 'options' };
+}

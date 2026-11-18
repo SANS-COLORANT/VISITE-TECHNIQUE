@@ -333,7 +333,7 @@ function EquipmentSheet({item,visiteId,onChange,onClose,onTogglePresence,types,c
  </BottomSheet>;
 }
 
-export function GuidedEquipmentPanel({visiteId,trameId='icpe_v1'}){
+export function GuidedEquipmentPanel({visiteId,trameId='icpe_v1',active=true}){
  const reseauChaleur=trameId===RC;
  const[materiel,setMateriel]=useState([]),[types,setTypes]=useState(TYPES),[catalogue,setCatalogue]=useState([]);
  const[recherche,setRecherche]=useState(''),[rechercheOuverte,setRechercheOuverte]=useState(false);
@@ -357,7 +357,7 @@ export function GuidedEquipmentPanel({visiteId,trameId='icpe_v1'}){
  const catalogueIndex=useMemo(()=>catalogue.map(e=>({e,h:norm(`${e.marque||''} ${nomModele(e)} ${e.reference||''} ${e.categorie||''}`)})),[catalogue]);
  const{listRef,onScroll}=useListScrollMemory(`visit-panel:${visiteId}:p-equip`,nbVisibles);
  const charger=useCallback(async()=>setMateriel(await listerEquipementsPointage(visiteId)),[visiteId]);
- useEffect(()=>{charger()},[charger]);
+ useEffect(()=>{if(active)charger().catch(error=>console.warn('Équipements non rechargés',error))},[charger,active]);
  // Les groupes qui contiennent un équipement à surveiller ou nouveau s'ouvrent seuls.
  useEffect(()=>{
   if(autoOuvert.current||!materiel.length)return;

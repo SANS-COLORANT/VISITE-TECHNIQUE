@@ -233,12 +233,12 @@ async function copyStructuredNetworkSettings(db, sourceId, targetId) {
 
 async function copyNetworkValues(db, visiteId, previousVisitId, referenceOnly = false) {
   const current = await db.getAllAsync(
-    `SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id
+    `SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,t_retour_ecs_c,t_stockage_ecs_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id
      FROM reseaux WHERE visite_id=? ORDER BY ordre,id`,
     [visiteId]
   );
   const previous = await db.getAllAsync(
-    `SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id
+    `SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,t_retour_ecs_c,t_stockage_ecs_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id
      FROM reseaux WHERE visite_id=? ORDER BY ordre,id`,
     [previousVisitId]
   );
@@ -270,6 +270,8 @@ async function copyNetworkValues(db, visiteId, previousVisitId, referenceOnly = 
            nom_reseau=CASE WHEN trim(COALESCE(nom_reseau,''))='' THEN ? ELSE nom_reseau END,
            t_ext_c=CASE WHEN ?=1 THEN t_ext_c WHEN trim(COALESCE(t_ext_c,''))='' THEN ? ELSE t_ext_c END,
            t_dep_c=CASE WHEN ?=1 THEN t_dep_c WHEN trim(COALESCE(t_dep_c,''))='' THEN ? ELSE t_dep_c END,
+           t_retour_ecs_c=CASE WHEN ?=1 THEN t_retour_ecs_c WHEN trim(COALESCE(t_retour_ecs_c,''))='' THEN ? ELSE t_retour_ecs_c END,
+           t_stockage_ecs_c=CASE WHEN ?=1 THEN t_stockage_ecs_c WHEN trim(COALESCE(t_stockage_ecs_c,''))='' THEN ? ELSE t_stockage_ecs_c END,
            courbe_de_chauffe=CASE WHEN trim(COALESCE(courbe_de_chauffe,''))='' THEN ? ELSE courbe_de_chauffe END,
            tnc=CASE WHEN trim(COALESCE(tnc,''))='' THEN ? ELSE tnc END,
            consigne_programme_horaire=CASE WHEN trim(COALESCE(consigne_programme_horaire,''))='' THEN ? ELSE consigne_programme_horaire END,
@@ -279,6 +281,8 @@ async function copyNetworkValues(db, visiteId, previousVisitId, referenceOnly = 
           row.nom_reseau || 'Réseau',
           referenceOnly ? 1 : 0, row.t_ext_c ?? null,
           referenceOnly ? 1 : 0, row.t_dep_c ?? null,
+          referenceOnly ? 1 : 0, row.t_retour_ecs_c ?? null,
+          referenceOnly ? 1 : 0, row.t_stockage_ecs_c ?? null,
           row.courbe_de_chauffe ?? null, row.tnc ?? null, row.consigne_programme_horaire ?? null,
           row.reseau_site_id || null, existing.id,
         ]
@@ -290,10 +294,11 @@ async function copyNetworkValues(db, visiteId, previousVisitId, referenceOnly = 
 
     const newId = createId();
     await db.runAsync(
-      `INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id)
-       VALUES(?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,t_retour_ecs_c,t_stockage_ecs_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
       [newId, visiteId, Number(row.ordre || 0), row.nom_reseau || 'Réseau', referenceOnly ? null : row.t_ext_c ?? null,
-        referenceOnly ? null : row.t_dep_c ?? null, row.courbe_de_chauffe ?? null, row.tnc ?? null,
+        referenceOnly ? null : row.t_dep_c ?? null, referenceOnly ? null : row.t_retour_ecs_c ?? null,
+        referenceOnly ? null : row.t_stockage_ecs_c ?? null, row.courbe_de_chauffe ?? null, row.tnc ?? null,
         row.consigne_programme_horaire ?? null, row.reseau_site_id || null]
     );
     await copyStructuredNetworkSettings(db, row.id, newId);

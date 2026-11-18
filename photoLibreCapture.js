@@ -12,21 +12,24 @@ import { prewarmPhotoCaptureContext } from './photoCaptureContext.js';
 import { feedback } from './fieldFeedback.js';
 
 const ongoingCapture = new Set();
-export async function capturerPhotoLibre(visiteId, onError = null, context = null) {
+export async function capturerPhotoLibre(visiteId, onError = null, context = null, options = null) {
   // The origin is opt-in and visit-scoped. A global free photo keeps null.
   const candidate = String(context?.entiteKey || '');
   // Match only a real equipment ID; preserve the privacy of every other photo.
   const entiteKey = /^equipement\|\|[^|]+$/.test(candidate)
     ? candidate : null;
-  const labelPhoto = entiteKey
+  const labelParDefaut = entiteKey
     ? (String(context?.label || 'Photo CTA').trim() || 'Photo CTA') : 'Libre';
+  const titreImporte = String(options?.titre || '').trim();
+  const labelPhoto = titreImporte || labelParDefaut;
+  const uriImportee = String(options?.uri || '').trim();
   const id = String(visiteId || '');
   if (!id || ongoingCapture.has(id)) return false;
   ongoingCapture.add(id);
   try {
-    prewarmCameraRuntime().catch(() => {});
+    if (!uriImportee) prewarmCameraRuntime().catch(() => {});
     prewarmPhotoCaptureContext(visiteId).catch(() => {});
-    const captureUri = await prendrePhoto();
+    const captureUri = uriImportee || await prendrePhoto();
     if (!captureUri) return false;
     const tempId = `photo-pending:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
     const optimistic = {
@@ -37,12 +40,12 @@ export async function capturerPhotoLibre(visiteId, onError = null, context = nul
     upsertRuntimePhoto(visiteId, optimistic);
     // Return to the photo gallery straight away. File copy, SQLite journaling
     // and thumbnails can complete while another capture is prepared.
-    void (async () => {
+    const savePromise = (async () => {
       let saveKey = `photo-libre:${visiteId}:${Date.now()}`;
       let journalKey = null;
       beginExternalSave(saveKey);
       try {
-        const photo = await preparerPhotoNommee({ visiteId, entiteKey, label: labelPhoto, uri: captureUri });
+        const photo = await preparerPhotoNommee({ visiteId, entiteKey, label: labelPhoto, uri: captureUri, titreImporte: titreImporte || null });
         if (!photo.uri) throw new Error('Photo libre non préparée.');
         const labelDb = photo.nom ? `${labelPhoto}||${photo.nom}` : labelPhoto;
         replaceRuntimePhoto(visiteId, tempId, { ...optimistic, uri: photo.uri, label: labelDb });
@@ -54,12 +57,18 @@ export async function capturerPhotoLibre(visiteId, onError = null, context = nul
         feedback(entiteKey?'Photo CTA enregistrée et rattachée':'Photo libre enregistrée · locale uniquement');
         endExternalSave(saveKey);
         saveKey = null;
+        return true;
       } catch (error) {
         if (tempId && !journalKey) removeRuntimePhoto(visiteId, tempId);
         if (saveKey) endExternalSave(saveKey, error);
         onError?.(error);
+        return false;
       }
     })();
+    // Gallery imports are awaited so their compressed temporary file can be
+    // cleaned only after the durable METRA copy and SQLite insert finish.
+    if (uriImportee) return await savePromise;
+    void savePromise;
     return true;
   } finally {
     ongoingCapture.delete(id);

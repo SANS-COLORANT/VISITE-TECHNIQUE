@@ -75,16 +75,20 @@ const VisitPanelHost = memo(function VisitPanelHost({
   onNextPanel,
   onRemarActiveCta,
   searchTarget,
+  galleryOpenRequest,
+  galleryContext,
+  onGalleryRequestHandled,
+  active,
 }) {
   if (special) {
     if (panelId === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
     if (panelId === 'p-releves') return <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} trameId={trameId} panels={panels} />;
-    if (panelId === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} trameId={trameId} />;
+    if (panelId === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} trameId={trameId} active={active} />;
     if (panelId === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={intranetLinked} trameId={trameId} />;
-    if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
+    if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} active={active} galleryOpenRequest={galleryOpenRequest} galleryContext={galleryContext} onGalleryRequestHandled={onGalleryRequestHandled} />;
   }
   return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} nextPanel={nextPanel} onNextPanel={onNextPanel} trameId={trameId}
-    onRemarActiveCta={onRemarActiveCta} searchTarget={searchTarget} />;
+    onRemarActiveCta={onRemarActiveCta} searchTarget={searchTarget} active={active} />;
 });
 
 // « Enregistré il y a 2 min » (court sur téléphone).
@@ -126,6 +130,8 @@ function VisiteScreen({ route, onBack }) {
   const { width, height } = useWindowDimensions();
   // Capture libre depuis la barre : la photographie reste locale par défaut.
   const [captureLibreEnCours, setCaptureLibreEnCours] = useState(false);
+  const [galleryOpenRequest,setGalleryOpenRequest] = useState(0);
+  const [galleryContext,setGalleryContext] = useState(null);
   const [signatureVisible, setSignatureVisible] = useState(false);
   const [signature, setSignature] = useState(null);
   const [apercuEnCours, setApercuEnCours] = useState(false);
@@ -648,6 +654,10 @@ function VisiteScreen({ route, onBack }) {
         else finishSwipeRef.current?.(g);
       },
       onPanResponderTerminate: () => {
+        // Nested equipment rows can take over a horizontal gesture. Unlock
+        // navigation synchronously: waiting for an interrupted spring callback
+        // left transitionRef=true and froze all subsequent tab navigation.
+        transitionRef.current = false;
         if (gestureModeRef.current === 'preallumage-local') {
           Animated.spring(preAllumageLocalX, { toValue: 0, ...settleSpring(0), useNativeDriver: true }).start(() => {
             transitionRef.current = false;
@@ -659,7 +669,8 @@ function VisiteScreen({ route, onBack }) {
           transitionRef.current = false;
         });
       },
-      onPanResponderTerminationRequest: () => false,
+      onPanResponderTerminationRequest: () => true,
+      onPanResponderReject: () => { transitionRef.current = false; },
     });
   }
 
@@ -819,6 +830,7 @@ function VisiteScreen({ route, onBack }) {
             <VisitPanelHost
               visiteId={visiteId}
               panelId={panelId}
+              active={panelId===activeTab}
               sections={panels[panelId]}
               special={specialPanels.has(panelId)}
               onSaved={onSaved}
@@ -833,6 +845,9 @@ function VisiteScreen({ route, onBack }) {
               onRemarActiveCta={estParcoursRemar && panelId==='p-remar-cta'
                 ? noteRemarActiveCta : undefined}
               searchTarget={searchTarget?.pid === panelId ? searchTarget : null}
+              galleryOpenRequest={panelId==='p-photos' ? galleryOpenRequest : 0}
+              galleryContext={galleryContext}
+              onGalleryRequestHandled={()=>setGalleryOpenRequest(0)}
             />
           </Animated.View>
         </Animated.View>;

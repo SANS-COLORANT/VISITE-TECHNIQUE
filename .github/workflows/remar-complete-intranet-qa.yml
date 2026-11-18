@@ -70,6 +70,8 @@ jobs:
         env:
           NODE_OPTIONS: '--require=./.github/scripts/test_legacy_alias_globals.js'
         run: |
+          node .github/scripts/test_crous_field_feedback.js
+          node .github/scripts/test_site_duplication_crous.js
           node .github/scripts/test_remar_141_intranet_matrix.js
           node .github/scripts/test_remar_supplemental_payload.js
           node .github/scripts/test_remar_remote_trame_selection.js

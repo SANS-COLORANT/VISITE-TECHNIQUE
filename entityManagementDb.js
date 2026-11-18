@@ -78,6 +78,15 @@ export async function supprimerSiteComplet(siteId) {
   const siteImage = await db.getFirstAsync(`SELECT image_uri FROM sites WHERE id=?`, [siteId]);
   const photosASupprimer = [];
   await db.withTransactionAsync(async () => {
+    // Never physically remove a site while a remote structure request is running:
+    // its callback might otherwise recreate links to an absent local identity.
+    const sending = await db.getFirstAsync(
+      "SELECT operation_id FROM api_structure_outbox WHERE local_site_id=? AND status='sending' LIMIT 1", [siteId]);
+    if (sending) throw new Error("Envoi Intranet en cours : termine la synchronisation avant de supprimer ce site.");
+    // Pending/retry operations are cancelled atomically with local deletion.
+    // processStructureOutbox only claims still-pending rows (see intranetStructureDb).
+    await db.runAsync("UPDATE api_structure_outbox SET status='cancelled',updated_at=datetime('now') WHERE local_site_id=? AND status IN ('pending','retry')", [siteId]);
+    await db.runAsync("DELETE FROM api_structure_outbox WHERE local_site_id=?", [siteId]);
     const visites = await db.getAllAsync(`SELECT id FROM visites WHERE site_id=?`, [siteId]);
     for (const visite of visites) {
       const uris = await supprimerDonneesVisite(db, visite.id);
@@ -86,6 +95,14 @@ export async function supprimerSiteComplet(siteId) {
 
     const installations = await db.getAllAsync(`SELECT id FROM installations WHERE site_id=?`, [siteId]);
     for (const installation of installations) {
+      // FK RESTRICT: REMAR child definitions outlive visits and must be
+      // removed BEFORE equipment/network/installation rows.
+      // All visit memberships are already gone by ON DELETE CASCADE.
+      await db.runAsync("DELETE FROM attributs_libres WHERE entite_type='remar_item' AND entite_id IN (SELECT id FROM remar_items WHERE installation_id=?)", [installation.id]);
+      await db.runAsync("DELETE FROM provenances WHERE entite_type='remar_item' AND entite_id IN (SELECT id FROM remar_items WHERE installation_id=?)", [installation.id]);
+      await db.runAsync("DELETE FROM remar_items WHERE installation_id=?", [installation.id]);
+      // API cache identities are nullable and must not point to deleted locals.
+      await db.runAsync("UPDATE api_local_links SET local_installation_id=NULL WHERE local_installation_id=?", [installation.id]);
       const equipements = await db.getAllAsync(`SELECT id FROM equipements WHERE installation_id=?`, [installation.id]);
       for (const e of equipements) {
         await db.runAsync(`DELETE FROM observations_equipement WHERE equipement_id=?`, [e.id]);
@@ -106,11 +123,21 @@ export async function supprimerSiteComplet(siteId) {
         await db.runAsync(`DELETE FROM mesures WHERE compteur_id=?`, [c.id]);
       }
 
+      for (const [type, table] of [['equipement','equipements'], ['reseau','reseaux_site'], ['compteur','compteurs_site']]) {
+        await db.runAsync(`DELETE FROM attributs_libres WHERE entite_type=? AND entite_id IN (SELECT id FROM ${table} WHERE installation_id=?)`, [type, installation.id]);
+        await db.runAsync(`DELETE FROM provenances WHERE entite_type=? AND entite_id IN (SELECT id FROM ${table} WHERE installation_id=?)`, [type, installation.id]);
+      }
       await db.runAsync(`DELETE FROM equipements WHERE installation_id=?`, [installation.id]);
       await db.runAsync(`DELETE FROM reseaux_site WHERE installation_id=?`, [installation.id]);
       await db.runAsync(`DELETE FROM compteurs_site WHERE installation_id=?`, [installation.id]);
     }
+    await db.runAsync("DELETE FROM attributs_libres WHERE entite_type='installation' AND entite_id IN (SELECT id FROM installations WHERE site_id=?)", [siteId]);
+    await db.runAsync("DELETE FROM provenances WHERE entite_type='installation' AND entite_id IN (SELECT id FROM installations WHERE site_id=?)", [siteId]);
     await db.runAsync(`DELETE FROM installations WHERE site_id=?`, [siteId]);
+    // Local removal never silently removes the remote site. Detach its cached links
+    // so a future re-import cannot accidentally resurrect the deleted site ID.
+    await db.runAsync("UPDATE api_site_links SET local_site_id=NULL WHERE local_site_id=?", [siteId]);
+    await db.runAsync("UPDATE api_client_site_links SET local_site_id=NULL WHERE local_site_id=?", [siteId]);
     await db.runAsync(`DELETE FROM attributs_libres WHERE entite_type='site' AND entite_id=?`, [siteId]);
     await db.runAsync(`DELETE FROM provenances WHERE entite_type='site' AND entite_id=?`, [siteId]);
     await db.runAsync(`DELETE FROM journal_modifications WHERE entite_type='site' AND entite_id=?`, [siteId]);

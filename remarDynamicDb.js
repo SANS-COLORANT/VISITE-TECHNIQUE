@@ -81,12 +81,20 @@ export async function listerRemarEquipements(visiteId, famille) {
   return rows.filter(e => remarFamilleEquipement(e) === famille);
 }
 
+export function isStandaloneExtractionCtaName(name) {
+  const value = sq(name);
+  return /\b(extraction|reprise)\b/.test(value) &&
+    !/\b(soufflage|mixte|double flux)\b/.test(value);
+}
+
 export async function creerRemarEquipement(visiteId, famille, nom) {
   if (!REMAR_FAMILLES[famille]) throw new Error('Type d\'equipement REMAR inconnu.');
   const db = await getDb();
   const v = await requireLocal(db, visiteId, true);
   const label = str(nom);
   if (!label) throw new Error('Nomme cet equipement avant de le creer.');
+  if (famille === 'cta' && isStandaloneExtractionCtaName(label))
+    throw new Error('Une CTA d’extraction seule n’est pas proposée. Utilise un caisson VMC pour l’extraction, ou une CTA double flux si elle assure aussi le soufflage.');
   const types = await db.getAllAsync('SELECT id,type_code,designation FROM equipements WHERE installation_id=? AND statut=\'actif\'', [v.installation_id]);
   if (types.some(e => remarFamilleEquipement(e) === famille && sq(e.designation) === sq(label))) {
     throw new Error('Cet equipement existe deja dans le patrimoine du local. Utilise sa fiche existante.');

@@ -304,14 +304,14 @@ function find(panel,cle,section=null){
   }
 
   // Empty business fields are allowed. Symfony still receives each criterion:
-  // unanswered applicable controls use its established N.V transport status,
+  // unanswered applicable controls become S.O only in the outbound wire,
   // without creating a positive/negative opinion in local SQLite.
   const allEmpty=await build({fieldRows:[],controlRows:[]});
   check(allEmpty.issues.length===0,'completely blank REMAR criteria can be published');
   check(allEmpty.values.length===141,'all 141 official destination criteria retained even when blank');
   for(const {m} of remoteIndex){
     const wire=outputFor(allEmpty,m);
-    check(wire.commentaire==='/' && wire.avis===(m.type==='controle'?'N.V':null),
+    check(wire.commentaire==='/' && wire.avis===(m.type==='controle'?'S.O':null),
       'empty '+identity(m)+' preserved without invented data');
   }
 
@@ -340,7 +340,7 @@ function find(panel,cle,section=null){
   // Historical Symfony REMAR marks Situation/Accessibilité as
   // avisApplicable=oui even though both METRA site/cold fields are text.
   // Their values must survive in commentaire; otherwise the payload would
-  // silently send N.V + "/" and pass transport while losing real data.
+  // silently send S.O + "/" and pass transport while losing real data.
   const technicalWithAvis=structuredClone(remote);
   for(const cat of technicalWithAvis.categories){
     if(!['INFORMATION GÉNÉRALE CHAUFFERIE',
@@ -358,7 +358,7 @@ function find(panel,cle,section=null){
       const mapping=find(panel,name);
       const expected='CHAMP:'+identity(mapping);
       const row=outputFor(preservedTechnical,mapping);
-      check(row.commentaire===expected&&row.avis==='N.V',
+      check(row.commentaire===expected&&row.avis==='S.O',
         'Symfony avisApplicable=oui preserves actual '+panel+' / '+name+' value');
     }
   }
@@ -445,12 +445,12 @@ function find(panel,cle,section=null){
     'real criterion 303 receives current heating network plus curve, never a cooling network');
   const energy=actualRemote.values.find(row=>
     row.categorieId===51&&row.sousCategorieId===73&&row.critereId===233);
-  check(energy?.avis==='N.V'&&energy?.commentaire===
+  check(energy?.avis==='S.O'&&energy?.commentaire===
       'Chaleur A : 1234 MWh\nChaleur B : 5678 MWh',
-    'a meter with avisApplicable=true still exports BOTH numeric readings and explicit N.V');
+    'a meter with avisApplicable=true still exports BOTH numeric readings and outbound S.O');
   const temperature=actualRemote.values.find(row=>
     row.categorieId===51&&row.sousCategorieId===95&&row.critereId===228);
-  check(temperature?.avis==='N.V'&&
+  check(temperature?.avis==='S.O'&&
     temperature?.commentaire==='CHAMP:p-remar-releves||Température chaufferie||Chauffage aller (°C)||champ',
     'real Symfony temperature applicable avis must not erase METRA field');
   for(const [name,panel] of [
@@ -591,7 +591,7 @@ function find(panel,cle,section=null){
   check(outputFor(dynamic,year).commentaire==='2026','CTA official year current value');
   check(outputFor(dynamic,find('p-remar-cta','Type de batterie')).commentaire==='/',
     'current CTA blank cannot inherit old flat field');
-  check(outputFor(dynamic,find('p-remar-filtres','Etat du filtre','Filtre n°1')).avis==='N.V',
+  check(outputFor(dynamic,find('p-remar-filtres','Etat du filtre','Filtre n°1')).avis==='S.O',
     'missing current filter opinion is not replaced by old S');
   check(outputFor(dynamic,find('p-remar-vmc','Type de ventilation')).commentaire==='/',
     'current VMC blank cannot inherit old legacy field');
@@ -669,9 +669,9 @@ function find(panel,cle,section=null){
   check(missingCTA.issues.length===0,'missing opinion on second CTA is not an upload blocker: '+
     missingCTA.issues.join(' | '));
   const missingLight=outputFor(missingCTA,find('p-remar-cta','Eclairage du caisson'));
-  check(missingLight.avis==='N.V'&&
+  check(missingLight.avis==='S.O'&&
     missingLight.commentaire.includes('CTA bureaux : [S]')&&
-    missingLight.commentaire.includes('CTA gymnase : [Non renseigné]'),
+    missingLight.commentaire.includes('CTA gymnase : [S.O] /'),
     'aggregate is neutral and each CTA remains individually identified, even with missing avis');
 
   // Exact reproduction of the six non-filled controls reported in the
@@ -689,15 +689,15 @@ function find(panel,cle,section=null){
     blankSix.issues.join(' | '));
   for(const cle of ['Nettoyage des gaines horizontal & vertical','Calorifugeage']){
     const wire=outputFor(blankSix,find('p-remar-cta',cle));
-    check(wire.avis==='N.V','missing '+cle+' uses neutral N.V only on Symfony wire');
-    check(wire.commentaire.includes('CTA bureaux : [Non renseigné]')&&
-      wire.commentaire.includes('CTA gymnase : [Non renseigné]'),
+    check(wire.avis==='S.O','missing '+cle+' uses outbound S.O only on Symfony wire');
+    check(wire.commentaire.includes('CTA bureaux : [S.O] /')&&
+      wire.commentaire.includes('CTA gymnase : [S.O] /'),
       'both unnamed confirmations remain separately visible for '+cle);
   }
   const missingFilter=outputFor(blankSix,find('p-remar-filtres','Etat du filtre','Filtre n°1'));
-  check(missingFilter.avis==='N.V'&&
-    missingFilter.commentaire.includes('CTA bureaux / Filtre soufflage : [Non renseigné]')&&
-    missingFilter.commentaire.includes('CTA gymnase / Filtre soufflage : [Non renseigné]'),
+  check(missingFilter.avis==='S.O'&&
+    missingFilter.commentaire.includes('CTA bureaux / Filtre soufflage : [S.O] /')&&
+    missingFilter.commentaire.includes('CTA gymnase / Filtre soufflage : [S.O] /'),
     'both filter states retained with empty local avis (no inherited S)');
 
   // User can export a newly created CTA with just its name, before filling
@@ -710,9 +710,9 @@ function find(panel,cle,section=null){
   check(identityVisit.issues.length===0,'new CTA identities can be published without inspections');
   check(identityVisit.values.length===141,'blank CTA visit retains whole Symfony criterion contract');
   const identityCal=outputFor(identityVisit,find('p-remar-cta','Calorifugeage'));
-  check(identityCal.avis==='N.V'&&
-    identityCal.commentaire.includes('CTA bureaux : [Non renseigné]')&&
-    identityCal.commentaire.includes('CTA gymnase : [Non renseigné]'),
+  check(identityCal.avis==='S.O'&&
+    identityCal.commentaire.includes('CTA bureaux : [S.O] /')&&
+    identityCal.commentaire.includes('CTA gymnase : [S.O] /'),
     'two new CTA names retain independent missing controls');
 
   // The agent may explicitly record N.S but leave the free-text finding

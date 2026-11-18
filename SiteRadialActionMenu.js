@@ -1,47 +1,53 @@
+/**
+ * Site actions in the same warm and neutral METRA design language as client
+ * and visit sheets. Accessible touch targets, no dark neon radial overlay.
+ */
 import React from 'react';
-import { Modal, Pressable, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { FONTS } from './styles.js';
+import { Modal, Pressable, Text, TouchableOpacity, View } from 'react-native';
+import { COLORS, FONTS, styles } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 
-const SIZE = 232;
-const HALF = SIZE / 2;
-const RADIUS = 78;
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
+const ACTIONS = Object.freeze([
+  { key:'rename', label:'Renommer', hint:'Modifier le nom dans METRA', icon:'edit' },
+  { key:'duplicate', label:'Dupliquer', hint:'Copier le site et ses visites', icon:'copy' },
+  { key:'delete', label:'Supprimer', hint:'Choisir METRA ou METRA + Intranet', icon:'trash', danger:true },
+]);
 
 export function SiteRadialActionMenu({ menu, onAction, onClose }) {
-  const { width, height } = useWindowDimensions();
-  if (!menu) return null;
-
-  const actions = [
-    { key: 'rename', label: 'Renommer', icon: '✎', angle: -90 },
-    { key: 'duplicate', label: 'Dupliquer', icon: '⧉', angle: 30 },
-    { key: 'delete', label: 'Supprimer', icon: '×', angle: 150, danger: true },
-  ];
-
-  const centerX = clamp(Number(menu.x || width / 2), HALF + 8, Math.max(HALF + 8, width - HALF - 8));
-  const centerY = clamp(Number(menu.y || height / 2), HALF + 8, Math.max(HALF + 8, height - HALF - 8));
-
-  return <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-    <View style={{ flex: 1 }}>
-      <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#0004' }} />
-      <View pointerEvents="box-none" style={{ position: 'absolute', left: centerX - HALF, top: centerY - HALF, width: SIZE, height: SIZE }}>
-        <View pointerEvents="none" style={{ position: 'absolute', left: 43, top: 43, width: 146, height: 146, borderRadius: 73, backgroundColor: '#06111ADC', borderWidth: 1, borderColor: '#31576C' }} />
-        {actions.map((action) => {
-          const rad = action.angle * Math.PI / 180;
-          const left = HALF + Math.cos(rad) * RADIUS - 30;
-          const top = HALF + Math.sin(rad) * RADIUS - 30;
-          return <TouchableOpacity key={action.key} onPress={() => onAction?.(action.key, menu.site)} style={{ position: 'absolute', left, top, width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: action.danger ? '#FF7A80' : '#477186', backgroundColor: action.danger ? '#53252B' : '#143143' }}>
-            <Text style={{ color: action.danger ? '#FFB0B4' : '#F5FBFF', fontFamily: FONTS.black, fontSize: 19 }}>{action.icon}</Text>
-            <Text numberOfLines={1} style={{ color: action.danger ? '#FFB0B4' : '#D8EEF8', fontSize: 8.5, fontFamily: FONTS.bold, marginTop: 1 }}>{action.label}</Text>
-          </TouchableOpacity>;
-        })}
-        <TouchableOpacity onPress={onClose} style={{ position: 'absolute', left: 85, top: 85, width: 62, height: 62, borderRadius: 31, backgroundColor: '#0B202D', borderWidth: 2, borderColor: '#3DC7E8', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}>
-          <Text numberOfLines={2} style={{ color: '#F5FBFF', fontFamily: FONTS.black, fontSize: 9.5, textAlign: 'center', maxWidth: 52 }}>{String(menu.site?.nom_site || 'Actions').slice(0, 18)}</Text>
-          <CvcIcon name="close" size={12} color={'#91A7B5'} strokeWidth={2.1} />
-        </TouchableOpacity>
+  return <Modal visible={!!menu} transparent animationType="fade" onRequestClose={onClose}>
+    <View style={styles.modalOverlay}>
+      <Pressable accessibilityLabel="Fermer les actions du site" onPress={onClose}
+        style={{position:'absolute',left:0,right:0,top:0,bottom:0}} />
+      <View style={[styles.modalSheet,{maxWidth:430,paddingHorizontal:16,paddingTop:18,paddingBottom:16}]}>
+        <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:8}}>
+          <View style={{flex:1}}>
+            <Text style={{fontFamily:FONTS.black,fontSize:17,color:COLORS.ink}}>Actions du site</Text>
+            <Text numberOfLines={2} style={{fontFamily:FONTS.bodyMedium,fontSize:12,color:COLORS.inkSoft,marginTop:3}}>
+              {menu?.site?.nom_site || 'Site'}
+            </Text>
+          </View>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer le menu"
+            onPress={onClose} style={{minWidth:44,minHeight:44,borderRadius:15,alignItems:'center',justifyContent:'center',backgroundColor:COLORS.orangeLight}}>
+            <CvcIcon name="close" size={20} color={COLORS.orangeDark} />
+          </TouchableOpacity>
+        </View>
+        {ACTIONS.map(action=><TouchableOpacity key={action.key}
+          accessibilityRole="button" accessibilityLabel={action.label}
+          activeOpacity={0.75} onPress={()=>onAction?.(action.key,menu?.site)}
+          style={{flexDirection:'row',alignItems:'center',gap:12,minHeight:63,paddingVertical:9,
+            paddingHorizontal:11,marginTop:8,borderRadius:16,borderWidth:1,
+            borderColor:action.danger?'rgba(186,44,44,0.18)':'rgba(22,21,15,0.09)',
+            backgroundColor:action.danger?COLORS.redBg:'rgba(255,255,255,0.88)'}}>
+          <View style={{width:40,height:40,borderRadius:13,alignItems:'center',justifyContent:'center',
+            backgroundColor:action.danger?'rgba(186,44,44,0.10)':COLORS.orangeLight}}>
+            <CvcIcon name={action.icon} size={19} color={action.danger?COLORS.red:COLORS.orangeDark} />
+          </View>
+          <View style={{flex:1}}>
+            <Text style={{fontFamily:FONTS.bodyBold,fontSize:14,color:action.danger?COLORS.red:COLORS.ink}}>{action.label}</Text>
+            <Text style={{fontFamily:FONTS.bodyMedium,fontSize:11.5,color:COLORS.inkSoft,marginTop:2}}>{action.hint}</Text>
+          </View>
+          <CvcIcon name="chevron-right" size={16} color={COLORS.inkSoft} />
+        </TouchableOpacity>)}
       </View>
     </View>
   </Modal>;

@@ -66,7 +66,7 @@ async function ajouterReseau(visiteId, nomSouhaite = '') {
   return id;
 }
 async function upsertReseauChamp(id, cle, valeur) {
-  const autorisees = new Set(['nom_reseau','ordre','t_ext_c','t_dep_c','courbe_de_chauffe','tnc','consigne_programme_horaire']);
+  const autorisees = new Set(['nom_reseau','ordre','t_ext_c','t_dep_c','t_retour_ecs_c','t_stockage_ecs_c','courbe_de_chauffe','tnc','consigne_programme_horaire']);
   if (!autorisees.has(cle)) throw new Error(`Champ réseau non autorisé : ${cle}`);
   const db = await getDb();
   const row = await db.getFirstAsync('SELECT reseau_site_id FROM reseaux WHERE id=?', [id]);
@@ -242,8 +242,8 @@ export async function dupliquerReseau(reseauId) {
   // pas le réseau d'origine et ne déplace ni historique ni photos.
   const id = await ajouterReseau(source.visite_id, nom);
   await db.runAsync(
-    `UPDATE reseaux SET t_ext_c=?,t_dep_c=?,courbe_de_chauffe=?,tnc=?,consigne_programme_horaire=? WHERE id=?`,
-    [source.t_ext_c ?? null, source.t_dep_c ?? null, source.courbe_de_chauffe ?? null, source.tnc ?? null,
+    `UPDATE reseaux SET t_ext_c=?,t_dep_c=?,t_retour_ecs_c=?,t_stockage_ecs_c=?,courbe_de_chauffe=?,tnc=?,consigne_programme_horaire=? WHERE id=?`,
+    [source.t_ext_c ?? null, source.t_dep_c ?? null, source.t_retour_ecs_c ?? null, source.t_stockage_ecs_c ?? null, source.courbe_de_chauffe ?? null, source.tnc ?? null,
       source.consigne_programme_horaire ?? null, id]
   );
   // Dupliquer aussi la programmation structurée du réseau courant,
