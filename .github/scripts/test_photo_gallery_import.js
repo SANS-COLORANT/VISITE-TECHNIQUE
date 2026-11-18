@@ -78,8 +78,15 @@ const gallery=new Function('ImagePicker','ImageManipulator','FileSystem',
   assert.ok(panel.includes('galleryOpenRequest'),'bottom bar can launch gallery from any visit');
   assert.ok(panel.includes("galerieLien, {uri:photoOptimisee.uri,titre}"),'CTA context stays attached');
   const visit=read('VisiteScreen.js');
-  assert.ok(visit.includes("setGalleryContext(estParcoursRemar && activeTab==='p-remar-cta'"),'context preservation');
-  assert.ok(visit.includes("onGallery={ouvrirGalerieLibre}"),'bottom gallery action exists');
+  const bar=read('VisitChrome.js');
+  assert.ok(!bar.includes('onGallery') && !bar.includes('>Galerie</Text>'),
+    'visit bottom action bar must contain only Note, Photo libre and Anomalie');
+  assert.ok(!visit.includes("onGallery={ouvrirGalerieLibre}"),
+    'gallery button must not return to the visit bottom action bar');
+  assert.ok(read('OptimizedPhotoPanel.js').includes('PhotoGalleryImportSheet'),
+    'gallery import remains available in the photo panel');
+  assert.ok(read('PhotoButton.js').includes('PhotoGalleryImportSheet'),
+    'gallery import remains available on technical photo buttons');
   const mission=read('missionMediaDb.js');
   assert.ok(mission.includes("sourceUri = null")&&mission.includes("selectedUri=result.assets[0].uri"));
   assert.ok(read('MissionVisitScreen.js').includes("sourceUri:compact.uri"));

@@ -883,14 +883,6 @@ function VisiteScreen({ route, onBack }) {
       setCaptureLibreEnCours(false);
     }
   };
-  const ouvrirGalerieLibre = () => {
-    if (captureLibreEnCours || !tabsReels.includes('p-photos')) return;
-    setGalleryContext(estParcoursRemar && activeTab==='p-remar-cta' && remarActiveCta?.id
-      ? {entiteKey:`equipement||${remarActiveCta.id}`,label:remarActiveCta.designation}
-      : null);
-    setGalleryOpenRequest(n=>n+1);
-    changerOnglet('p-photos');
-  };
   // Seconde ligne : local · client · trame (défile si elle est trop longue).
   const sousTitre = visiteARattacher
     ? ['Visite rapide', trame.nom, visite.date_visite].filter(Boolean).join(' · ')
@@ -965,7 +957,7 @@ function VisiteScreen({ route, onBack }) {
       </View> : animatedContent}
       {!clavierVisible && !modeTablette && ongletsEnBas ? <View style={{ paddingHorizontal: 12, paddingTop: 8, marginBottom: -12 }}><SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} pagerX={pagerX} pagerWidth={pagerWidth} pageOrder={tabsReels} visiteId={visiteId} /></View> : null}
       <AideReglementaireHost />
-      {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={prendrePhotoLibre} onGallery={ouvrirGalerieLibre}
+      {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={prendrePhotoLibre}
         photoLabel={estParcoursRemar && activeTab==='p-remar-cta' && remarActiveCta?.id
           ? 'Photo CTA' : 'Photo libre'} onAnomalie={() => setAnomalieVisible(true)} /> : null}
 
