@@ -110,6 +110,8 @@ async function downloadAttempt(path, destinationUri, accessToken) {
   if (response.status >= 300 && response.status < 400) {
     const error = new Error('Redirection HTTP refusée pour protéger la preuve DPoP.');
     error.status = response.status;
+    error.code = 'http_redirect_blocked';
+    error.retryable = false;
     throw error;
   }
   if (!response.ok) await parseResponse(response);
@@ -227,6 +229,8 @@ async function rawRequest(method, url, { accessToken = null, body = null, header
   if (response.status >= 300 && response.status < 400) {
     const error = new Error('Redirection HTTP refusée pour protéger la preuve DPoP.');
     error.status = response.status;
+    error.code = 'http_redirect_blocked';
+    error.retryable = false;
     throw error;
   }
   return parseResponse(response);
@@ -378,8 +382,18 @@ export async function downloadProtectedPhoto(path, destinationUri) {
 export async function syncAuthorizedClients() {
   try {
     const payload = await protectedRequest('GET', '/api/clients');
-    await cacheAuthorizedClients(payload?.clients || []);
-    return payload?.clients || [];
+    // A malformed 2xx (HTML login page / maintenance proxy / invalid JSON)
+    // must never deauthorize every cached client in offline mode.
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)
+        || !Array.isArray(payload.clients)
+        || payload.clients.some((client) => !client || typeof client !== 'object'
+          || !String(client.id ?? '').trim())) {
+      throw Object.assign(new Error('Réponse Intranet invalide : liste des clients absente ou incohérente. Annuaire local conservé.'), {
+        code: 'invalid_clients_payload',
+      });
+    }
+    await cacheAuthorizedClients(payload.clients);
+    return payload.clients;
   } catch (error) {
     await markApiError(error);
     throw error;
@@ -391,6 +405,14 @@ export async function syncClientPreparation(remoteClientId, trameId = null, { ca
   const suffix = trameId != null ? `?trame=${encodeURIComponent(String(trameId))}` : '';
   try {
     const payload = await protectedRequest('GET', `/api/clients/${id}/preparation-visites${suffix}`);
+    // Keep an existing preparation intact if a proxy/server returns an
+    // unexpected successful response.
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)
+        || !Array.isArray(payload.visites)) {
+      throw Object.assign(new Error('Réponse Intranet invalide : visites de préparation absentes. Données locales conservées.'), {
+        code: 'invalid_preparation_payload',
+      });
+    }
     if (cacheResult) await cachePreparation(remoteClientId, payload, { partial: trameId != null });
     return payload;
   } catch (error) {

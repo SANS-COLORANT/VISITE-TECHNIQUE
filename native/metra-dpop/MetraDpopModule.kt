@@ -244,7 +244,14 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
               // Explicitly fail closed for 301, 302, 303, 307 and 308, including
               // redirect responses to the exact same HTTPS origin.
               if (result.code in 300..399) {
-                promise.reject("METRA_INTRANET_REDIRECT_BLOCKED", "Redirection HTTP refusée pour protéger DPoP")
+                // Return the original 3xx code without following Location. JS can
+                // then mark this upload as a permanent, visible refusal, not
+                // as a transient offline network error.
+                val blocked = Arguments.createMap()
+                blocked.putInt("status", result.code)
+                blocked.putString("text", "")
+                blocked.putMap("headers", Arguments.createMap())
+                promise.resolve(blocked)
               } else {
                 val bytes = boundedResponseBytes(result)
                 val payload = Arguments.createMap()

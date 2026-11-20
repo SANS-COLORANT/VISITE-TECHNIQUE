@@ -7,6 +7,7 @@ on:
       - release/metra-playstore-secure-20261120
       - fix/play-astra-security-m01-m07-20261120
       - fix/play-astra-m04-m05-20261120
+      - fix/astra20-intranet-reliability-20261120
   workflow_dispatch:
 
 permissions:
@@ -77,6 +78,7 @@ jobs:
           node tests/reportPdfFragments.test.mjs
           node --check symfonyApi.js
           python3 .github/scripts/verify_intranet_transport_source.py
+          python3 .github/scripts/verify_astra20_response_contract.py
           node --check databaseBackup.js
           node --check supportDump.js
           node --check plugins/withMetraPlaySecurity.js

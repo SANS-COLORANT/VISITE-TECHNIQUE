@@ -197,7 +197,8 @@ async function sendRow(db, row) {
   } catch (error) {
     const status = Number(error?.status || 0);
     const localAuthFailure = LOCAL_AUTH_ERRORS.has(String(error?.code || ''));
-    if (error?.code === 'invalid_ack') await markTerminal(db, row, 'rejected', error);
+    if (error?.code === 'http_redirect_blocked') await markTerminal(db, row, 'rejected', error);
+    else if (error?.code === 'invalid_ack') await markTerminal(db, row, 'rejected', error);
     else if (localAuthFailure || status === 401) await markTerminal(db, row, 'auth_error', error);
     else if (!status || RETRYABLE_HTTP.has(status)) await markRetry(db, row, error, exponentialRetry(Number(row.attempt_count || 0) + 1));
     else if (status === 429) await markRetry(db, row, error, retryAfterMs(error.retryAfter));

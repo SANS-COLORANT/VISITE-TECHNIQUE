@@ -35,6 +35,7 @@ const playCompatibilityBranches = new Set([
   'release/metra-playstore-secure-20261120',
   'fix/play-astra-security-m01-m07-20261120',
   'fix/play-astra-m04-m05-20261120',
+  'fix/astra20-intranet-reliability-20261120',
 ]);
 const playBranch = [process.env.GITHUB_REF_NAME, process.env.GITHUB_HEAD_REF]
   .some((name) => playCompatibilityBranches.has(name));
