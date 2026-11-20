@@ -6,6 +6,10 @@ module.exports = ({ config }) => {
   const android = config.android || {};
   const androidConfig = android.config || {};
   const plugins = [...(config.plugins || [])];
+  // SDK 54 mandates config plugins for assets, fonts and protected preferences.
+  for (const id of ['expo-asset', 'expo-font', 'expo-secure-store']) {
+    if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === id)) plugins.push(id);
+  }
   if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraPlaySecurity')) plugins.push('./plugins/withMetraPlaySecurity');
   if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraDpop')) plugins.push('./plugins/withMetraDpop');
   if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraMissionTools')) plugins.push('./plugins/withMetraMissionTools');
