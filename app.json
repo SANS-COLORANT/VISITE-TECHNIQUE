@@ -33,7 +33,10 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FBF0E1"
+          "backgroundColor": "#FBF0E1",
+          "image": "./assets/metra/app-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
         }
       ],
       [
