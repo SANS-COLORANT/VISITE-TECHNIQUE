@@ -15,6 +15,12 @@ export const PHOTO_UPLOAD_PART_SIZE = 10;
 export const PHOTO_UPLOAD_CONCURRENCY = 3;
 const RETRYABLE_HTTP = new Set([500, 502, 503, 504]);
 const LOCAL_AUTH_ERRORS = new Set(['reactivation_required', 'dpop_key_missing', 'invalid_grant']);
+const LOCAL_PHOTO_ERRORS = new Set([
+  'photo_missing', 'photo_too_large', 'photo_local_missing',
+  'photo_local_empty', 'photo_local_too_large', 'photo_local_invalid_uri',
+  'photo_local_permission_denied', 'photo_upload_invalid_metadata',
+  'secure_photo_upload_missing',
+]);
 
 function notify() {
   revision += 1;
@@ -233,7 +239,8 @@ async function sendPhotoRow(db, row) {
   } catch (error) {
     const status = Number(error?.status || 0);
     const localAuthFailure = LOCAL_AUTH_ERRORS.has(String(error?.code || ''));
-    if (error?.code === 'http_redirect_blocked') await markTerminal(db, row, 'rejected', error);
+    if (LOCAL_PHOTO_ERRORS.has(String(error?.code || ''))) await markTerminal(db, row, 'validation_error', error);
+    else if (error?.code === 'http_redirect_blocked') await markTerminal(db, row, 'rejected', error);
     else if (error?.code === 'invalid_photo_ack') await markTerminal(db, row, 'rejected', error);
     else if (localAuthFailure || status === 401) await markTerminal(db, row, 'auth_error', error);
     else if (!status && error?.code !== 'photo_missing') await markRetry(db, row, error, exponentialRetry(Number(row.attempt_count || 0) + 1));
@@ -251,6 +258,9 @@ function shouldPause(results) {
     if (result?.status !== 'error') return false;
     const status = Number(result?.error?.status || 0);
     const code = String(result?.error?.code || '');
+    // A photo that is missing, oversized or has a revoked gallery permission
+    // is a local repair item, not a reason to stop later photos in the batch.
+    if (LOCAL_PHOTO_ERRORS.has(code) || code === 'http_redirect_blocked') return false;
     return LOCAL_AUTH_ERRORS.has(code) || !status || status === 401 || status === 429 || RETRYABLE_HTTP.has(status);
   });
 }
@@ -294,7 +304,15 @@ export async function syncVisitPhotosNow(visiteId) {
 
 export async function retryVisitPhotoUploadsNow(visiteId) {
   const db = await getDb();
-  await db.runAsync(`UPDATE api_visit_photo_outbox SET status='pending',next_attempt_at=NULL,updated_at=datetime('now') WHERE visite_id=? AND status IN ('retry','auth_error')`, [String(visiteId)]);
+  // Only explicit user action can retry a LOCAL validation error; generic HTTP
+  // 422 and incoherent acknowledgements remain terminal.
+  const localCodes = [...LOCAL_PHOTO_ERRORS];
+  const placeholders = localCodes.map(() => '?').join(',');
+  await db.runAsync(`UPDATE api_visit_photo_outbox
+    SET status='pending',next_attempt_at=NULL,updated_at=datetime('now')
+    WHERE visite_id=? AND (status IN ('retry','auth_error')
+      OR (status='validation_error' AND error_code IN (${placeholders})))`,
+    [String(visiteId), ...localCodes]);
   notify();
   return syncVisitPhotosNow(visiteId);
 }
