@@ -33,7 +33,7 @@ const EXPECTED = Object.freeze({
 // candidate may migrate to API 36, and its lockfile is still checked below.
 const playMigration = process.env.METRA_PLAY_SECURE_BUILD === '1';
 if (playMigration) {
-  if (!/^~?54\\./.test(pkg.dependencies?.expo || '')) fail('Le profil Play requiert Expo SDK 54');
+  if (!String(pkg.dependencies?.expo || '').replace(/^~/, '').startsWith('54.')) fail('Le profil Play requiert Expo SDK 54');
   if (pkg.dependencies?.react !== '19.1.0') fail('Le profil Play requiert React 19.1.0');
   if (pkg.dependencies?.['react-native'] !== '0.81.5') fail('Le profil Play requiert React Native 0.81.5');
   if (app.expo?.newArchEnabled !== false) fail('React Native historique doit rester explicite en SDK 54');
