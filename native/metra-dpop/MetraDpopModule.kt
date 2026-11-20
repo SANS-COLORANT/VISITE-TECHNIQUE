@@ -211,7 +211,11 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
   private fun enqueueHttpRequest(request: Request, responseFormat: String, promise: Promise) {
     noRedirectClient.newCall(request).enqueue(object : Callback {
       override fun onFailure(call: Call, error: IOException) {
+        if (error is PhotoLocalProblem) {
+          promise.reject(error.metraCode, error.message, error)
+        } else {
         promise.reject("METRA_INTRANET_NETWORK_ERROR", "Connexion HTTPS Intranet indisponible", error)
+        }
       }
 
       override fun onResponse(call: Call, response: Response) {
@@ -292,6 +296,12 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
     }
   }
 
+  // Local photo preconditions must not be mistaken for network failures.
+  // The codes contain no filesystem paths or customer identifiers.
+  private class PhotoLocalProblem(
+    val metraCode: String, message: String, cause: Throwable? = null
+  ) : IOException(message, cause)
+
   // Keep upload bytes out of the React Native FormData -> String bridge.
   // The file is read in 16 KiB slices from an Android-private URI.
   @ReactMethod
@@ -313,20 +323,22 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
       }
       val location = Uri.parse(localUri)
       if (location.scheme != "file" && location.scheme != "content") {
-        throw IllegalArgumentException("Le fichier photo doit provenir d'un URI local")
+        throw PhotoLocalProblem("photo_local_invalid_uri", "La photo ne provient pas d'un emplacement local utilisable")
       }
       val privatePhoto = if (location.scheme == "file") {
-        val file = File(location.path ?: throw FileNotFoundException("Chemin photo absent")).canonicalFile
+        val file = File(location.path ?: throw PhotoLocalProblem("photo_local_invalid_uri", "Chemin local de la photo absent")).canonicalFile
         val roots = listOf(reactApplicationContext.filesDir, reactApplicationContext.cacheDir) +
           reactApplicationContext.getExternalFilesDirs(null).filterNotNull()
         if (roots.none { root ->
             val base = root.canonicalFile.path
             file.path.startsWith(base + File.separator)
           }) {
-          throw IllegalArgumentException("Le fichier photo doit rester dans le stockage privé METRA")
+          throw PhotoLocalProblem("photo_local_invalid_uri", "La photo doit être enregistrée dans le stockage privé METRA")
         }
-        if (!file.isFile || file.length() <= 0 || file.length() > 10L * 1024L * 1024L) {
-          throw IllegalArgumentException("Fichier photo absent ou trop volumineux")
+        if (!file.isFile) throw PhotoLocalProblem("photo_local_missing", "Le fichier photo n'est plus disponible localement")
+        if (file.length() == 0L) throw PhotoLocalProblem("photo_local_empty", "Le fichier photo est vide")
+        if (file.length() > 10L * 1024L * 1024L) {
+          throw PhotoLocalProblem("photo_local_too_large", "La photo dépasse la limite de 10 Mio")
         }
         file
       } else null
@@ -335,19 +347,34 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
         override fun contentType() = mimeType.toMediaTypeOrNull()
         override fun contentLength(): Long = privatePhoto?.length() ?: -1L
         override fun writeTo(sink: BufferedSink) {
-          val input = if (privatePhoto != null) FileInputStream(privatePhoto)
+          val input = try {
+            if (privatePhoto != null) FileInputStream(privatePhoto)
             else reactApplicationContext.contentResolver.openInputStream(location)
-              ?: throw FileNotFoundException("URI photo non accessible")
-          input.use { stream ->
+              ?: throw PhotoLocalProblem("photo_local_missing", "La photo sélectionnée n'est plus accessible")
+          } catch (error: FileNotFoundException) {
+            throw PhotoLocalProblem("photo_local_missing", "La photo locale est introuvable", error)
+          } catch (error: SecurityException) {
+            throw PhotoLocalProblem("photo_local_permission_denied", "L'accès à la photo a expiré. Redonne l'autorisation depuis la galerie.", error)
+          }
+          try {
+            input.use { stream ->
             val bytes = ByteArray(16384)
             var total = 0L
             while (true) {
               val length = stream.read(bytes)
               if (length < 0) break
               total += length.toLong()
-              if (total > 10L * 1024L * 1024L) throw IOException("Photo dépassant 10 Mio")
+              if (total > 10L * 1024L * 1024L) {
+                throw PhotoLocalProblem("photo_local_too_large", "La photo dépasse la limite de 10 Mio")
+              }
               sink.write(bytes, 0, length)
             }
+            if (total == 0L) throw PhotoLocalProblem("photo_local_empty", "La photo locale est vide")
+          }
+          } catch (error: FileNotFoundException) {
+            throw PhotoLocalProblem("photo_local_missing", "La photo locale est introuvable", error)
+          } catch (error: SecurityException) {
+            throw PhotoLocalProblem("photo_local_permission_denied", "L'accès à cette photo a été révoqué", error)
           }
         }
       }
@@ -383,7 +410,13 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
       }
       enqueueHttpRequest(builder.post(form.build()).build(), "text", promise)
     } catch (error: Exception) {
-      promise.reject("METRA_INTRANET_MULTIPART_ERROR", "Envoi photo HTTPS non disponible", error)
+      when (error) {
+        is PhotoLocalProblem -> promise.reject(error.metraCode, error.message, error)
+        is SecurityException -> promise.reject("photo_local_permission_denied", "Accès au fichier photo refusé", error)
+        is FileNotFoundException -> promise.reject("photo_local_missing", "Fichier photo introuvable", error)
+        is IllegalArgumentException -> promise.reject("photo_upload_invalid_metadata", "Paramètres de photo invalides", error)
+        else -> promise.reject("METRA_INTRANET_MULTIPART_ERROR", "Envoi photo HTTPS non disponible", error)
+      }
     }
   }
 
