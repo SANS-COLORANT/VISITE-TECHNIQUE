@@ -178,7 +178,16 @@ jobs:
           cd ..
           test -s android/app/build/outputs/bundle/release/app-release.aab
           cp android/app/build/outputs/bundle/release/app-release.aab release/METRA-PlayStore.aab
-          jarsigner -verify -strict release/METRA-PlayStore.aab
+          # A Google Play upload keystore is self-signed by design.
+          # jarsigner -strict exits 4 for PKIX/self-signed warnings even when the
+          # AAB has a valid JAR signature. Verify cryptographic integrity without
+          # asking a public CA to vouch for our self-signed upload key.
+          jarsigner -verify release/METRA-PlayStore.aab > "$RUNNER_TEMP/metra-aab-signature-check.txt" 2>&1
+          if ! grep -q '^jar verified' "$RUNNER_TEMP/metra-aab-signature-check.txt"; then
+            echo '::error::Signed AAB verification did not report jar verified.'
+            exit 1
+          fi
+          echo 'Signed App Bundle integrity: verified (self-signed upload certificate expected).'
           jarcert="$(keytool -printcert -jarfile release/METRA-PlayStore.aab | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
           test "$actual" = "$jarcert"
           sha256sum release/METRA-PlayStore.aab > release/METRA-PlayStore.aab.sha256
