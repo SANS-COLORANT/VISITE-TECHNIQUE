@@ -9,7 +9,10 @@ photo=(r/'intranetVisitPhotoOutboxDb.js').read_text(encoding='utf-8')
 assert ".followRedirects(false)" in native and ".followSslRedirects(false)" in native
 assert 'blocked.putInt("status", result.code)' in native
 assert "error.code = 'http_redirect_blocked'" in api
-assert api.count("error.code = 'http_redirect_blocked'") == 2
+# Three entrypoints: JSON API, historic-photo download and native multipart.
+assert api.count("error.code = 'http_redirect_blocked'") == 3, (
+    'All three DPoP request paths must reject redirects explicitly'
+)
 assert "client.id ?? ''" in api and 'Array.isArray(payload.clients)' in api
 assert 'Array.isArray(payload.visites)' in api
 assert api.index('Array.isArray(payload.clients)') < api.index('await cacheAuthorizedClients(payload.clients)')
