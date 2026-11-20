@@ -260,7 +260,9 @@ function shouldPause(results) {
     const code = String(result?.error?.code || '');
     // A photo that is missing, oversized or has a revoked gallery permission
     // is a local repair item, not a reason to stop later photos in the batch.
-    if (LOCAL_PHOTO_ERRORS.has(code) || code === 'http_redirect_blocked') return false;
+    // A rejected acknowledgement may already represent a server-side upload:
+    // preserve the UUID, stop retries of that row, but allow later photos.
+    if (LOCAL_PHOTO_ERRORS.has(code) || code === 'http_redirect_blocked' || code === 'invalid_photo_ack') return false;
     return LOCAL_AUTH_ERRORS.has(code) || !status || status === 401 || status === 429 || RETRYABLE_HTTP.has(status);
   });
 }
