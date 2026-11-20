@@ -69,6 +69,7 @@ jobs:
           # resolves it correctly. Keep executable REMAR/SQLite contract tests.
           node .github/scripts/test_remar_141_intranet_matrix.js
           node .github/scripts/test_remar_dynamic.js
+          node --import ./.github/scripts/legacy_fs_resolver.mjs --experimental-test-module-mocks --test tests/trameRemar.test.mjs
           node tests/reportPdfFragments.test.mjs
           node --check symfonyApi.js
           node --check databaseBackup.js
