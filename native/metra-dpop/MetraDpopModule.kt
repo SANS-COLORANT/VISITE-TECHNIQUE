@@ -458,6 +458,11 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
               if (result.code in 300..399) {
                 // Preserve 3xx for JS, never follow Location, never write a file.
                 payload.putString("text", "")
+              } else if (result.code in 200..299 && result.code != 200) {
+                // HTTP 206 contains only a byte range, not a complete photo.
+                // 201/202/204 are not valid successful GET image responses either.
+                // Do not write any such response into the private .part file.
+                payload.putString("text", "")
               } else if (!result.isSuccessful) {
                 // 401/429 etc: only transfer up to 64 KiB of error body to JS.
                 val output = ByteArrayOutputStream()
@@ -473,7 +478,8 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
               } else {
                 val body = result.body ?: throw IOException("Photo historique sans contenu")
                 val maxBytes = 64L * 1024L * 1024L
-                if (body.contentLength() > maxBytes) throw IOException("Photo dépassant 64 Mio")
+                val announcedLength = body.contentLength()
+                if (announcedLength > maxBytes) throw IOException("Photo dépassant 64 Mio")
                 var size = 0L
                 try {
                   body.byteStream().use { input ->
@@ -490,6 +496,12 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
                     }
                   }
                   if (size <= 0L) throw IOException("Photo historique vide")
+                  // A declared HTTP response-body length must match the number of
+                  // bytes actually written before JS may register the file.
+                  // OkHttp reports -1 for chunked/transparent decompression.
+                  if (announcedLength >= 0L && size != announcedLength) {
+                    throw IOException("Longueur HTTP incohérente pour la photo historique")
+                  }
                   payload.putDouble("bytesWritten", size.toDouble())
                 } catch (e: Exception) {
                   file.delete()

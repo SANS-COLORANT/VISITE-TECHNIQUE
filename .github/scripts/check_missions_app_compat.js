@@ -38,6 +38,7 @@ const playCompatibilityBranches = new Set([
   'fix/astra20-intranet-reliability-20261120',
   'fix/astra24-photo-queue-classification-20261120',
   'fix/astra26-stream-historical-photos-20261120',
+  'fix/astra27-reject-partial-photo-http-20261120',
 ]);
 const playBranch = [process.env.GITHUB_REF_NAME, process.env.GITHUB_HEAD_REF]
   .some((name) => playCompatibilityBranches.has(name));
