@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { getDb } from './db.js';
 import { inspectIntranetCriterionCandidate } from './intranetVisitPayload.js';
-import { createIntranetUploadId, protectedRequest } from './symfonyApi.js';
+import { createIntranetUploadId, uploadProtectedVisitPhoto } from './symfonyApi.js';
 
 const listeners = new Set();
 let revision = 0;
@@ -202,22 +202,26 @@ async function sendPhotoRow(db, row) {
     if (!info?.exists) throw Object.assign(new Error('Le fichier photo local est introuvable.'), { code: 'photo_missing' });
     if (Number(info.size || 0) > MAX_PHOTO_BYTES) throw Object.assign(new Error('La photo dépasse la limite Intranet de 10 Mio.'), { code: 'photo_too_large', status: 413 });
 
-    const form = new FormData();
-    form.append('envoiPhotoId', String(row.envoi_photo_id));
-    form.append('description', String(row.description || ''));
-    form.append('ordre', String(row.ordre));
-    form.append('grandFormat', Number(row.grand_format) === 1 ? 'true' : 'false');
+    // Keep the idempotency key and attachment metadata stable across retries.
+    // The native HTTPS transport streams the file and refuses redirects.
+    const fields = {
+      envoiPhotoId: String(row.envoi_photo_id),
+      description: String(row.description || ''),
+      ordre: String(row.ordre),
+      grandFormat: Number(row.grand_format) === 1 ? 'true' : 'false',
+    };
     const criterionIds = [row.categorie_id, row.sous_categorie_id, row.critere_id];
     if (criterionIds.every((value) => value != null && value !== '')) {
-      form.append('categorieId', String(row.categorie_id));
-      form.append('sousCategorieId', String(row.sous_categorie_id));
-      form.append('critereId', String(row.critere_id));
+      fields.categorieId = String(row.categorie_id);
+      fields.sousCategorieId = String(row.sous_categorie_id);
+      fields.critereId = String(row.critere_id);
     }
-    form.append('fichier', { uri: row.uri, ...photoFile(row.uri) });
-
+    const file = { uri: row.uri, ...photoFile(row.uri) };
     const clientId = encodeURIComponent(String(row.remote_client_id));
     const visitId = encodeURIComponent(String(row.remote_visit_id));
-    const response = await protectedRequest('POST', `/api/clients/${clientId}/visites/${visitId}/photos`, { body: form });
+    const response = await uploadProtectedVisitPhoto(
+      `/api/clients/${clientId}/visites/${visitId}/photos`, fields, file
+    );
     if (String(response?.envoiPhotoId || '') !== String(row.envoi_photo_id)) throw Object.assign(new Error('Accusé photo Intranet incohérent : envoiPhotoId différent.'), { code: 'invalid_photo_ack' });
     if (typeof response?.rejoue !== 'boolean' || response?.photo?.id == null || String(response?.photo?.visiteId || '') !== String(row.remote_visit_id)) {
       throw Object.assign(new Error('Accusé photo Intranet incomplet ou rattaché à une autre visite.'), { code: 'invalid_photo_ack' });

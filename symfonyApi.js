@@ -360,6 +360,52 @@ export async function sendClientVisits(remoteClientId, serializedPayload) {
   }
 }
 
+// Upload camera/gallery photos through the same origin-pinned Android transport.
+// Never pass React Native FormData to a native String parameter: the bridge
+// cannot marshal it, and React Native fetch may follow redirects.
+export async function uploadProtectedVisitPhoto(path, fields, file) {
+  const url = endpoint(path);
+  let token = await validAccessToken();
+  let refreshed = false;
+  let proofRetried = false;
+  const native = secureTransport();
+  if (!native?.secureMultipartPhotoUpload) {
+    throw localAuthError('Module natif d’envoi photo sécurisé indisponible. Mets à jour METRA.', 'secure_photo_upload_missing');
+  }
+  while (true) {
+    try {
+      const proof = await createProof('POST', url, token);
+      const payload = await native.secureMultipartPhotoUpload(url, {
+        Accept: 'application/json',
+        DPoP: proof,
+        Authorization: `DPoP ${token}`,
+      }, fields, file.uri, file.name, file.type);
+      const response = nativeResponse(payload);
+      if (response.status >= 300 && response.status < 400) {
+        const error = new Error('Redirection HTTP refusée pour protéger la preuve DPoP.');
+        error.status = response.status;
+        error.code = 'http_redirect_blocked';
+        error.retryable = false;
+        throw error;
+      }
+      return await parseResponse(response);
+    } catch (error) {
+      if (error?.status !== 401) throw error;
+      if (error?.code === 'invalid_dpop_proof' && !proofRetried) {
+        proofRetried = true;
+        continue;
+      }
+      if (!refreshed) {
+        token = await refreshTokens();
+        refreshed = true;
+        proofRetried = false;
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
 export async function downloadProtectedPhoto(path, destinationUri) {
   let token = await validAccessToken();
   try {

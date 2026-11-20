@@ -21,4 +21,6 @@ assert api.count('strictNativeRequest(') >= 3, 'Activation, refresh and photos m
 assert "createProof(method, url, accessToken)" in api, 'DPoP proof binding required'
 assert "protectedDownloadUrl(path)" in api, 'Photo URL whitelist required'
 assert "body = typeof serializedPayload === 'string' ? serializedPayload : JSON.stringify(serializedPayload)" in api
+assert 'secureMultipartPhotoUpload(' in api
+assert 'fun secureMultipartPhotoUpload(' in native
 print('ASTRA M04: source contract for native no-redirect DPoP transport PASS')

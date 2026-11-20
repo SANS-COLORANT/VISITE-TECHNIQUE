@@ -17,4 +17,9 @@ assert api.index('Array.isArray(payload.visites)') < api.index('if (cacheResult)
 assert "error?.code === 'http_redirect_blocked'" in visit
 assert "error?.code === 'http_redirect_blocked'" in photo
 assert 'http_redirect_blocked' not in ("reactivation_required", "invalid_grant")
+assert 'secureMultipartPhotoUpload(' in api
+assert 'fun secureMultipartPhotoUpload(' in native
+assert 'MultipartBody.Builder().setType(MultipartBody.FORM)' in native
+assert 'photo_too_large' in photo and 'uploadProtectedVisitPhoto(' in photo
+assert 'new FormData()' not in photo
 print('ASTRA20: native HTTP 3xx normalization, durable cache guards and queue classification PASS')
