@@ -34,8 +34,10 @@ const EXPECTED = Object.freeze({
 const playMigration = process.env.METRA_PLAY_SECURE_BUILD === '1';
 if (playMigration) {
   if (!String(pkg.dependencies?.expo || '').replace(/^~/, '').startsWith('54.')) fail('Le profil Play requiert Expo SDK 54');
-  if (pkg.dependencies?.react !== '19.1.0') fail('Le profil Play requiert React 19.1.0');
-  if (pkg.dependencies?.['react-native'] !== '0.81.5') fail('Le profil Play requiert React Native 0.81.5');
+  // npm --save may prefix versions with ^; verify the resolved version family.
+  const stripRange = (value) => String(value || '').replace(/^[~^]/, '');
+  if (stripRange(pkg.dependencies?.react) !== '19.1.0') fail('Le profil Play requiert React 19.1.0');
+  if (stripRange(pkg.dependencies?.['react-native']) !== '0.81.5') fail('Le profil Play requiert React Native 0.81.5');
   if (app.expo?.newArchEnabled !== false) fail('React Native historique doit rester explicite en SDK 54');
   if (!appConfig.includes('withMetraPlaySecurity')) fail('Plugin Android Play Security manquant');
 } else {
