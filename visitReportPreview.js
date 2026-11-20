@@ -5,7 +5,7 @@
  */
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export async function apercuRapportVisite(visiteId) {
   const { chargerDonneesVisiteRapport, construireHtmlRapport, preparerPhotosRapport } = require('./reportBuilder.js');

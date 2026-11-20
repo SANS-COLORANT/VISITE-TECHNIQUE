@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { openAppDatabase } from './database/index.js';
 
 const PENDING_PREFIX = 'photo_pending::';

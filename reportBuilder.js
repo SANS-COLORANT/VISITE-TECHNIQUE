@@ -1,6 +1,6 @@
 import { formaterReleves } from './releveMultiligne.js';
 import { filtrerLignesRapport } from './reportRowVisibility.js';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Asset } from 'expo-asset';

@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { BoundedLruMap } from './boundedCache.js';
 import { getVisite } from './db.js';
 

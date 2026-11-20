@@ -2,7 +2,7 @@
  * Les tailles sont celles des fichiers locaux, hors overhead multipart/TLS.
  * Aucune estimation inventée : les tailles indisponibles sont signalées.
  */
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getDb } from './db.js';
 
 const CACHE_MAX = 6000;

@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { Alert, ActivityIndicator, Text, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import { COLORS } from './styles.js';
 import { getChampsVisite, upsertChamp } from './db.js';

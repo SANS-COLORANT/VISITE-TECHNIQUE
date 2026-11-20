@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { TouchableOpacity, Text, Alert, View, Modal, useWindowDimensions } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { ajouterPhoto, remplacerPhoto } from './db.js';
 import { upsertRemarquePrescription } from './remarkDb.js';

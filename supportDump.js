@@ -1,5 +1,5 @@
 import { METRA_PLAY_SECURE_BUILD } from './playSecurityRuntime.generated.js';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { getDb } from './db.js';
 import { DATABASE_SCHEMA_VERSION } from './database/constants.js';

@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getDb } from './db.js';
 import { supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
 import { supprimerImagePatrimoine } from './patrimoineImageStorage.js';
