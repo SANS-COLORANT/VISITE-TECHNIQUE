@@ -118,6 +118,18 @@ async function downloadAttempt(path, destinationUri, accessToken) {
     throw error;
   }
   if (!response.ok) await parseResponse(response);
+  // Fail closed even if a native implementation accidentally reports a written
+  // file for HTTP 206. Only 200 can represent a complete historical photo.
+  if (response.status !== 200) {
+    const error = new Error(response.status === 206
+      ? 'Photo Intranet incomplète (réponse HTTP 206). Aucun fichier enregistré.'
+      : `Statut HTTP inattendu pour une photo Intranet : ${response.status}.`);
+    error.status = response.status;
+    error.code = response.status === 206
+      ? 'historical_photo_partial_response' : 'historical_photo_unexpected_status';
+    error.retryable = false;
+    throw error;
+  }
   if (!Number.isFinite(Number(payload?.bytesWritten)) || Number(payload.bytesWritten) <= 0) {
     throw new Error('La photo historique reçue est incomplète.');
   }

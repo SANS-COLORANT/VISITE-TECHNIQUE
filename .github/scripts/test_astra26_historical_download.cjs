@@ -67,6 +67,22 @@ const dest = 'file:///data/user/0/com.visitetechnique.tablet/files/visite-techni
   await assert.rejects(download(remote, dest, 'fictitious-token'), (error) =>
     error.status === 429 && error.retryAfter === '60');
   checks++;
+  // ASTRA n27 R27-1: a partial HTTP image must NEVER be saved as complete,
+  // even when the manifest does not provide a size and native returns bytesWritten.
+  nativeResponses.push({
+    status: 206, headers: {'content-type':'image/jpeg','content-range':'bytes 0-1023/2048'},
+    bytesWritten: 1024
+  });
+  await assert.rejects(download(remote, dest, 'fictitious-token'), (error) =>
+    error.code === 'historical_photo_partial_response' && error.status === 206
+      && error.retryable === false);
+  checks++;
+  for (const status of [201, 202, 204]) {
+    nativeResponses.push({ status, headers: {'content-type':'image/jpeg'}, bytesWritten: 300 });
+    await assert.rejects(download(remote, dest, 'fictitious-token'), (error) =>
+      error.code === 'historical_photo_unexpected_status' && error.status === status);
+    checks++;
+  }
   nativeResponses.push({ status: 200, headers: {'content-type':'image/jpeg'}, bytesWritten: 0 });
   await assert.rejects(download(remote, dest, 'fictitious-token'), /incomplète/);
   checks++;
@@ -80,6 +96,9 @@ const dest = 'file:///data/user/0/com.visitetechnique.tablet/files/visite-techni
   assert.match(kotlin, /\.followSslRedirects\(false\)/);
   assert.match(kotlin, /FileOutputStream\(file, false\)/);
   assert.match(kotlin, /file\.path\.startsWith\(root\.path \+ File\.separator\)/);
+  assert.match(kotlin, /result\.code in 200\.\.299 && result\.code != 200/);
+  assert.match(kotlin, /if \(announcedLength >= 0L && size != announcedLength\)/);
+  assert.match(api, /response\.status !== 200/);
   assert.match(kotlin, /size > maxBytes/);
   assert.doesNotMatch(api, /payload\.base64|writeAsStringAsync\(destinationUri/);
   assert.match(storage, /\.temporaryUri/);
