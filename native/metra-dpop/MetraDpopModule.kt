@@ -8,6 +8,14 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.Arguments
+import android.net.Uri
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
+import okio.BufferedSink
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileNotFoundException
 import com.facebook.react.bridge.ReadableMap
 import okhttp3.Call
 import okhttp3.Callback
@@ -200,6 +208,51 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
     }
   }
 
+  private fun enqueueHttpRequest(request: Request, responseFormat: String, promise: Promise) {
+    noRedirectClient.newCall(request).enqueue(object : Callback {
+      override fun onFailure(call: Call, error: IOException) {
+        promise.reject("METRA_INTRANET_NETWORK_ERROR", "Connexion HTTPS Intranet indisponible", error)
+      }
+
+      override fun onResponse(call: Call, response: Response) {
+        response.use { result ->
+          try {
+            // Explicitly fail closed for 301, 302, 303, 307 and 308, including
+            // redirect responses to the exact same HTTPS origin.
+            if (result.code in 300..399) {
+              // Return the original 3xx code without following Location. JS can
+              // then mark this upload as a permanent, visible refusal, not
+              // as a transient offline network error.
+              val blocked = Arguments.createMap()
+              blocked.putInt("status", result.code)
+              blocked.putString("text", "")
+              blocked.putMap("headers", Arguments.createMap())
+              promise.resolve(blocked)
+            } else {
+              val bytes = boundedResponseBytes(result)
+              val payload = Arguments.createMap()
+              val headerMap = Arguments.createMap()
+              payload.putInt("status", result.code)
+              for (name in result.headers.names()) {
+                if (name.lowercase(Locale.ROOT) != "set-cookie") {
+                  headerMap.putString(name.lowercase(Locale.ROOT), result.header(name))
+                }
+              }
+              payload.putMap("headers", headerMap)
+              if (result.isSuccessful && responseFormat == "base64") {
+                payload.putString("base64", Base64.encodeToString(bytes, Base64.NO_WRAP))
+              } else {
+                payload.putString("text", String(bytes, StandardCharsets.UTF_8))
+              }
+              promise.resolve(payload)
+            }
+          } catch (error: Exception) {
+            promise.reject("METRA_INTRANET_RESPONSE_ERROR", "Réponse HTTPS Intranet non traitable", error)
+          }
+        }
+      }
+    })
+  }
   @ReactMethod
   fun secureHttpRequest(
     method: String, url: String, headers: ReadableMap, body: String?,
@@ -233,44 +286,105 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
       val requestBody = if (verb == "POST") (body ?: "").toRequestBody(null) else null
       val request = builder.method(verb, requestBody).build()
 
-      noRedirectClient.newCall(request).enqueue(object : Callback {
-        override fun onFailure(call: Call, error: IOException) {
-          promise.reject("METRA_INTRANET_NETWORK_ERROR", "Connexion HTTPS Intranet indisponible", error)
-        }
-
-        override fun onResponse(call: Call, response: Response) {
-          response.use { result ->
-            try {
-              // Explicitly fail closed for 301, 302, 303, 307 and 308, including
-              // redirect responses to the exact same HTTPS origin.
-              if (result.code in 300..399) {
-                promise.reject("METRA_INTRANET_REDIRECT_BLOCKED", "Redirection HTTP refusée pour protéger DPoP")
-              } else {
-                val bytes = boundedResponseBytes(result)
-                val payload = Arguments.createMap()
-                val headerMap = Arguments.createMap()
-                payload.putInt("status", result.code)
-                for (name in result.headers.names()) {
-                  if (name.lowercase(Locale.ROOT) != "set-cookie") {
-                    headerMap.putString(name.lowercase(Locale.ROOT), result.header(name))
-                  }
-                }
-                payload.putMap("headers", headerMap)
-                if (result.isSuccessful && responseFormat == "base64") {
-                  payload.putString("base64", Base64.encodeToString(bytes, Base64.NO_WRAP))
-                } else {
-                  payload.putString("text", String(bytes, StandardCharsets.UTF_8))
-                }
-                promise.resolve(payload)
-              }
-            } catch (error: Exception) {
-              promise.reject("METRA_INTRANET_RESPONSE_ERROR", "Réponse HTTPS Intranet non traitable", error)
-            }
-          }
-        }
-      })
+      enqueueHttpRequest(request, responseFormat, promise)
     } catch (error: Exception) {
       promise.reject("METRA_INTRANET_REQUEST_ERROR", "Requête sécurisée Intranet invalide", error)
     }
   }
+
+  // Keep upload bytes out of the React Native FormData -> String bridge.
+  // The file is read in 16 KiB slices from an Android-private URI.
+  @ReactMethod
+  fun secureMultipartPhotoUpload(
+    url: String, headers: ReadableMap, fields: ReadableMap,
+    localUri: String, fileName: String, mimeType: String, promise: Promise
+  ) {
+    try {
+      val target = protectedHttpUrl(url)
+      if (!Regex("^/api/clients/[^/]+/visites/[^/]+/photos$").matches(target.encodedPath)
+        || target.query != null) {
+        throw IllegalArgumentException("Chemin de transmission photo Intranet interdit")
+      }
+      if (fileName !in setOf("photo.jpg", "photo.png", "photo.webp", "photo.gif")) {
+        throw IllegalArgumentException("Nom de photo non autorisé")
+      }
+      if (mimeType !in setOf("image/jpeg", "image/png", "image/webp", "image/gif")) {
+        throw IllegalArgumentException("Type de photo non autorisé")
+      }
+      val location = Uri.parse(localUri)
+      if (location.scheme != "file" && location.scheme != "content") {
+        throw IllegalArgumentException("Le fichier photo doit provenir d'un URI local")
+      }
+      val privatePhoto = if (location.scheme == "file") {
+        val file = File(location.path ?: throw FileNotFoundException("Chemin photo absent")).canonicalFile
+        val roots = listOf(reactApplicationContext.filesDir, reactApplicationContext.cacheDir) +
+          reactApplicationContext.getExternalFilesDirs(null).filterNotNull()
+        if (roots.none { root ->
+            val base = root.canonicalFile.path
+            file.path.startsWith(base + File.separator)
+          }) {
+          throw IllegalArgumentException("Le fichier photo doit rester dans le stockage privé METRA")
+        }
+        if (!file.isFile || file.length() <= 0 || file.length() > 10L * 1024L * 1024L) {
+          throw IllegalArgumentException("Fichier photo absent ou trop volumineux")
+        }
+        file
+      } else null
+
+      val uploadBody = object : RequestBody() {
+        override fun contentType() = mimeType.toMediaTypeOrNull()
+        override fun contentLength(): Long = privatePhoto?.length() ?: -1L
+        override fun writeTo(sink: BufferedSink) {
+          val input = if (privatePhoto != null) FileInputStream(privatePhoto)
+            else reactApplicationContext.contentResolver.openInputStream(location)
+              ?: throw FileNotFoundException("URI photo non accessible")
+          input.use { stream ->
+            val bytes = ByteArray(16384)
+            var total = 0L
+            while (true) {
+              val length = stream.read(bytes)
+              if (length < 0) break
+              total += length.toLong()
+              if (total > 10L * 1024L * 1024L) throw IOException("Photo dépassant 10 Mio")
+              sink.write(bytes, 0, length)
+            }
+          }
+        }
+      }
+
+      val form = MultipartBody.Builder().setType(MultipartBody.FORM)
+      val allowedFields = setOf(
+        "envoiPhotoId", "description", "ordre", "grandFormat",
+        "categorieId", "sousCategorieId", "critereId"
+      )
+      val data = fields.toHashMap()
+      if (!data.keys.all { it in allowedFields }
+        || !data.containsKey("envoiPhotoId")
+        || data["envoiPhotoId"].toString().isBlank()) {
+        throw IllegalArgumentException("Champs de photo Intranet invalides")
+      }
+      for ((name, value) in data) {
+        val textValue = value as? String ?: throw IllegalArgumentException("Valeur de photo non textuelle")
+        if (textValue.length > 4096) throw IllegalArgumentException("Valeur de photo trop longue")
+        form.addFormDataPart(name, textValue)
+      }
+      form.addFormDataPart("fichier", fileName, uploadBody)
+
+      val builder = Request.Builder().url(target)
+      val blockedHeaders = setOf(
+        "host", "cookie", "proxy-authorization", "connection",
+        "transfer-encoding", "content-length", "content-type", "location", "referer"
+      )
+      for ((name, value) in headers.toHashMap()) {
+        if (name.lowercase(Locale.ROOT) in blockedHeaders) {
+          throw IllegalArgumentException("En-tête photo HTTP interdit")
+        }
+        builder.header(name, value as? String ?: throw IllegalArgumentException("En-tête photo non textuel"))
+      }
+      enqueueHttpRequest(builder.post(form.build()).build(), "text", promise)
+    } catch (error: Exception) {
+      promise.reject("METRA_INTRANET_MULTIPART_ERROR", "Envoi photo HTTPS non disponible", error)
+    }
+  }
+
 }
