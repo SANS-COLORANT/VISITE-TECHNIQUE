@@ -10,7 +10,7 @@ app = json.loads((ROOT / 'app.json').read_text())['expo']
 assert app['android']['package'] == 'com.visitetechnique.tablet', 'Android package changed'
 assert app.get('newArchEnabled') is False, 'SDK 54 requires explicit old-architecture opt-out'
 blocked = set(app['android'].get('blockedPermissions', []))
-for permission in ('android.permission.READ_MEDIA_IMAGES', 'android.permission.READ_MEDIA_VIDEO', 'android.permission.ACCESS_FINE_LOCATION'):
+for permission in ('android.permission.READ_MEDIA_IMAGES', 'android.permission.READ_MEDIA_VIDEO', 'android.permission.ACCESS_FINE_LOCATION', 'android.permission.SYSTEM_ALERT_WINDOW'):
     assert permission in blocked, 'Dangerous permission not blocked: ' + permission
 config = (ROOT / 'app.config.js').read_text()
 assert 'withMetraPlaySecurity' in config

@@ -70,61 +70,56 @@ function protectedDownloadUrl(path) {
   return endpoint(value);
 }
 
-function blobAsBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Lecture du fichier téléchargé impossible.'));
-    reader.onload = () => {
-      const dataUrl = String(reader.result || '');
-      const separator = dataUrl.indexOf(',');
-      if (separator < 0) reject(new Error('Encodage de la photo téléchargée invalide.'));
-      else resolve(dataUrl.slice(separator + 1));
-    };
-    reader.readAsDataURL(blob);
-  });
+// The React Native HTTP client does not honor manual redirect handling.
+// Fail closed if the Android origin-pinned transport has not been installed.
+function secureTransport() {
+  const native = ensureNativeDpop();
+  if (!native?.secureHttpRequest) {
+    throw localAuthError('Transport HTTPS sécurisé METRA indisponible. Mettre à jour l’application.', 'secure_transport_missing');
+  }
+  return native;
+}
+
+async function strictNativeRequest(method, url, headers, body = null, format = 'text') {
+  return secureTransport().secureHttpRequest(method, url, headers, body, format);
+}
+
+function nativeResponse(result) {
+  const status = Number(result?.status || 0);
+  const items = result?.headers && typeof result.headers === 'object' ? result.headers : {};
+  return {
+    status,
+    ok: status >= 200 && status < 300,
+    headers: {
+      get(name) { return items[String(name).toLowerCase()] ?? null; },
+      forEach(fn) { Object.entries(items).forEach(([name, value]) => fn(value, name)); },
+    },
+    text: async () => String(result?.text ?? ''),
+  };
 }
 
 async function downloadAttempt(path, destinationUri, accessToken) {
   const url = protectedDownloadUrl(path);
   const proof = await createProof('GET', url, accessToken);
-  const response = await fetch(url, {
-    method: 'GET',
-    redirect: 'manual',
-    headers: {
-      Accept: 'image/*',
-      DPoP: proof,
-      Authorization: `DPoP ${accessToken}`,
-    },
-  });
+  const payload = await strictNativeRequest('GET', url, {
+    Accept: 'image/*',
+    DPoP: proof,
+    Authorization: `DPoP ${accessToken}`,
+  }, null, 'base64');
+  const response = nativeResponse(payload);
   if (response.status >= 300 && response.status < 400) {
     const error = new Error('Redirection HTTP refusée pour protéger la preuve DPoP.');
     error.status = response.status;
     throw error;
   }
-  if (!response.ok) {
-    let body = null;
-    try { const text = await response.text(); body = text ? JSON.parse(text) : null; } catch {}
-    const error = new Error(body?.error_description || body?.message || body?.error || `Erreur API HTTP ${response.status}`);
-    error.status = response.status;
-    error.code = body?.error || body?.code || null;
-    error.retryAfter = response.headers?.get?.('Retry-After') || null;
-    error.body = body;
-    error.violations = Array.isArray(body?.violations) ? body.violations : [];
-    throw error;
-  }
-
-  const blob = await response.blob();
-  try {
-    const base64 = await blobAsBase64(blob);
-    await FileSystem.writeAsStringAsync(destinationUri, base64, { encoding: FileSystem.EncodingType.Base64 });
-  } finally { blob.close?.(); }
-  const headers = {};
-  response.headers?.forEach?.((value, key) => { headers[key] = value; });
+  if (!response.ok) await parseResponse(response);
+  if (typeof payload?.base64 !== 'string') throw new Error('La photo Intranet reçue est invalide.');
+  await FileSystem.writeAsStringAsync(destinationUri, payload.base64, { encoding: FileSystem.EncodingType.Base64 });
   return {
     uri: destinationUri,
     status: response.status,
-    headers,
-    mimeType: response.headers?.get?.('Content-Type') || blob.type || null,
+    headers: { ...payload.headers },
+    mimeType: response.headers.get('content-type') || null,
   };
 }
 
@@ -222,18 +217,13 @@ async function createProof(method, url, accessToken = null) {
 
 async function rawRequest(method, url, { accessToken = null, body = null, headers = {} } = {}) {
   const proof = await createProof(method, url, accessToken);
-  const response = await fetch(url, {
-    method,
-    redirect: 'manual',
-    headers: {
-      Accept: 'application/json',
-      DPoP: proof,
-      ...(accessToken ? { Authorization: `DPoP ${accessToken}` } : {}),
-      ...headers,
-    },
-    body,
-  });
-
+  const payload = await strictNativeRequest(method, url, {
+    Accept: 'application/json',
+    DPoP: proof,
+    ...(accessToken ? { Authorization: `DPoP ${accessToken}` } : {}),
+    ...headers,
+  }, body, 'text');
+  const response = nativeResponse(payload);
   if (response.status >= 300 && response.status < 400) {
     const error = new Error('Redirection HTTP refusée pour protéger la preuve DPoP.');
     error.status = response.status;

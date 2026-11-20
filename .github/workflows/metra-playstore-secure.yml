@@ -6,6 +6,7 @@ on:
     branches:
       - release/metra-playstore-secure-20261120
       - fix/play-astra-security-m01-m07-20261120
+      - fix/play-astra-m04-m05-20261120
   workflow_dispatch:
 
 permissions:
@@ -75,6 +76,7 @@ jobs:
           node --import ./.github/scripts/legacy_fs_resolver.mjs --experimental-test-module-mocks --test tests/trameRemar.test.mjs
           node tests/reportPdfFragments.test.mjs
           node --check symfonyApi.js
+          python3 .github/scripts/verify_intranet_transport_source.py
           node --check databaseBackup.js
           node --check supportDump.js
           node --check plugins/withMetraPlaySecurity.js
@@ -120,6 +122,9 @@ jobs:
           npx expo prebuild --clean --platform android --no-install
           test -s android/gradlew
           test -s android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
+          grep -q 'followRedirects(false)' android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
+          grep -q 'followSslRedirects(false)' android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
+          python3 .github/scripts/verify_play_cropper_manifest.py
           grep -q 'android:allowBackup="false"' android/app/src/main/AndroidManifest.xml
           grep -q 'android:usesCleartextTraffic="false"' android/app/src/main/AndroidManifest.xml
           test -s android/app/src/main/res/xml/metra_data_extraction_rules.xml

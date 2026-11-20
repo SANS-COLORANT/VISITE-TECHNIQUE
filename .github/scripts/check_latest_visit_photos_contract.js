@@ -11,7 +11,14 @@ function forbidText(text, needle, label) {
 const api = read('symfonyApi.js');
 requireText(api, '/dernieres-visites/photos', 'manifest endpoint');
 requireText(api, "createProof('GET', url, accessToken)", 'fresh DPoP proof per photo request');
-requireText(api, "redirect: 'manual'", 'DPoP redirect protection');
+// React Native fetch ignores redirect:manual. The secure transport is native.
+requireText(api, "strictNativeRequest('GET', url", 'native DPoP photo download');
+requireText(api, 'secureHttpRequest(method, url, headers, body, format)', 'native DPoP HTTP entrypoint');
+forbidText(api, 'await fetch(', 'Intranet must not use fetch polyfill for DPoP');
+const dpopNative = read('native/metra-dpop/MetraDpopModule.kt');
+requireText(dpopNative, '.followRedirects(false)', 'native no-redirect HTTP');
+requireText(dpopNative, '.followSslRedirects(false)', 'native no-redirect HTTPS');
+requireText(dpopNative, 'protectedHttpUrl(url)', 'fixed HTTPS Intranet origin');
 requireText(api, 'invalid_dpop_proof', 'DPoP retry');
 requireText(api, 'Retry-After', 'rate limit metadata');
 

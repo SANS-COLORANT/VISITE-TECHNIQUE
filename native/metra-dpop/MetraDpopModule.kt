@@ -7,6 +7,20 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.ReadableMap
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 import org.json.JSONObject
 import java.math.BigInteger
 import java.nio.charset.StandardCharsets
@@ -136,6 +150,127 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
       promise.resolve(signingInput + "." + b64(joseSignature(signer.sign())))
     } catch (e: Exception) {
       promise.reject("METRA_DPOP_ERROR", e.message, e)
+    }
+  }
+
+  // All Intranet requests must be performed by this module, never by RN fetch.
+  // OkHttp's default redirect handling may otherwise forward a DPoP proof.
+  private val noRedirectClient: OkHttpClient = OkHttpClient.Builder()
+    .followRedirects(false)
+    .followSslRedirects(false)
+    .retryOnConnectionFailure(false)
+    .connectTimeout(15, TimeUnit.SECONDS)
+    .readTimeout(65, TimeUnit.SECONDS)
+    .callTimeout(95, TimeUnit.SECONDS)
+    .build()
+
+  private fun protectedHttpUrl(value: String): HttpUrl {
+    val target = value.toHttpUrlOrNull() ?: throw IllegalArgumentException("URL Intranet invalide")
+    if (
+      target.scheme != "https" ||
+      target.host != "intranet-energieetservice.com" ||
+      target.port != 443 ||
+      target.username.isNotEmpty() ||
+      target.password.isNotEmpty() ||
+      target.fragment != null
+    ) {
+      throw IllegalArgumentException("Origine Intranet non autorisée")
+    }
+    return target
+  }
+
+  // Do not use ResponseBody.bytes(): it can allocate without an upper bound.
+  private fun boundedResponseBytes(response: Response): ByteArray {
+    val entity = response.body ?: return ByteArray(0)
+    val limit = 64L * 1024L * 1024L
+    if (entity.contentLength() > limit) throw IOException("Réponse Intranet dépassant 64 Mio")
+    return entity.byteStream().use { input ->
+      ByteArrayOutputStream().use { output ->
+        val buffer = ByteArray(16384)
+        var total = 0L
+        while (true) {
+          val read = input.read(buffer)
+          if (read < 0) break
+          total += read.toLong()
+          if (total > limit) throw IOException("Réponse Intranet dépassant 64 Mio")
+          output.write(buffer, 0, read)
+        }
+        output.toByteArray()
+      }
+    }
+  }
+
+  @ReactMethod
+  fun secureHttpRequest(
+    method: String, url: String, headers: ReadableMap, body: String?,
+    responseFormat: String, promise: Promise
+  ) {
+    try {
+      val target = protectedHttpUrl(url)
+      val verb = method.uppercase(Locale.ROOT)
+      if (verb != "GET" && verb != "POST") {
+        throw IllegalArgumentException("Méthode HTTP non autorisée pour le client Intranet")
+      }
+      if (verb == "GET" && body != null) {
+        throw IllegalArgumentException("GET ne doit pas transmettre de corps")
+      }
+      if (responseFormat != "text" && responseFormat != "base64") {
+        throw IllegalArgumentException("Format de réponse Intranet non autorisé")
+      }
+
+      val builder = Request.Builder().url(target)
+      for ((name, rawValue) in headers.toHashMap()) {
+        val forbidden = setOf(
+          "host", "cookie", "proxy-authorization", "connection",
+          "transfer-encoding", "content-length", "location", "referer"
+        )
+        if (name.lowercase(Locale.ROOT) in forbidden) {
+          throw IllegalArgumentException("En-tête HTTP non autorisé")
+        }
+        val value = rawValue as? String ?: throw IllegalArgumentException("En-tête HTTP invalide")
+        builder.header(name, value)
+      }
+      val requestBody = if (verb == "POST") (body ?: "").toRequestBody(null) else null
+      val request = builder.method(verb, requestBody).build()
+
+      noRedirectClient.newCall(request).enqueue(object : Callback {
+        override fun onFailure(call: Call, error: IOException) {
+          promise.reject("METRA_INTRANET_NETWORK_ERROR", "Connexion HTTPS Intranet indisponible", error)
+        }
+
+        override fun onResponse(call: Call, response: Response) {
+          response.use { result ->
+            try {
+              // Explicitly fail closed for 301, 302, 303, 307 and 308, including
+              // redirect responses to the exact same HTTPS origin.
+              if (result.code in 300..399) {
+                promise.reject("METRA_INTRANET_REDIRECT_BLOCKED", "Redirection HTTP refusée pour protéger DPoP")
+              } else {
+                val bytes = boundedResponseBytes(result)
+                val payload = Arguments.createMap()
+                val headerMap = Arguments.createMap()
+                payload.putInt("status", result.code)
+                for (name in result.headers.names()) {
+                  if (name.lowercase(Locale.ROOT) != "set-cookie") {
+                    headerMap.putString(name.lowercase(Locale.ROOT), result.header(name))
+                  }
+                }
+                payload.putMap("headers", headerMap)
+                if (result.isSuccessful && responseFormat == "base64") {
+                  payload.putString("base64", Base64.encodeToString(bytes, Base64.NO_WRAP))
+                } else {
+                  payload.putString("text", String(bytes, StandardCharsets.UTF_8))
+                }
+                promise.resolve(payload)
+              }
+            } catch (error: Exception) {
+              promise.reject("METRA_INTRANET_RESPONSE_ERROR", "Réponse HTTPS Intranet non traitable", error)
+            }
+          }
+        }
+      })
+    } catch (error: Exception) {
+      promise.reject("METRA_INTRANET_REQUEST_ERROR", "Requête sécurisée Intranet invalide", error)
     }
   }
 }
