@@ -84,4 +84,23 @@ jobs:
           curl -fsSL --retry 3 --output "$RUNNER_TEMP/gitleaks.tar.gz" https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz
           tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
           chmod +x "$RUNNER_TEMP/gitleaks"
-          "$RUNNER_TEMP/gitleaks" git --no-banner --redact --log-opts="--all" .
+          set +e
+          "$RUNNER_TEMP/gitleaks" git --no-banner --redact --log-opts="--all" --report-format=json --report-path="$RUNNER_TEMP/gitleaks-redacted.json" .
+          code=$?
+          set -e
+          python3 - <<'PY'
+          from collections import Counter
+          from pathlib import Path
+          import json, os
+          p=Path(os.environ['RUNNER_TEMP'])/'gitleaks-redacted.json'
+          items=json.loads(p.read_text(encoding='utf-8')) if p.is_file() else []
+          if not isinstance(items,list):
+              raise SystemExit('Gitleaks report malformed')
+          rules=Counter(str(x.get('RuleID','unknown')) for x in items)
+          categories=Counter(str(x.get('File','')).split('/')[0] or '(root)' for x in items)
+          print('GITLEAKS DETECTION COUNT:',len(items))
+          print('GITLEAKS RULE CATEGORIES:',dict(rules))
+          print('GITLEAKS TOP-LEVEL SOURCE AREAS:',dict(categories))
+          print('Actual matched values, file paths, commit hashes and line content are deliberately not published.')
+          PY
+          exit "$code"
