@@ -15,6 +15,7 @@ import okhttp3.RequestBody
 import okio.BufferedSink
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.FileNotFoundException
 import com.facebook.react.bridge.ReadableMap
 import okhttp3.Call
@@ -243,11 +244,7 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
                 }
               }
               payload.putMap("headers", headerMap)
-              if (result.isSuccessful && responseFormat == "base64") {
-                payload.putString("base64", Base64.encodeToString(bytes, Base64.NO_WRAP))
-              } else {
-                payload.putString("text", String(bytes, StandardCharsets.UTF_8))
-              }
+              payload.putString("text", String(bytes, StandardCharsets.UTF_8))
               promise.resolve(payload)
             }
           } catch (error: Exception) {
@@ -271,7 +268,7 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
       if (verb == "GET" && body != null) {
         throw IllegalArgumentException("GET ne doit pas transmettre de corps")
       }
-      if (responseFormat != "text" && responseFormat != "base64") {
+      if (responseFormat != "text") {
         throw IllegalArgumentException("Format de réponse Intranet non autorisé")
       }
 
@@ -417,6 +414,99 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
         is IllegalArgumentException -> promise.reject("photo_upload_invalid_metadata", "Paramètres de photo invalides", error)
         else -> promise.reject("METRA_INTRANET_MULTIPART_ERROR", "Envoi photo HTTPS non disponible", error)
       }
+    }
+  }
+
+
+  // Historical photos: private .part files, 16 KiB chunks, 64 MiB maximum.
+  // Unlike the previous bridge, never create a Base64 copy in JS memory.
+  @ReactMethod
+  fun secureHistoricalPhotoDownload(url: String, headers: ReadableMap, destinationUri: String, promise: Promise) {
+    try {
+      val target = protectedHttpUrl(url)
+      if (!Regex("^/api/clients/[^/]+/dernieres-visites/photos/[^/]+$").matches(target.encodedPath) ||
+        target.query != null) throw IllegalArgumentException("Chemin photo historique interdit")
+      val uri = Uri.parse(destinationUri)
+      if (uri.scheme != "file" || uri.query != null || uri.fragment != null)
+        throw IllegalArgumentException("Destination photo temporaire invalide")
+      val root = File(reactApplicationContext.filesDir, "visite-technique/intranet-photos").canonicalFile
+      val file = File(uri.path ?: throw IllegalArgumentException("Chemin temporaire absent")).canonicalFile
+      if (!file.path.startsWith(root.path + File.separator) || !file.name.endsWith(".part") ||
+        file.parentFile?.isDirectory != true)
+        throw IllegalArgumentException("Écriture hors cache photo privé METRA")
+
+      val builder = Request.Builder().url(target)
+      for ((name, value) in headers.toHashMap()) {
+        if (name.lowercase(Locale.ROOT) !in setOf("accept", "dpop", "authorization"))
+          throw IllegalArgumentException("En-tête photo historique interdit")
+        builder.header(name, value as? String ?: throw IllegalArgumentException("En-tête photo invalide"))
+      }
+      noRedirectClient.newCall(builder.get().build()).enqueue(object : Callback {
+        override fun onFailure(call: Call, error: IOException) {
+          promise.reject("METRA_INTRANET_NETWORK_ERROR", "Connexion HTTPS Intranet indisponible", error)
+        }
+        override fun onResponse(call: Call, response: Response) {
+          response.use { result ->
+            try {
+              val payload = Arguments.createMap()
+              payload.putInt("status", result.code)
+              val returnedHeaders = Arguments.createMap()
+              for (name in result.headers.names())
+                if (name.lowercase(Locale.ROOT) !in setOf("location", "set-cookie"))
+                  returnedHeaders.putString(name.lowercase(Locale.ROOT), result.header(name))
+              payload.putMap("headers", returnedHeaders)
+              if (result.code in 300..399) {
+                // Preserve 3xx for JS, never follow Location, never write a file.
+                payload.putString("text", "")
+              } else if (!result.isSuccessful) {
+                // 401/429 etc: only transfer up to 64 KiB of error body to JS.
+                val output = ByteArrayOutputStream()
+                result.body?.byteStream()?.use { input ->
+                  val bytes = ByteArray(4096)
+                  while (output.size() < 65536) {
+                    val n = input.read(bytes, 0, minOf(bytes.size, 65536 - output.size()))
+                    if (n < 0) break
+                    output.write(bytes, 0, n)
+                  }
+                }
+                payload.putString("text", String(output.toByteArray(), StandardCharsets.UTF_8))
+              } else {
+                val body = result.body ?: throw IOException("Photo historique sans contenu")
+                val maxBytes = 64L * 1024L * 1024L
+                if (body.contentLength() > maxBytes) throw IOException("Photo dépassant 64 Mio")
+                var size = 0L
+                try {
+                  body.byteStream().use { input ->
+                    FileOutputStream(file, false).use { output ->
+                      val bytes = ByteArray(16384)
+                      while (true) {
+                        val n = input.read(bytes)
+                        if (n < 0) break
+                        size += n.toLong()
+                        if (size > maxBytes) throw IOException("Photo dépassant 64 Mio")
+                        output.write(bytes, 0, n)
+                      }
+                      output.flush()
+                    }
+                  }
+                  if (size <= 0L) throw IOException("Photo historique vide")
+                  payload.putDouble("bytesWritten", size.toDouble())
+                } catch (e: Exception) {
+                  file.delete()
+                  throw e
+                }
+              }
+              promise.resolve(payload)
+            } catch (e: Exception) {
+              // No incomplete .part may remain after cancellation or I/O failure.
+              file.delete()
+              promise.reject("METRA_INTRANET_PHOTO_STREAM_ERROR", "Téléchargement photo interrompu", e)
+            }
+          }
+        }
+      })
+    } catch (e: Exception) {
+      promise.reject("METRA_INTRANET_PHOTO_DESTINATION_ERROR", "Destination photo non autorisée", e)
     }
   }
 

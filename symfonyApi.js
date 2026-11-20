@@ -1,5 +1,4 @@
 import * as SecureStore from 'expo-secure-store';
-import * as FileSystem from 'expo-file-system/legacy';
 import { NativeModules } from 'react-native';
 import { cacheAuthorizedClients, cachePreparation, getApiSyncState, markApiError, updateApiSyncState } from './symfonyApiCacheDb.js';
 
@@ -101,11 +100,15 @@ function nativeResponse(result) {
 async function downloadAttempt(path, destinationUri, accessToken) {
   const url = protectedDownloadUrl(path);
   const proof = await createProof('GET', url, accessToken);
-  const payload = await strictNativeRequest('GET', url, {
+  const native = secureTransport();
+  if (!native?.secureHistoricalPhotoDownload) {
+    throw localAuthError('Téléchargement photo sécurisé non disponible dans METRA.', 'secure_historical_photo_download_missing');
+  }
+  const payload = await native.secureHistoricalPhotoDownload(url, {
     Accept: 'image/*',
     DPoP: proof,
     Authorization: `DPoP ${accessToken}`,
-  }, null, 'base64');
+  }, destinationUri);
   const response = nativeResponse(payload);
   if (response.status >= 300 && response.status < 400) {
     const error = new Error('Redirection HTTP refusée pour protéger la preuve DPoP.');
@@ -115,8 +118,9 @@ async function downloadAttempt(path, destinationUri, accessToken) {
     throw error;
   }
   if (!response.ok) await parseResponse(response);
-  if (typeof payload?.base64 !== 'string') throw new Error('La photo Intranet reçue est invalide.');
-  await FileSystem.writeAsStringAsync(destinationUri, payload.base64, { encoding: FileSystem.EncodingType.Base64 });
+  if (!Number.isFinite(Number(payload?.bytesWritten)) || Number(payload.bytesWritten) <= 0) {
+    throw new Error('La photo historique reçue est incomplète.');
+  }
   return {
     uri: destinationUri,
     status: response.status,

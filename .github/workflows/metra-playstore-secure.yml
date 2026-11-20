@@ -9,6 +9,7 @@ on:
       - fix/play-astra-m04-m05-20261120
       - fix/astra20-intranet-reliability-20261120
       - fix/astra24-photo-queue-classification-20261120
+      - fix/astra26-stream-historical-photos-20261120
   workflow_dispatch:
 
 permissions:
@@ -81,6 +82,7 @@ jobs:
           python3 .github/scripts/verify_intranet_transport_source.py
           python3 .github/scripts/verify_astra20_response_contract.py
           node .github/scripts/test_astra24_photo_error_contract.cjs
+          node .github/scripts/test_astra26_historical_download.cjs
           node --check databaseBackup.js
           node --check supportDump.js
           node --check plugins/withMetraPlaySecurity.js

@@ -12,13 +12,19 @@ const api = read('symfonyApi.js');
 requireText(api, '/dernieres-visites/photos', 'manifest endpoint');
 requireText(api, "createProof('GET', url, accessToken)", 'fresh DPoP proof per photo request');
 // React Native fetch ignores redirect:manual. The secure transport is native.
-requireText(api, "strictNativeRequest('GET', url", 'native DPoP photo download');
+requireText(api, 'native.secureHistoricalPhotoDownload(url', 'native streamed DPoP photo download');
+forbidText(api, 'payload.base64', 'Base64 bridge must not carry photo bytes');
+forbidText(api, 'FileSystem.writeAsStringAsync(destinationUri', 'Historical photos must not pass Base64 through JS');
 requireText(api, 'secureHttpRequest(method, url, headers, body, format)', 'native DPoP HTTP entrypoint');
 forbidText(api, 'await fetch(', 'Intranet must not use fetch polyfill for DPoP');
 const dpopNative = read('native/metra-dpop/MetraDpopModule.kt');
 requireText(dpopNative, '.followRedirects(false)', 'native no-redirect HTTP');
 requireText(dpopNative, '.followSslRedirects(false)', 'native no-redirect HTTPS');
 requireText(dpopNative, 'protectedHttpUrl(url)', 'fixed HTTPS Intranet origin');
+requireText(dpopNative, 'fun secureHistoricalPhotoDownload(', 'native HTTP-to-file download');
+requireText(dpopNative, 'FileOutputStream(file, false)', 'stream into private temporary file');
+requireText(dpopNative, 'size > maxBytes', 'streamed photo transfer has byte quota');
+requireText(dpopNative, 'file.delete()', 'failed stream must remove its temporary file');
 requireText(api, 'invalid_dpop_proof', 'DPoP retry');
 requireText(api, 'Retry-After', 'rate limit metadata');
 

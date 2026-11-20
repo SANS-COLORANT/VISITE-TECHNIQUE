@@ -17,10 +17,14 @@ for needle in (
 ):
     assert needle in native, 'Native strict HTTP contract missing: ' + needle
 assert 'await fetch(' not in api, 'Intranet request must not call React Native fetch'
-assert api.count('strictNativeRequest(') >= 3, 'Activation, refresh and photos must route via native'
+assert api.count('strictNativeRequest(') >= 2, 'Activation and refresh must route via native'
 assert "createProof(method, url, accessToken)" in api, 'DPoP proof binding required'
 assert "protectedDownloadUrl(path)" in api, 'Photo URL whitelist required'
 assert "body = typeof serializedPayload === 'string' ? serializedPayload : JSON.stringify(serializedPayload)" in api
+assert 'secureHistoricalPhotoDownload(' in api
+assert 'fun secureHistoricalPhotoDownload(' in native
+assert 'FileOutputStream(file, false)' in native
+assert 'payload.base64' not in api
 assert 'secureMultipartPhotoUpload(' in api
 assert 'fun secureMultipartPhotoUpload(' in native
 print('ASTRA M04: source contract for native no-redirect DPoP transport PASS')
