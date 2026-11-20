@@ -27,7 +27,7 @@ module.exports = ({ config }) => {
   // Play profile defaults to disabled in Git. Production CI explicitly enables it.
   fs.writeFileSync(
     path.join(__dirname, 'playSecurityRuntime.generated.js'),
-    'export const METRA_PLAY_SECURE_BUILD = ' + (process.env.METRA_PLAY_SECURE_BUILD === '1' ? 'true' : 'false') + ';\\n',
+    'export const METRA_PLAY_SECURE_BUILD = ' + (process.env.METRA_PLAY_SECURE_BUILD === '1' ? 'true' : 'false') + ';\n',
     'utf8'
   );
 
