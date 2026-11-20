@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - release/metra-playstore-secure-20261120
+      - fix/play-astra-security-m01-m07-20261120
     paths:
       - '.github/workflows/metra-play-security-audit.yml'
       - 'package.json'

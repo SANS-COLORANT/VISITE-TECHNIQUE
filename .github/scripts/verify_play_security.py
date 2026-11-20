@@ -20,7 +20,13 @@ assert 'https://' in (ROOT / 'symfonyApi.js').read_text(), 'API HTTPS required'
 assert (ROOT / 'playSecurityRuntime.generated.js').read_text().strip().endswith('false;'), 'Committed secure runtime default must be false'
 
 tracked = subprocess.check_output(['git', 'ls-files'], cwd=ROOT, text=True).splitlines()
-dangerous_extension = re.compile(r'(?i)(?:^|/)(?:\\.env(?:\\.|$)|.*\\.(?:jks|p12|pfx|pem|keystore|key)$)')
+dangerous_extension = re.compile(r'(?i)(?:^|/)(?:\.env(?:\.|$)|[^/]+\.(?:jks|p12|pfx|pem|keystore|key)$)')
+# ASTRA M07: regression test on deliberately fictitious paths.
+for candidate in ('.env', 'config/.env.production', 'a/upload.jks', 'k.p12', 'tls.pem', 'key.keystore', 'nested/private.key'):
+    assert dangerous_extension.search(candidate), 'Sensitive file detector missed ' + candidate
+for candidate in ('src/view.js', 'docs/guide.md', 'nested/archive.jpg'):
+    assert not dangerous_extension.search(candidate), 'Overblocking safe file ' + candidate
+
 bad_files = [p for p in tracked if dangerous_extension.search(p) and not p.endswith('.env.example')]
 if bad_files:
     raise SystemExit('Private material committed to repository: ' + ', '.join(bad_files))

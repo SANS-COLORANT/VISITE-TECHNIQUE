@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - release/metra-playstore-secure-20261120
+      - fix/play-astra-security-m01-m07-20261120
   workflow_dispatch:
 
 permissions:
@@ -65,6 +66,8 @@ jobs:
       - name: Check JS syntax, SQLite model, REMAR and local reports
         run: |
           npm run verify:metra
+          # Fail the release when the vulnerable npm-registry SheetJS is bundled.
+          node .github/scripts/assert_sheetjs_secure.cjs
           # Node ESM cannot resolve the Expo SDK54 legacy directory import; Metro
           # resolves it correctly. Keep executable REMAR/SQLite contract tests.
           node .github/scripts/test_remar_141_intranet_matrix.js
