@@ -11,6 +11,20 @@ module.exports = function withMetraPlaySecurity(config) {
     if (apps.length !== 1 || !apps[0].$) {
       throw new Error('METRA security: application Android manifest inaccessible');
     }
+    // ASTRA M05: the CanHub cropping activity is strictly internal to METRA.
+    // tools:replace is required because the library manifest exports it.
+    cfg.modResults.manifest.$ = cfg.modResults.manifest.$ || {};
+    cfg.modResults.manifest.$['xmlns:tools'] = 'http://schemas.android.com/tools';
+    const cropName = 'com.canhub.cropper.CropImageActivity';
+    const activities = apps[0].activity || (apps[0].activity = []);
+    let crop = activities.find((activity) => activity?.$?.['android:name'] === cropName);
+    if (!crop) {
+      crop = { $: { 'android:name': cropName } };
+      activities.push(crop);
+    }
+    crop.$['android:exported'] = 'false';
+    crop.$['tools:replace'] = 'android:exported';
+
     Object.assign(apps[0].$, {
       'android:allowBackup': 'false',
       'android:fullBackupContent': 'false',

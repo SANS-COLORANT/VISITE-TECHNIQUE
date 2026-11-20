@@ -31,8 +31,13 @@ const EXPECTED = Object.freeze({
 
 // The historical APK remains pinned to SDK 51. Only the isolated Play
 // candidate may migrate to API 36, and its lockfile is still checked below.
+const playCompatibilityBranches = new Set([
+  'release/metra-playstore-secure-20261120',
+  'fix/play-astra-security-m01-m07-20261120',
+  'fix/play-astra-m04-m05-20261120',
+]);
 const playBranch = [process.env.GITHUB_REF_NAME, process.env.GITHUB_HEAD_REF]
-  .some((name) => name === 'release/metra-playstore-secure-20261120');
+  .some((name) => playCompatibilityBranches.has(name));
 const playMigration = process.env.METRA_PLAY_SECURE_BUILD === '1' || playBranch;
 if (playMigration) {
   if (!String(pkg.dependencies?.expo || '').replace(/^~/, '').startsWith('54.')) fail('Le profil Play requiert Expo SDK 54');
