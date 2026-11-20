@@ -100,6 +100,6 @@ jobs:
           node .github/scripts/test_intranet_first_visit_preparation.js
           node .github/scripts/test_crous_created_site_local_first_visit.js
       - name: Native SQLite + official Excel full roundtrips
-        run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
+        run: node --import ./.github/scripts/legacy_fs_resolver.mjs --experimental-test-module-mocks --test tests/trameRemar.test.mjs
       - name: Verify Android JS bundle (not a native release APK)
         run: npx expo export --platform android --max-workers 2 --output-dir dist-remar-141-ci

@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getVisite, getChampsVisite, getControlesVisite, listerCompteurs, listerMateriel, listerPhotos, listerReseaux, listerSitesClient, toucherVisite, upsertChamp, upsertCompteurChamp, upsertMaterielChamp, upsertReseauChamp } from './db.js';
 import { openAppDatabase } from './database/index.js';
 import { listerRemarquesVisite, modifierRemarqueVisite, supprimerRemarqueControle } from './remarkDb.js';

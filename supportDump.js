@@ -1,4 +1,5 @@
-import * as FileSystem from 'expo-file-system';
+import { METRA_PLAY_SECURE_BUILD } from './playSecurityRuntime.generated.js';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { getDb } from './db.js';
 import { DATABASE_SCHEMA_VERSION } from './database/constants.js';
@@ -176,6 +177,7 @@ export async function construireSupportDump() {
 }
 
 export async function exporterSupportDump() {
+  if (METRA_PLAY_SECURE_BUILD) throw new Error('Export support non anonymisé désactivé dans la version METRA Google Play.');
   if (!(await Sharing.isAvailableAsync())) throw new Error('Le partage de fichiers est indisponible sur cet appareil.');
   const dump = await construireSupportDump();
   const dir = `${FileSystem.cacheDirectory}metra-support/`;

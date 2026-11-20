@@ -1,4 +1,10 @@
-import * as FileSystem from 'expo-file-system';
+
+import { METRA_PLAY_SECURE_BUILD } from './playSecurityRuntime.generated.js';
+
+function refuserExportNonChiffre() {
+  if (METRA_PLAY_SECURE_BUILD) throw new Error('Sauvegarde non chiffrée désactivée dans METRA Google Play. Synchronisez les visites avec l’Intranet ; une sauvegarde chiffrée nécessitera un développement dédié.');
+}
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { zip, unzip } from 'react-native-zip-archive';
@@ -57,6 +63,7 @@ async function partagerFichier(uri, titre, mimeType = 'application/octet-stream'
  * l'utilisateur dans Drive, OneDrive, mail ou stockage externe.
  */
 export async function exporterSauvegardeBase() {
+  refuserExportNonChiffre();
   const db = await getDb();
   await db.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
   const source = cheminBaseSQLite();
@@ -76,6 +83,7 @@ export async function exporterSauvegardeBase() {
 
 /** Archive complète, générée nativement sans charger les JPEG en mémoire JS. */
 export async function exporterSauvegardeComplete() {
+  refuserExportNonChiffre();
   const db = await getDb();
   await db.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
   const sourceDb = cheminBaseSQLite();
@@ -146,6 +154,7 @@ async function rebaserUrisPhotos(db) {
 }
 
 export async function choisirEtRestaurerSauvegardeComplete() {
+  refuserExportNonChiffre();
   const selection = await DocumentPicker.getDocumentAsync({
     type: ['application/zip', 'application/octet-stream'],
     copyToCacheDirectory: true,
@@ -219,6 +228,7 @@ const AUTO_MAX_BYTES = 80 * 1024 * 1024;
 let autoEnCours = false;
 
 export async function choisirDossierSauvegardeAuto() {
+  refuserExportNonChiffre();
   const { getPrefSync, setPrefSync, PREFS } = require('./uiPrefs.js');
   const saf = FileSystem.StorageAccessFramework;
   if (!saf) throw new Error('Choix de dossier indisponible sur cet appareil.');
@@ -244,6 +254,7 @@ export function etatSauvegardeAuto() {
 }
 
 export async function sauvegardeAutoSiNecessaire({ force = false } = {}) {
+  if (METRA_PLAY_SECURE_BUILD) return false;
   const { getPrefSync, setPrefSync, PREFS } = require('./uiPrefs.js');
   const dossier = getPrefSync(PREFS.dossierSauvegardeAuto, null);
   const saf = FileSystem.StorageAccessFramework;

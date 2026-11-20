@@ -3,7 +3,7 @@ import { candidateSectionCodes } from './intranetStorageAliases.js';
 
 import * as XLSX from 'xlsx';
 import { writeTrameManifest } from './trameLibrary.js';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
