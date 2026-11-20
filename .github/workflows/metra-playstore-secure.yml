@@ -1,0 +1,198 @@
+name: METRA Android 16 - Play Store secure build
+run-name: METRA Play candidate #${{ github.run_number }}
+
+on:
+  push:
+    branches:
+      - release/metra-playstore-secure-20261120
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: metra-play-secure-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secure-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      METRA_PLAY_SECURE_BUILD: '1'
+      GOOGLE_MAPS_API_KEY: ''
+      npm_config_legacy_peer_deps: 'true'
+      GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8 -Dorg.gradle.workers.max=2'
+
+    steps:
+      - name: Checkout dedicated release branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check source for embedded credentials and insecure Android defaults
+        run: python3 .github/scripts/verify_play_security.py
+
+      - name: Upgrade Expo to API36-capable SDK 54 and resolve compatible dependencies
+        run: |
+          set -euo pipefail
+          npm install --save expo@~54.0.38 react@19.1.0 react-native@0.81.5 --ignore-scripts --no-audit --no-fund
+          npx expo install --fix --npm
+          python3 .github/scripts/migrate_expo_54_legacy_filesystem.py
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --no-audit --no-fund --prefer-offline
+          npx expo install --check
+          node -e "const p=require('./package.json'); if(!p.dependencies.expo.startsWith('~54.')) process.exit(1)"
+          node --check app.config.js
+
+      - name: Check JS syntax, SQLite model, REMAR and local reports
+        run: |
+          npm run verify:metra
+          node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
+          node tests/reportPdfFragments.test.mjs
+          node --check symfonyApi.js
+          node --check databaseBackup.js
+          node --check supportDump.js
+          node --check plugins/withMetraPlaySecurity.js
+
+      - name: Commit resolved dependency lock and legacy FS migration as real source
+        run: |
+          set -euo pipefail
+          git add package.json package-lock.json
+          git diff --name-only -z -- '*.js' '*.jsx' '*.ts' '*.tsx' | while IFS= read -r -d '' file; do
+            case "$file" in
+              appVersion.js|googleMapsRuntime.generated.js|playSecurityRuntime.generated.js) ;;
+              *) git add -- "$file" ;;
+            esac
+          done
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'build: version Expo 54 compatibility and legacy file-system migration'
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi
+
+      - name: Stamp version code without committing deployment-specific changes
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, time, os
+          p=Path('app.json')
+          data=json.loads(p.read_text(encoding='utf-8'))
+          assert data['expo']['android']['package']=='com.visitetechnique.tablet'
+          data['expo']['android']['versionCode']=int(time.time())
+          p.write_text(json.dumps(data,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          v=Path('appVersion.js')
+          v.write_text(v.read_text().replace("APK_BUILD = 'DEV'","APK_BUILD = '"+os.environ['BUILD_NUMBER']+"'"))
+          PY
+
+      - name: Validate Android JavaScript bundle and native config
+        run: |
+          set -euo pipefail
+          npx expo export --platform android --output-dir dist-play-ci
+          test -f playSecurityRuntime.generated.js
+          grep -qx 'export const METRA_PLAY_SECURE_BUILD = true;' playSecurityRuntime.generated.js
+          npx expo prebuild --clean --platform android --no-install
+          test -s android/gradlew
+          test -s android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
+          grep -q 'android:allowBackup="false"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:usesCleartextTraffic="false"' android/app/src/main/AndroidManifest.xml
+          test -s android/app/src/main/res/xml/metra_data_extraction_rules.xml
+
+      - name: Build native QA APK (historical debug signing, NOT Play production)
+        env:
+          METRA_RELEASE_STORE_PASSWORD: android
+          METRA_RELEASE_KEY_ALIAS: androiddebugkey
+          METRA_RELEASE_KEY_PASSWORD: android
+        run: |
+          set -euo pipefail
+          cp android/app/debug.keystore android/app/metra-release.keystore
+          python3 .github/scripts/configure_android_release_signing.py
+          cd android
+          ./gradlew assembleRelease --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
+          cd ..
+          mkdir -p release
+          cp android/app/build/outputs/apk/release/app-release.apk release/METRA-API36-QA.apk
+          tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$tools/apksigner" verify --verbose release/METRA-API36-QA.apk
+          "$tools/aapt" dump badging release/METRA-API36-QA.apk | grep -E "package:|targetSdkVersion"
+          "$tools/aapt" dump badging release/METRA-API36-QA.apk | grep -q "targetSdkVersion:'36'"
+          sha256sum release/METRA-API36-QA.apk > release/METRA-API36-QA.apk.sha256
+
+      - name: Check dedicated Play upload signing secrets (never logged)
+        id: signing
+        env:
+          PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.METRA_PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          PLAY_STORE_PASSWORD: ${{ secrets.METRA_PLAY_STORE_PASSWORD }}
+          PLAY_KEY_ALIAS: ${{ secrets.METRA_PLAY_KEY_ALIAS }}
+          PLAY_KEY_PASSWORD: ${{ secrets.METRA_PLAY_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PLAY_UPLOAD_KEYSTORE_BASE64" ] || [ -z "$PLAY_STORE_PASSWORD" ] || [ -z "$PLAY_KEY_ALIAS" ] || [ -z "$PLAY_KEY_PASSWORD" ]; then
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo '::warning::No dedicated Google Play upload key configured. AAB blocked; QA APK only.'
+            exit 0
+          fi
+          echo 'ready=true' >> "$GITHUB_OUTPUT"
+
+      - name: Sign and produce the official Google Play App Bundle
+        if: steps.signing.outputs.ready == 'true'
+        env:
+          PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.METRA_PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          METRA_RELEASE_STORE_PASSWORD: ${{ secrets.METRA_PLAY_STORE_PASSWORD }}
+          METRA_RELEASE_KEY_ALIAS: ${{ secrets.METRA_PLAY_KEY_ALIAS }}
+          METRA_RELEASE_KEY_PASSWORD: ${{ secrets.METRA_PLAY_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$PLAY_UPLOAD_KEYSTORE_BASE64" | base64 --decode > android/app/metra-release.keystore
+          chmod 600 android/app/metra-release.keystore
+          actual="$(keytool -list -v -keystore android/app/metra-release.keystore -storepass "$METRA_RELEASE_STORE_PASSWORD" -alias "$METRA_RELEASE_KEY_ALIAS" | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          if [ -z "$actual" ] || [ "$actual" = 'FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C' ]; then
+            echo '::error::A dedicated non-debug Play upload signing key is required.'
+            exit 1
+          fi
+          cd android
+          ./gradlew clean bundleRelease --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
+          cd ..
+          test -s android/app/build/outputs/bundle/release/app-release.aab
+          cp android/app/build/outputs/bundle/release/app-release.aab release/METRA-PlayStore.aab
+          jarsigner -verify -strict release/METRA-PlayStore.aab
+          jarcert="$(keytool -printcert -jarfile release/METRA-PlayStore.aab | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          test "$actual" = "$jarcert"
+          sha256sum release/METRA-PlayStore.aab > release/METRA-PlayStore.aab.sha256
+          rm -f android/app/metra-release.keystore
+
+      - name: Archive Play signing QA result and test APK
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: METRA-Android16-QA-${{ github.run_number }}
+          path: release/METRA-API36-QA.apk*
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Archive signed AAB only when a genuine upload key was supplied
+        uses: actions/upload-artifact@v4
+        if: steps.signing.outputs.ready == 'true'
+        with:
+          name: METRA-PlayStore-AAB-${{ github.run_number }}
+          path: release/METRA-PlayStore.aab*
+          if-no-files-found: error
+          retention-days: 30
