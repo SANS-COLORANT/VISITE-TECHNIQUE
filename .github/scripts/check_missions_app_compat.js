@@ -29,12 +29,23 @@ const EXPECTED = Object.freeze({
   dbName: 'visite_technique.db',
 });
 
-if (pkg.dependencies?.expo !== EXPECTED.expo) fail('Expo doit rester sur ' + EXPECTED.expo + ', trouvé ' + pkg.dependencies?.expo);
-if (pkg.dependencies?.react !== EXPECTED.react) fail('React doit rester sur ' + EXPECTED.react);
-if (pkg.dependencies?.['react-native'] !== EXPECTED.reactNative) fail('React Native doit rester sur ' + EXPECTED.reactNative);
-if (pkg.dependencies?.['expo-sqlite'] !== EXPECTED.sqlite) fail('expo-sqlite incompatible');
-if (pkg.dependencies?.['expo-image-picker'] !== EXPECTED.imagePicker) fail('expo-image-picker incompatible');
-if (pkg.dependencies?.['expo-file-system'] !== EXPECTED.fileSystem) fail('expo-file-system incompatible');
+// The historical APK remains pinned to SDK 51. Only the isolated Play
+// candidate may migrate to API 36, and its lockfile is still checked below.
+const playMigration = process.env.METRA_PLAY_SECURE_BUILD === '1';
+if (playMigration) {
+  if (!/^~?54\\./.test(pkg.dependencies?.expo || '')) fail('Le profil Play requiert Expo SDK 54');
+  if (pkg.dependencies?.react !== '19.1.0') fail('Le profil Play requiert React 19.1.0');
+  if (pkg.dependencies?.['react-native'] !== '0.81.5') fail('Le profil Play requiert React Native 0.81.5');
+  if (app.expo?.newArchEnabled !== false) fail('React Native historique doit rester explicite en SDK 54');
+  if (!appConfig.includes('withMetraPlaySecurity')) fail('Plugin Android Play Security manquant');
+} else {
+  if (pkg.dependencies?.expo !== EXPECTED.expo) fail('Expo doit rester sur ' + EXPECTED.expo + ', trouvé ' + pkg.dependencies?.expo);
+  if (pkg.dependencies?.react !== EXPECTED.react) fail('React doit rester sur ' + EXPECTED.react);
+  if (pkg.dependencies?.['react-native'] !== EXPECTED.reactNative) fail('React Native doit rester sur ' + EXPECTED.reactNative);
+  if (pkg.dependencies?.['expo-sqlite'] !== EXPECTED.sqlite) fail('expo-sqlite incompatible');
+  if (pkg.dependencies?.['expo-image-picker'] !== EXPECTED.imagePicker) fail('expo-image-picker incompatible');
+  if (pkg.dependencies?.['expo-file-system'] !== EXPECTED.fileSystem) fail('expo-file-system incompatible');
+}
 
 const lockRoot = lock.packages?.[''] || {};
 for (const [name, value] of Object.entries(pkg.dependencies || {})) {
@@ -126,8 +137,8 @@ for (const token of recurringTokens) {
 }
 
 console.log(
-  'Compatibilité METRA validée: Expo ' + EXPECTED.expo
-  + ', React Native ' + EXPECTED.reactNative
+  'Compatibilité METRA validée: Expo ' + (playMigration ? pkg.dependencies.expo : EXPECTED.expo)
+  + ', React Native ' + (playMigration ? pkg.dependencies['react-native'] : EXPECTED.reactNative)
   + ', applicationId ' + EXPECTED.packageId
   + ', SQLite v' + declared
   + ', lignée migrations complète et identité APK conservée.'
