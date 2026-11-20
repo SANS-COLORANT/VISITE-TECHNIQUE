@@ -1,0 +1,79 @@
+name: METRA Play Store - security and dependency audit
+
+on:
+  push:
+    branches:
+      - release/metra-playstore-secure-20261120
+    paths:
+      - '.github/workflows/metra-play-security-audit.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'app.json'
+      - 'app.config.js'
+      - 'plugins/**'
+      - 'native/**'
+      - '.github/scripts/verify_play_security.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  supply-chain:
+    name: Current source and production dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Check source for hard-coded credentials without printing secret values
+        run: python3 .github/scripts/verify_play_security.py
+      - name: Verify Play privacy link is planned
+        run: |
+          if grep -Eiq 'privacy.?policy|politique de confidentialit' App.js ParametresScreen.js; then
+            echo 'Privacy disclosure text found in current application UI. Verify actual clickable URL and policy content.'
+          else
+            echo '::warning::No METRA privacy policy link found in the application UI. Google Play submission remains blocked.'
+          fi
+      - name: Install exactly locked dependencies without postinstall hooks
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Audit production dependencies only
+        id: deps
+        run: |
+          npm audit --omit=dev --json > "$RUNNER_TEMP/metra-audit.json" || true
+          python3 - <<'PY'
+          import collections, json, os
+          source = os.environ['RUNNER_TEMP'] + '/metra-audit.json'
+          with open(source, encoding='utf-8') as f:
+              report=json.load(f)
+          vulns=report.get('vulnerabilities')
+          if not isinstance(vulns,dict):
+              raise SystemExit('npm audit did not return a valid vulnerability report.')
+          summary=collections.Counter(str(v.get('severity','unknown')) for v in vulns.values())
+          print('PRODUCTION NPM AUDIT:', dict(summary))
+          for name,entry in sorted(vulns.items()):
+              print('PACKAGE:', name, 'SEVERITY:', entry.get('severity','unknown'))
+          if summary.get('critical',0) or summary.get('high',0):
+              raise SystemExit('Production dependencies contain high/critical advisories; review and remediate before Play release.')
+          PY
+
+  history-secret-scan:
+    name: Check repository history for leaked credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Scan Git commits using Gitleaks without public findings/artifact publication
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: 'false'
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
+          GITLEAKS_ENABLE_SUMMARY: 'false'
