@@ -15,10 +15,10 @@ const bytes = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 const parsed = XLSX.read(bytes, { type: 'buffer', cellDates: true });
 const data = XLSX.utils.sheet_to_json(parsed.Sheets.Mesures, { header: 1, defval: '' });
 if (JSON.stringify(data) !== JSON.stringify(values)) throw new Error('SheetJS METRA Excel roundtrip regression');
-const root = require('../package.json');
+const root = require('../../package.json');
 const requiredUrl = 'https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz';
 if (root.dependencies?.xlsx !== requiredUrl) throw new Error('SheetJS must be pinned to the exact official tarball');
-const lock = require('../package-lock.json');
+const lock = require('../../package-lock.json');
 if (lock.packages?.['node_modules/xlsx']?.version !== expected ||
     lock.packages?.['node_modules/xlsx']?.resolved !== requiredUrl ||
     !lock.packages?.['node_modules/xlsx']?.integrity) {
