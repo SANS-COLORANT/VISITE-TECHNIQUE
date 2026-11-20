@@ -70,10 +70,18 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Scan Git commits using Gitleaks without public findings/artifact publication
-        uses: gitleaks/gitleaks-action@v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_COMMENTS: 'false'
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
-          GITLEAKS_ENABLE_SUMMARY: 'false'
+      - name: Verify full Git history is available
+        run: |
+          count="$(git rev-list --all --count)"
+          echo "Git commits available for historical secret scan: $count"
+          if [ "$count" -lt 500 ]; then
+            echo '::error::Git history appears shallow; refusing incomplete secret audit.'
+            exit 1
+          fi
+      - name: Scan FULL Git history with Gitleaks (redacted, no published artifact)
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --output "$RUNNER_TEMP/gitleaks.tar.gz" https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          chmod +x "$RUNNER_TEMP/gitleaks"
+          "$RUNNER_TEMP/gitleaks" git --no-banner --redact --log-opts="--all" .
