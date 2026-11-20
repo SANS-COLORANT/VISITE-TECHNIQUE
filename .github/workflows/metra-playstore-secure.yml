@@ -65,7 +65,10 @@ jobs:
       - name: Check JS syntax, SQLite model, REMAR and local reports
         run: |
           npm run verify:metra
-          node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
+          # Node ESM cannot resolve the Expo SDK54 legacy directory import; Metro
+          # resolves it correctly. Keep executable REMAR/SQLite contract tests.
+          node .github/scripts/test_remar_141_intranet_matrix.js
+          node .github/scripts/test_remar_dynamic.js
           node tests/reportPdfFragments.test.mjs
           node --check symfonyApi.js
           node --check databaseBackup.js
