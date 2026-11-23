@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, BackHandler, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
+import { METRA_PLAY_SECURE_BUILD } from './playSecurityRuntime.generated.js';
 import { FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -224,6 +225,23 @@ function GestionDonnees(){
     <ReglageBascule titre="Onglets en bas (une main)" description="Dans une visite, les onglets passent au-dessus de la barre d’actions, à portée de pouce. Glisser à gauche ou à droite change d’onglet." actif={ongletsEnBas} onChange={basculerOnglets}/>
 
     <Text style={[styles.sectionLabel,{marginTop:18}]}>Sauvegardes</Text>
+    {METRA_PLAY_SECURE_BUILD ? (
+      <View style={[styles.card,dataCard]}>
+        <Text style={styles.cardTitle}>Sauvegarde et restauration locales indisponibles</Text>
+        <Text style={[styles.cardSub,{marginTop:8,lineHeight:19}]}>
+          La version Google Play bloque l'export et la restauration de bases et d'archives ZIP non chiffrées.
+          Les sauvegardes automatiques non chiffrées sont également désactivées.
+        </Text>
+        <Text style={[styles.cardSub,{marginTop:10,lineHeight:19,color:COLORS.red}]}>
+          Les visites et photos seulement présentes sur cet appareil ne sont pas automatiquement sauvegardées.
+          Ne désinstalle pas METRA et n'efface pas les données de l'application.
+        </Text>
+        <Text style={[styles.cardSub,{marginTop:10,lineHeight:19}]}>
+          Synchronise les visites prises en charge avec l'Intranet. Une sauvegarde chiffrée complète,
+          photos comprises, devra être développée et validée séparément.
+        </Text>
+      </View>
+    ) : (<>
     <View style={[styles.card,dataCard]}>
       <View style={{alignSelf:'stretch'}}>
         <Text style={styles.cardTitle}>Sauvegarde automatique</Text>
@@ -254,6 +272,7 @@ function GestionDonnees(){
       </View>
       <BoutonDonnees label={action==='restore'?'Restauration…':'Restaurer une sauvegarde ZIP'} disabled={occupe} danger onPress={demanderRestauration}/>
     </View>
+    </>)}
 
     <TouchableOpacity activeOpacity={1} onLongPress={deverrouillerSupport} delayLongPress={1600}>
       <Text style={[styles.sectionLabel,{marginTop:18}]}>Santé des données</Text>
