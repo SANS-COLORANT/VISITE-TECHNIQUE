@@ -4,6 +4,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const CONTRACT_CHECKS = [
+  ['Play encrypted full backup and rollback safety', 'tests/backupPlaySecure.test.mjs'],
   ['long-press regulatory help sheets', '.github/scripts/test_aide_reglementaire.js'],
   ['equipment screen: exceptions, swipe, + menu', '.github/scripts/check_equipment_exception_ui.js'],
   ['client tour checklist (sites/locals to do)', '.github/scripts/test_tournee.js'],
@@ -85,6 +86,8 @@ const CONTRACT_CHECKS = [
 ];
 
 const JS_SYNTAX_FILES = [
+  'backupPolicy.js',
+  'secureBackup.js',
   'TrameLibraryPanel.js',
   'TrameGenericPanel.js',
   'RemarJourneySheet.js',
