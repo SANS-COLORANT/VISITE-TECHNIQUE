@@ -4,8 +4,10 @@ on:
   push:
     branches:
       - qa/metra-native-aes-proof-20261123
+      - qa/metra-aes-password-keyboard-fix-20261123
     paths:
       - '.github/workflows/metra-native-backup-qa.yml'
+      - '.github/scripts/android_backup_smoke.py'
   workflow_dispatch:
 permissions:
   contents: read
