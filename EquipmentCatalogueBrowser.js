@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Image, Linking, Modal, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandMark, getBrandColor } from './BrandLogo.js';
 import { COLORS, FONTS, styles } from './styles.js';
 import {
@@ -142,9 +143,10 @@ function CurvePreview({ curve }) {
 }
 
 function SimpleModal({ visible,title,fields,onClose,onSave }) {
+  const { bottom: bottomInset } = useSafeAreaInsets();
   const [values,setValues]=useState({});
   useEffect(()=>{if(visible)setValues({});},[visible]);
-  return <Modal visible={visible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}><ScrollView keyboardShouldPersistTaps="handled"><Text style={styles.modalTitle}>{title}</Text>{fields.map(f=><TextInput key={f.key} style={[styles.input,{marginTop:10,minHeight:f.multiline?70:undefined,textAlignVertical:f.multiline?'top':undefined}]} placeholder={f.label} value={values[f.key]||''} onChangeText={v=>setValues(x=>({...x,[f.key]:v}))} multiline={!!f.multiline}/>)}<View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={()=>onSave(values)}><ButtonGlow /><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></ScrollView></View></View></Modal>;
+  return <Modal visible={visible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}><View style={[styles.modalOverlay, { paddingBottom: Math.max(12, bottomInset + 12) }]}><View style={styles.modalSheet}><ScrollView keyboardShouldPersistTaps="handled"><Text style={styles.modalTitle}>{title}</Text>{fields.map(f=><TextInput key={f.key} style={[styles.input,{marginTop:10,minHeight:f.multiline?70:undefined,textAlignVertical:f.multiline?'top':undefined}]} placeholder={f.label} value={values[f.key]||''} onChangeText={v=>setValues(x=>({...x,[f.key]:v}))} multiline={!!f.multiline}/>)}<View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={()=>onSave(values)}><ButtonGlow /><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></ScrollView></View></View></Modal>;
 }
 
 export function EquipmentCatalogueBrowser(){
