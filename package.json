@@ -47,7 +47,8 @@
     "react-native-maps": "1.20.1",
     "react-native-svg": "15.12.1",
     "react-native-zip-archive": "7.1.1",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "react-native-safe-area-context": "~5.6.0"
   },
   "overrides": {
     "@expo/xcpretty": "4.4.4"
