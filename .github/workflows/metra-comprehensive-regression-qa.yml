@@ -1,0 +1,50 @@
+name: METRA comprehensive regression audit
+
+on:
+  push:
+    branches:
+      - audit/metra-comprehensive-stability-20261123
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  all-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      npm_config_legacy_peer_deps: 'true'
+    steps:
+      - name: Checkout exact audited commit
+        uses: actions/checkout@v4
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install exact dependencies and verify source contracts
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline
+          git diff --exit-code
+      - name: Run all independent domain suites and preserve every failure
+        run: node .github/scripts/metra_full_audit_runner.cjs
+      - name: Verify bundle output on Android (not an APK build)
+        run: npx expo export --platform android --max-workers 2 --output-dir dist-metra-audit
+      - name: Ensure committed runtime was not modified
+        if: always()
+        run: git diff --exit-code -- '*.js' '*.jsx' '*.ts' '*.tsx'
+      - name: Archive full per-test logs, report and static audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: METRA-FULL-REGRESSION-AUDIT
+          path: audit-results/
+          if-no-files-found: warn
+          retention-days: 14

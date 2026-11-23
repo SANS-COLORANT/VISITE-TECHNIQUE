@@ -63,6 +63,41 @@ def snapshot(label):
         p = subprocess.run(["adb", "exec-out", "screencap", "-p"], stdout=f, stderr=subprocess.PIPE, timeout=30)
     return str(path) if p.returncode == 0 else ""
 
+def modal_backdrop_cleared(before_path, after_path):
+    """Cross-check modal removal via rendered pixels, not stale accessibility XML.
+
+    Only used as a fallback when the UI tree cannot confirm dismissal.
+    The Android RN transparent modal darkens the main visit area. Compare
+    several locations above the bottom sheet (not the keyboard/nav bar).
+    """
+    if not before_path or not after_path:
+        return False
+    try:
+        from PIL import Image
+        with Image.open(before_path) as source, Image.open(after_path) as dest:
+            before, after = source.convert("RGB"), dest.convert("RGB")
+            if before.size != after.size:
+                print("MODAL VISUAL: screenshot dimensions changed", flush=True)
+                return False
+            coords = ((0.05, 0.10), (0.18, 0.17), (0.38, 0.17),
+                      (0.10, 0.30), (0.80, 0.34), (0.55, 0.40))
+            differences = []
+            for xf, yf in coords:
+                px, py = round(xf * (before.width - 1)), round(yf * (before.height - 1))
+                initial = before.getpixel((px, py))
+                final = after.getpixel((px, py))
+                differences.append(round(sum(b - a for a, b in zip(initial, final)) / 3, 1))
+            # The screenshot comparison proves that the underlying page is
+            # no longer dimmed. A keyboard dismissal alone cannot satisfy it.
+            cleared = sum(diff > 30 for diff in differences) >= 5 and sum(differences) / len(differences) > 45
+            print("MODAL VISUAL: background brightness delta " + str(differences)
+                  + " backdrop_removed=" + str(cleared), flush=True)
+            return cleared
+    except Exception as error:
+        print("MODAL VISUAL: comparison unavailable " + str(error), flush=True)
+        return False
+
+
 def record(step, ok, detail=""):
     RESULT["steps"].append({"step": step, "pass": bool(ok), "detail": detail})
     print(("PASS " if ok else "FAIL ") + step + ((": " + detail) if detail else ""), flush=True)
@@ -97,6 +132,18 @@ def tap(labels, seconds=20):
     time.sleep(2)
     verify_alive()
     return True
+
+def await_modal_dismissed(modal_title, return_label, seconds=12):
+    # uiautomator peut servir un ancien XML pendant l'animation de fermeture.
+    # Attendre que l'ecran principal soit de nouveau visible au lieu de faire
+    # un seul dump immediat qui donne un faux echec.
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        nodes = dump()
+        if nodes and not find(nodes, [modal_title]) and find(nodes, [return_label]):
+            return True
+        time.sleep(1)
+    return False
 
 def fatal_logs():
     log = adb("logcat","-d","-v","brief","AndroidRuntime:E","ReactNativeJS:E","*:S",timeout=30,check=False)
@@ -160,19 +207,33 @@ def main():
                     record("visit Note shortcut", note)
                     if note:
                         snapshot("note")
-                        tap(["Fermer"], seconds=12)
+                        note_tap = tap(["Fermer"], seconds=12)
+                        note_closed = note_tap and await_modal_dismissed("Note libre — ICPE", "Anomalie")
+                        record("Note: close action is clickable and modal dismisses", note_closed)
                     anomaly = tap(["Anomalie"], seconds=15)
                     record("visit Anomalie shortcut", anomaly)
                     if anomaly:
-                        snapshot("anomalie")
-                        tap(["Annuler"], seconds=12)
+                        before_cancel = snapshot("anomalie")
+                        anomaly_tap = tap(["Annuler"], seconds=12)
+                        tree_confirmed = anomaly_tap and await_modal_dismissed("Ajouter une anomalie", "Anomalie")
+                        after_cancel = snapshot("anomalie-after-cancel")
+                        rendered_confirmed = anomaly_tap and modal_backdrop_cleared(before_cancel, after_cancel)
+                        anomaly_closed = tree_confirmed or rendered_confirmed
+                        if not anomaly_closed:
+                            print("ANOMALIE STILL OPEN / UNCERTAIN: touch=" + str(anomaly_tap)
+                                  + " tree=" + str(tree_confirmed)
+                                  + " visual=" + str(rendered_confirmed), flush=True)
+                        record("Anomalie: cancel action is clickable and modal dismisses",
+                               anomaly_closed,
+                               "accessibility=" + str(tree_confirmed)
+                               + ", rendered=" + str(rendered_confirmed))
                 else:
                     RESULT["warnings"].append("Quick visit creation not reachable on this emulator")
             else:
                 RESULT["warnings"].append("Quick visit button was not exposed in the emulator accessibility tree")
         else:
             RESULT["warnings"].append("Could not navigate to Accueil from the catalogue UI")
-        return 0
+        return 1 if RESULT["errors"] else 0
     except Exception as exc:
         record("emulator instrumentation", False, repr(exc))
         snapshot("failure")

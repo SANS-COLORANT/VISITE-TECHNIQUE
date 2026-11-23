@@ -1,0 +1,76 @@
+name: METRA Android 16 - same-build three-button and gestures smoke
+
+on:
+  push:
+    branches:
+      - audit/metra-comprehensive-stability-20261123
+    paths:
+      - '.github/workflows/metra-android-36-navigation-qa.yml'
+      - '.github/scripts/android_emulator_smoke.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  android-navigation:
+    name: Android 16 nav ${{ matrix.navigation }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    strategy:
+      fail-fast: false
+      matrix:
+        navigation: [threebutton, gestural]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python for independent screenshot assertions
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install image comparison dependency (QA runner only)
+        run: python3 -m pip install --quiet 'Pillow==11.3.0'
+      - name: Download the exact QA APK from Play candidate 38
+        uses: actions/download-artifact@v4
+        with:
+          name: METRA-Android16-QA-38
+          run-id: 45171292885
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: qa-apk
+      - name: Assert exactly one native APK selected
+        run: |
+          test "$(find qa-apk -type f -name '*.apk' | wc -l)" -eq 1
+          find qa-apk -type f -name '*.apk' -print
+      - name: Enable KVM on GitHub runner
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Android 16 real emulator — assert visible clickable modal actions
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          NAV_MODE: ${{ matrix.navigation }}
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 6G
+          disable-animations: true
+          script: |
+            set -eu
+            adb install -r "$(find qa-apk -type f -name '*.apk' | head -1)"
+            adb shell cmd overlay enable --user 0 "com.android.internal.systemui.navbar.$NAV_MODE"
+            sleep 3
+            adb shell cmd overlay list --user 0 | grep -F "[x] com.android.internal.systemui.navbar.$NAV_MODE"
+            python3 .github/scripts/android_emulator_smoke.py
+      - name: Upload screenshots, accessibility, logcat and verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: METRA-Android16-QA38-${{ matrix.navigation }}
+          path: audit-results/
+          if-no-files-found: warn
+          retention-days: 14

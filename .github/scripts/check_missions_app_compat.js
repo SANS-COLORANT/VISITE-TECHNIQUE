@@ -42,7 +42,13 @@ const playCompatibilityBranches = new Set([
 ]);
 const playBranch = [process.env.GITHUB_REF_NAME, process.env.GITHUB_HEAD_REF]
   .some((name) => playCompatibilityBranches.has(name));
-const playMigration = process.env.METRA_PLAY_SECURE_BUILD === '1' || playBranch;
+// Les branches correctives Play changent de nom, mais pas de profil Android.
+ // Détecter aussi le SDK 54 + le plugin Play réel, sans supprimer les contrôles
+ // stricts de React 19, RN 0.81.5, ancien runtime, migrations et lockfile.
+const expoSdk54 = /^\^?~?54\./.test(String(pkg.dependencies?.expo || ''));
+const playMigration = process.env.METRA_PLAY_SECURE_BUILD === '1'
+  || playBranch
+  || (expoSdk54 && appConfig.includes('withMetraPlaySecurity') && app.expo?.newArchEnabled === false);
 if (playMigration) {
   if (!String(pkg.dependencies?.expo || '').replace(/^~/, '').startsWith('54.')) fail('Le profil Play requiert Expo SDK 54');
   // npm --save may prefix versions with ^; verify the resolved version family.
