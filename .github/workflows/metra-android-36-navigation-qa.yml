@@ -6,6 +6,7 @@ on:
       - audit/metra-comprehensive-stability-20261123
     paths:
       - '.github/workflows/metra-android-36-navigation-qa.yml'
+      - '.github/scripts/android_emulator_smoke.py'
   workflow_dispatch:
 
 permissions:
