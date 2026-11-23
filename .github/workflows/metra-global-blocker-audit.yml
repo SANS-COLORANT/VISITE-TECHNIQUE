@@ -28,7 +28,7 @@ jobs:
         run: node .github/scripts/audit_metra_all_screens.cjs
       - name: Test platform navigation, equipment catalogue and modal contracts
         run: |
-          node --test .github/scripts/test_metra_settings_safe_area.cjs .github/scripts/test_metra_equipment_legacy.cjs
+          node --test .github/scripts/test_metra_settings_safe_area.cjs .github/scripts/test_metra_equipment_legacy.cjs .github/scripts/test_photo_ocr_gallery_contract.cjs
           node .github/scripts/test_root_navigation_directory.js
           node .github/scripts/test_swipe_navigation.js
           node .github/scripts/test_remar_cta_suivant.js
