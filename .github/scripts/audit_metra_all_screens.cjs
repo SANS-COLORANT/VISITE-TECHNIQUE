@@ -72,7 +72,7 @@ for(const file of files) {
     }
     if(node.type==='CallExpression'&&node.callee?.name==='require'&&node.arguments?.[0]?.type==='StringLiteral') {
       const spec=node.arguments[0].value;
-      if(typeof spec==='string'&&spec.startsWith('.')&&!resolveRelative(file,spec))issue(warning,'missing-dynamic-require',file,spec,node.loc?.start?.line);
+      if(typeof spec==='string'&&spec.startsWith('.')&&!resolveRelative(file,spec))issue(blocker,'missing-dynamic-require',file,'Module absent: '+spec,node.loc?.start?.line);
       if(spec==='@shopify/flash-list'){stats.flashListImports++;issue(blocker,'flashlist-v2-require',file,'FlashList v2 direct require on legacy architecture',node.loc?.start?.line);}
     }
     if(node.type==='JSXOpeningElement'&&node.name?.type==='JSXIdentifier'&&node.name.name==='Modal') {
