@@ -1,7 +1,7 @@
 /**
- * METRA Google Play : les commandes de sauvegarde non chiffree doivent etre
- * absentes de la branche UI securisee. La restauration reelle reste bloque
- * dans le backend; une erreur de prevalidation ne doit pas fermer l'app.
+ * METRA Google Play : la sauvegarde manuelle chiffrée AES-256 doit être
+ * accessible, l'export brut et l'automatisation non chiffrée restent interdits.
+ * Les anciens ZIP ne s'importent qu'avec consentement explicite.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -14,7 +14,11 @@ test('Google Play: backup / restore controls are gated behind the secure build f
   const settings = source('ParametresScreen.js');
   assert.match(settings, /import \{ METRA_PLAY_SECURE_BUILD \} from '\.\/playSecurityRuntime\.generated\.js';/);
   assert.match(settings, /METRA_PLAY_SECURE_BUILD \? \(/);
-  assert.match(settings, /Sauvegarde et restauration locales indisponibles/);
+  assert.match(settings, /Sauvegarde complète chiffrée/);
+  assert.match(settings, /Exporter une sauvegarde chiffrée/);
+  assert.match(settings, /Restaurer une sauvegarde ZIP/);
+  assert.match(settings, /backupPassword!==backupPasswordConfirm/);
+  assert.match(settings, /autoriserArchiveAncienne:legacy/);
   assert.match(settings, /Ne désinstalle pas METRA/);
   assert.match(settings, /\) : \(<>[\s\S]*Restaurer une sauvegarde ZIP[\s\S]*<\/>(\s*)\)}/);
 });
@@ -23,8 +27,8 @@ test('Security: no unencrypted export or restore re-enabled in Play', () => {
   const backup = source('databaseBackup.js');
   assert.match(backup, /if \(METRA_PLAY_SECURE_BUILD\) throw new Error/);
   assert.match(backup, /export async function exporterSauvegardeBase\(\) \{\s*refuserExportNonChiffre\(\)/);
-  assert.match(backup, /export async function exporterSauvegardeComplete\(\) \{\s*refuserExportNonChiffre\(\)/);
-  assert.match(backup, /export async function choisirEtRestaurerSauvegardeComplete\(\) \{\s*refuserExportNonChiffre\(\)/);
+  assert.match(backup, /export async function exporterSauvegardeComplete\(options = \{\}\) \{\s*if \(METRA_PLAY_SECURE_BUILD\) return exporterSauvegardeChiffree\(options\)/);
+  assert.match(backup, /export async function choisirEtRestaurerSauvegardeComplete\(options = \{\}\) \{\s*if \(METRA_PLAY_SECURE_BUILD\) return choisirEtRestaurerSauvegardeChiffree\(options\)/);
   assert.match(backup, /export async function sauvegardeAutoSiNecessaire[\s\S]*if \(METRA_PLAY_SECURE_BUILD\) return false/);
 });
 
