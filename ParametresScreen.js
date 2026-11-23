@@ -4,18 +4,41 @@ import { ActivityIndicator, Alert, BackHandler, FlatList, Modal, ScrollView, Tex
 import { COLORS, styles } from './styles.js';
 import { FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
-import { CategorieCritereSelector } from './GenericFields.js';
-import { EquipmentCatalogueBrowser } from './EquipmentCatalogueBrowser.js';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio } from './db.js';
-import { exporterSauvegardeBase, exporterSauvegardeComplete, choisirEtRestaurerSauvegardeComplete } from './databaseBackup.js';
+
 import { ensureEquipmentCatalogReady } from './database/index.js';
-import { diagnostiquerStockageLocal } from './storageHealth.js';
-import { exporterSupportDump } from './supportDump.js';
+
+
 import { ButtonGlow } from './ButtonGlow.js';
-import { choisirDossierSauvegardeAuto, desactiverSauvegardeAuto, etatSauvegardeAuto, sauvegardeAutoSiNecessaire } from './databaseBackup.js';
+
 import { getPrefSync, setPrefSync, PREFS } from './uiPrefs.js';
-import { reloadAppAsync } from 'expo';
-import { TrameLibraryPanel } from './TrameLibraryPanel.js';
+
+// Charger les modules lourds uniquement lors de l'ouverture de leur onglet.
+function EquipmentCatalogueBrowser(props) {
+  const Component = require('./EquipmentCatalogueBrowser.js').EquipmentCatalogueBrowser;
+  return <Component {...props} />;
+}
+function TrameLibraryPanel(props) {
+  const Component = require('./TrameLibraryPanel.js').TrameLibraryPanel;
+  return <Component {...props} />;
+}
+function CategorieCritereSelector(props) {
+  const Component = require('./GenericFields.js').CategorieCritereSelector;
+  return <Component {...props} />;
+}
+const backup = () => require('./databaseBackup.js');
+const exporterSauvegardeBase = (...args) => backup().exporterSauvegardeBase(...args);
+const exporterSauvegardeComplete = (...args) => backup().exporterSauvegardeComplete(...args);
+const choisirEtRestaurerSauvegardeComplete = (...args) => backup().choisirEtRestaurerSauvegardeComplete(...args);
+const choisirDossierSauvegardeAuto = (...args) => backup().choisirDossierSauvegardeAuto(...args);
+const desactiverSauvegardeAuto = (...args) => backup().desactiverSauvegardeAuto(...args);
+const etatSauvegardeAuto = (...args) => backup().etatSauvegardeAuto(...args);
+const sauvegardeAutoSiNecessaire = (...args) => backup().sauvegardeAutoSiNecessaire(...args);
+const diagnostiquerStockageLocal = (...args) => require('./storageHealth.js').diagnostiquerStockageLocal(...args);
+const exporterSupportDump = (...args) => require('./supportDump.js').exporterSupportDump(...args);
+const reloadAppAsync = (...args) => require('expo').reloadAppAsync(...args);
 
 const CATEGORIES_EQUIPEMENT=['Adoucisseur','Armoire électrique','Ballon ECS','Chaudière','Circulateur','Coffret gaz','Compteur','Désemboueur','Détendeur','Échangeur','Extincteur','Filtre','Manomètre','Pompe','Robinetterie','Soupape','Vanne',"Vase d'expansion"];
 const MARQUES_EQUIPEMENT=['De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Atlantic','Frisquet','Chappée','Chaffoteaux','Elm Leblanc','Bosch','Vaillant','Fernox','Alfa Laval'];
@@ -263,8 +286,14 @@ function GestionDonnees(){
 }
 
 function BibliothequeReserves(){
+  const { bottom: modalBottomInset } = useSafeAreaInsets();
+  const [reservesErreur,setReservesErreur]=useState(null);
   const[reserves,setReserves]=useState([]),[modalVisible,setModalVisible]=useState(false),[editId,setEditId]=useState(null),[nom,setNom]=useState(''),[description,setDescription]=useState(''),[prix,setPrix]=useState(''),[poste,setPoste]=useState(''),[delai,setDelai]=useState(''),[recherche,setRecherche]=useState('');
-  const charger=useCallback(()=>{listerBibliothequeReserves().then(setReserves);},[]);useEffect(()=>{charger();},[charger]);
+  const charger=useCallback(async()=>{
+    try { setReserves(await listerBibliothequeReserves()); setReservesErreur(null); }
+    catch (error) { setReservesErreur(String(error?.message || error)); console.warn('[METRA Réglages] Bibliothèque indisponible', error); }
+  },[]);
+  useEffect(()=>{charger();},[charger]);
   const ouvrirNouveau=()=>{setEditId(null);setNom('');setDescription('');setPrix('');setPoste('');setDelai('');setModalVisible(true);};
   const ouvrirEdition=r=>{setEditId(r.id);setNom(r.nom);setDescription(r.description||'');setPrix(r.prix?String(r.prix):'');setPoste(r.poste||'');setDelai(r.delai?String(r.delai):'');setModalVisible(true);};
   const enregistrer=async()=>{if(!nom.trim()){Alert.alert('Nom requis','Merci de donner un nom à cette réserve.');return;}const data={nom:nom.trim(),description:description.trim()||null,prix:prix?parseFloat(prix.replace(',','.')):null,poste:poste.trim()||null,delai:delai?parseInt(delai,10):null};try{if(editId)await modifierReserveBiblio(editId,data);else await ajouterReserveBiblio(data);setModalVisible(false);await charger();}catch(e){Alert.alert('Erreur d’enregistrement',String(e.message||e));}};
@@ -277,7 +306,7 @@ function BibliothequeReserves(){
       style={{flex:1}}
       contentContainerStyle={[styles.content,{paddingBottom:96,flexGrow:1}]}
       data={visibles}
-      keyExtractor={i=>i.id}
+      keyExtractor={i=>String(i.id)}
       initialNumToRender={18}
       maxToRenderPerBatch={18}
       windowSize={9}
@@ -285,6 +314,7 @@ function BibliothequeReserves(){
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={<View>
         <View style={styles.sectionHeaderRow}><View style={{flex:1,paddingRight:12}}><Text style={styles.sectionLabel}>Bibliothèque de réserves</Text><Text style={[styles.cardSub,{marginTop:4}]}>{reserves.length} réserve(s) disponible(s) · toucher une ligne pour l’ouvrir entièrement</Text></View><TouchableOpacity onPress={ouvrirNouveau}><Text style={styles.addLink}>+ Ajouter</Text></TouchableOpacity></View>
+        {reservesErreur?<View style={{padding:12,backgroundColor:'#FFF4F2',borderRadius:12,marginBottom:10}}><Text style={{color:COLORS.red}}>Réserves indisponibles : {reservesErreur}</Text><TouchableOpacity onPress={charger} style={{padding:10}}><Text style={{color:COLORS.orangeDark}}>Réessayer (aucune donnée supprimée)</Text></TouchableOpacity></View>:null}
         <TextInput style={[styles.input,{marginBottom:12,backgroundColor:COLORS.white}]} value={recherche} onChangeText={setRecherche} placeholder="Rechercher une réserve, un poste, une prestation…" returnKeyType="search" />
       </View>}
       ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>{recherche?'Aucune réserve trouvée':'Aucune réserve enregistrée'}</Text><Text style={styles.emptySub}>{recherche?'Essaie un autre mot-clé.':'Ajoute une réserve pour la retrouver ensuite pendant les visites.'}</Text></View>}
@@ -301,8 +331,8 @@ function BibliothequeReserves(){
         </TouchableOpacity>;
       }}
     />
-    <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={fermerModal}>
-      <View style={[styles.modalOverlay,{paddingVertical:24,paddingHorizontal:18}]}>
+    <Modal visible={modalVisible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={fermerModal}>
+      <View style={[styles.modalOverlay,{paddingTop:24,paddingBottom:Math.max(24,modalBottomInset+16),paddingHorizontal:18}]}>
         <View style={[styles.modalSheet,{width:'94%',maxWidth:760,maxHeight:'92%',paddingBottom:12,overflow:'hidden'}]}>
           <ScrollView
             style={{flexGrow:0}}
