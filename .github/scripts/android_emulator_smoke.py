@@ -106,8 +106,15 @@ def fatal_logs():
 def main():
     try:
         adb("wait-for-device", timeout=90)
+        adb("shell", "pm", "path", PKG)
         adb("logcat", "-c", check=False)
-        adb("shell", "monkey", "-p", PKG, "-c", "android.intent.category.LAUNCHER", "1", timeout=45)
+        launch = adb("shell", "monkey", "-p", PKG, "-c", "android.intent.category.LAUNCHER", "1", timeout=45)
+        print("LAUNCHER: " + launch[-500:], flush=True)
+        deadline = time.monotonic() + 65
+        while time.monotonic() < deadline and not app_running():
+            time.sleep(1)
+        if not app_running():
+            raise RuntimeError("METRA did not create a process 65 seconds after launch. " + launch[-300:])
         home = await_label(["Accueil","Réglages","Nouvelle visite"], 85)
         record("application opens without closing", bool(home), "main tab visible" if home else "home navigation inaccessible")
         snapshot("home")
@@ -175,6 +182,11 @@ def main():
             errs=fatal_logs()
             if errs:
                 RESULT["errors"].append("Android logs: " + errs[-1500:])
+            rawlog=adb("logcat", "-d", "-v", "brief", timeout=35, check=False)
+            filtered=[line for line in rawlog.splitlines() if any(k in line for k in
+                [PKG, "AndroidRuntime", "FATAL EXCEPTION", "libc", "crash_dump", "ReactNativeJS", "ActivityTaskManager", "am_crash"])]
+            (OUT/"emulator-app-activity.txt").write_text("\n".join(filtered[-1200:]),encoding="utf-8")
+            (OUT/"emulator-activity-dumpsys.txt").write_text(adb("shell","dumpsys","activity","activities",timeout=30,check=False)[-12000:],encoding="utf-8")
         except Exception as exc:
             RESULT["warnings"].append("Could not collect logcat: " + repr(exc))
         RESULT["elapsed_seconds"]=round(time.time()-STAMP,1)
