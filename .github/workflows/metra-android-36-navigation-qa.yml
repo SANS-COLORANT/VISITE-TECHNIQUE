@@ -24,6 +24,12 @@ jobs:
         navigation: [threebutton, gestural]
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Python for independent screenshot assertions
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install image comparison dependency (QA runner only)
+        run: python3 -m pip install --quiet 'Pillow==11.3.0'
       - name: Download the exact QA APK from Play candidate 38
         uses: actions/download-artifact@v4
         with:
