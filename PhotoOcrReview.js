@@ -8,7 +8,6 @@ import { extraireChampsPlaque } from './photoModeData.js';
 import { lignesLecturePlaque } from './terrainVisitModel.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { CvcIcon } from './MetraCvcIcons.js';
-import * as ImagePicker from 'expo-image-picker';
 
 /** Photo durable d'abord ; aucune proposition OCR ne s'applique sans validation. */
 export function LecturePhotoButton({ visiteId, entiteKey, label, kind = 'meter', unit = '', current = {}, onApply, pendingPhoto = null, onClose, hideCapture = false }) {
@@ -59,26 +58,12 @@ export function LecturePhotoButton({ visiteId, entiteKey, label, kind = 'meter',
   };
   useEffect(() => { if (pendingPhoto?.uri) lire(pendingPhoto); }, [pendingPhoto?.uri]);
   const fermer = () => { if (!busy) { readRequest.current+=1; setReview(null); onClose?.(); } };
-  const importer = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) throw new Error('Autorise l’accès aux photos pour importer une plaque.');
-      const selected = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 1 });
-      if (selected.canceled || !selected.assets?.[0]?.uri) return;
-      const { importCompanionPhoto } = require('./companionData.js');
-      const stored = await importCompanionPhoto({ visiteId, uri: selected.assets[0].uri, meta: { targetKey: entiteKey, label, moduleId: 'equipment' } });
-      await lire(stored);
-    } catch (error) { Alert.alert('Import impossible', String(error?.message || error)); }
-    finally { setBusy(false); }
-  };
   return <>
     {hideCapture ? null : kind === 'plate' ? <TouchableOpacity accessibilityLabel="Lire la plaque signalétique" style={[styles.btnSecondary,{minHeight:48,gap:7}]} onPress={()=>setGuide(true)}><CvcIcon name="camera" size={22} color={COLORS.orange}/><Text style={styles.btnSecondaryText}>Lire la plaque</Text></TouchableOpacity> : <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label} onPhotoSaved={lire} />}
     <Modal visible={guide} animationType="slide" onRequestClose={()=>setGuide(false)}><View style={{flex:1,backgroundColor:'#191813',padding:24,justifyContent:'space-between'}}>
       <View style={{flexDirection:'row',gap:12,alignItems:'center'}}><TouchableOpacity accessibilityLabel="Fermer la lecture" onPress={()=>setGuide(false)}><CvcIcon name="close" size={24} color="#fff"/></TouchableOpacity><Text style={{flex:1,fontFamily:FONTS.bold,color:'#fff',fontSize:18}}>Plaque signalétique</Text></View>
       <View style={{alignItems:'center',gap:24}}><Text style={{fontFamily:FONTS.body,color:'#fff',textAlign:'center'}}>Cadre la plaque entière et tiens la tablette immobile. La lecture se fait sur la tablette, même sans réseau.</Text><View style={{borderWidth:2,borderColor:COLORS.orange,borderRadius:22,padding:48}}><CvcIcon name="plate" size={90} color={COLORS.orange}/></View><Text style={{fontFamily:FONTS.body,color:'#C9C6BD',textAlign:'center'}}>Les champs détectés seront proposés à la vérification après la photo.</Text></View>
-      <View style={{gap:14,alignItems:'center'}}><PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label} onPhotoSaved={lire}/><TouchableOpacity disabled={busy} style={styles.btnSecondary} onPress={importer}><Text style={styles.btnSecondaryText}>Importer une photo existante</Text></TouchableOpacity></View>
+      <View style={{gap:14,alignItems:'center'}}><PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label} onPhotoSaved={lire}/><Text style={{fontFamily:FONTS.body,color:'#C9C6BD',textAlign:'center',fontSize:12}}>Choisis l’appareil photo ou la galerie depuis le bouton ci-dessus. La photo est conservée dans la visite avant la lecture.</Text></View>
     </View></Modal>
     <Modal visible={Boolean(review)} transparent animationType="slide" onRequestClose={fermer}>
       <View style={styles.modalOverlay}><View style={styles.modalSheet}>

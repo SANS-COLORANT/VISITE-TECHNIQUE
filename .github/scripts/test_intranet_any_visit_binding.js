@@ -175,7 +175,15 @@ async function main() {
     };
     check(Number(before.controls.n) === Number(after.controls.n) && Number(before.materials.n) === Number(after.materials.n), 'automatic binding does not rewrite visit observations');
 
-    const payload = load('intranetVisitPayload.js', { getDb: async () => server.db, obtenirTrame: () => localTrame });
+    // Le banc d'essai evalue le module sans ses imports ESM ; injecter les deux
+    // fonctions reelles des alias SQLite pour reproduire le comportement Metro.
+    const storageAliases = load('intranetStorageAliases.js');
+    const payload = load('intranetVisitPayload.js', {
+      getDb: async () => server.db,
+      obtenirTrame: () => localTrame,
+      candidateStorageCodes: storageAliases.candidateSectionCodes,
+      candidateStoredValue: storageAliases.resolveAliasValue,
+    });
     const prepared = await payload.buildIntranetVisitPayload('ordinary-visit', '11111111-1111-4111-8111-111111111111');
     check(prepared.remoteClientId === '12' && prepared.payload.visites[0].localId === 501 && prepared.payload.visites[0].trameId === 3, 'wire payload stays on the imported client/local after automatic binding');
     check(prepared.payload.visites[0].criteres[0].avis === 'S' && prepared.payload.visites[0].criteres[0].commentaire === 'Fonctionnement satisfaisant', 'wire payload sends current METRA observation');

@@ -27,6 +27,7 @@ import { COLORS, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { Picto, PICTO_COLORS } from './MetraPictos.js';
 import { hapticTick } from './fieldFeedback.js';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const KIT = Object.freeze({
   card: '#FDFCFA',
@@ -429,11 +430,12 @@ export function FilterSeg({ options = [], value, onChange, water }) {
 // ---------------------------------------------------------------------------
 
 export function BottomSheet({ visible, onClose, title, picto, water, subtitle, children, footer, maxHeight = '88%' }) {
+  const { bottom: bottomInset } = useSafeAreaInsets();
   return (
-    <Modal visible={!!visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+    <Modal visible={!!visible} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <Pressable style={s.sheetOverlay} onPress={onClose} accessibilityLabel="Fermer" />
-        <View style={[s.sheet, { maxHeight }]}>
+        <View style={[s.sheet, { maxHeight, paddingBottom: Math.max(12, bottomInset + 12) }]}>
           <View style={s.sheetGrip} />
           {title ? (
             <View style={s.sheetHead}>

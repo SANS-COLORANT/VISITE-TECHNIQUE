@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { IconOrb } from './premiumChrome.js';
 import { COLORS, FONTS } from './styles.js';
@@ -19,6 +20,7 @@ const TRAME_PRESENTATION = {
 };
 
 function QuickVisitSheet({ visible, onClose, onCreated }) {
+  const { bottom: bottomInset } = useSafeAreaInsets();
   const [trameId, setTrameId] = useState(DEFAULT_TRAME_ID);
   const [nom, setNom] = useState('');
   const [busy, setBusy] = useState(false);
@@ -45,10 +47,10 @@ function QuickVisitSheet({ visible, onClose, onCreated }) {
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={() => { if (!busy) onClose?.(); }}>
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={() => { if (!busy) onClose?.(); }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <TouchableOpacity activeOpacity={1} style={s.dim} onPress={() => { if (!busy) onClose?.(); }} />
-        <View style={s.sheet}>
+        <View style={[s.sheet, { paddingBottom: Math.max(24, bottomInset + 16) }]}>
           <View style={s.grab} />
           <Text style={s.title}>Nouvelle visite</Text>
           <Text style={s.sub}>Sans client pour l’instant. Elle reste sur cet appareil, rangée dans « À rattacher » sur l’accueil.</Text>

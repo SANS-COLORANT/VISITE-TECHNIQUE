@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { IconOrb } from './premiumChrome.js';
 import { COLORS, FONTS } from './styles.js';
@@ -14,6 +15,7 @@ import { listerSitesRattachement, rattacherVisiteRapide, rechercherClientsRattac
 const NEW_SITE = '__nouveau_site__';
 
 function AttachVisitSheet({ visible, visiteId, nomSiteActuel = '', onClose, onAttached }) {
+  const { bottom: bottomInset } = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [clients, setClients] = useState([]);
   const [client, setClient] = useState(null);
@@ -73,10 +75,10 @@ function AttachVisitSheet({ visible, visiteId, nomSiteActuel = '', onClose, onAt
   const fermer = () => { if (!busy) onClose?.(); };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={fermer}>
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={fermer}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <TouchableOpacity activeOpacity={1} style={s.dim} onPress={fermer} />
-        <View style={s.sheet}>
+        <View style={[s.sheet, { paddingBottom: Math.max(24, bottomInset + 16) }]}>
           <View style={s.grab} />
           {!client ? <>
             <Text style={s.title}>Rattacher à un client</Text>

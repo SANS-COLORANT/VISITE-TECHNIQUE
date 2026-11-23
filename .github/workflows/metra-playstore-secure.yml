@@ -14,6 +14,7 @@ on:
       - fix/metra-launch-safe-area-20261123
       - fix/metra-settings-modal-recovery-20261123
       - fix/metra-equipment-flatlist-legacy-20261123
+      - audit/metra-all-screen-blockers-20261123
   workflow_dispatch:
 
 permissions:
@@ -76,6 +77,8 @@ jobs:
           npm run verify:metra
           node --test .github/scripts/test_metra_settings_safe_area.cjs
           node --test .github/scripts/test_metra_equipment_legacy.cjs
+          node --test .github/scripts/test_photo_ocr_gallery_contract.cjs
+          node .github/scripts/audit_metra_all_screens.cjs
           # Fail the release when the vulnerable npm-registry SheetJS is bundled.
           node .github/scripts/assert_sheetjs_secure.cjs
           # Node ESM cannot resolve the Expo SDK54 legacy directory import; Metro
