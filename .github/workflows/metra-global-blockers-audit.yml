@@ -1,0 +1,55 @@
+name: METRA full application blocker audit
+on:
+  push:
+    branches:
+      - audit/metra-global-blockers-20261123
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Scan complete JS and TS application source
+        run: node .github/scripts/audit_metra_global_blockers.cjs
+      - name: Install dependencies without outdated Expo51 postinstall guard
+        run: npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund
+      - name: Check route, database, UI and runtime compatibility
+        run: |
+          set -e
+          node --test .github/scripts/test_metra_settings_safe_area.cjs
+          node --test .github/scripts/test_metra_equipment_legacy.cjs
+          node --test .github/scripts/test_runtime_safety.js
+          node .github/scripts/test_remar_141_intranet_matrix.js
+          node .github/scripts/test_remar_dynamic.js
+          node .github/scripts/test_remar_cta_suivant.js
+          node .github/scripts/test_remar_presets_and_navigation.js
+          node .github/scripts/test_remar_photo_context.js
+          node .github/scripts/test_remar_progress.js
+          node .github/scripts/test_reseau_chaleur_carry_forward.js
+          node .github/scripts/test_intranet_visit_upload.js
+          node .github/scripts/test_intranet_v2_fixtures.js
+          node .github/scripts/test_intranet_equipment_import.js
+          node .github/scripts/test_photo_workflow.js
+          node .github/scripts/test_photo_gallery_import.js
+          node .github/scripts/test_db_initialization.js
+          node .github/scripts/test_swipe_navigation.js
+          node .github/scripts/test_terrain_visit_ui.js
+          node .github/scripts/test_site_intranet_lifecycle.js
+          node .github/scripts/test_visit_photo_cleanup.js
+          node .github/scripts/test_report_row_visibility.js
+          node .github/scripts/test_runtime_safety.js
+      - name: Upload static audit report even if tests fail
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: METRA-GLOBAL-AUDIT-20261123
+          path: metra_global_audit_20261123.md
+          if-no-files-found: warn
+          retention-days: 30
