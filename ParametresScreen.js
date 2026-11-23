@@ -32,6 +32,7 @@ function CategorieCritereSelector(props) {
 const backup = () => require('./databaseBackup.js');
 const exporterSauvegardeBase = (...args) => backup().exporterSauvegardeBase(...args);
 const exporterSauvegardeComplete = (...args) => backup().exporterSauvegardeComplete(...args);
+const partagerDerniereSauvegarde = (...args) => backup().partagerDerniereSauvegarde(...args);
 const choisirEtRestaurerSauvegardeComplete = (...args) => backup().choisirEtRestaurerSauvegardeComplete(...args);
 const choisirDossierSauvegardeAuto = (...args) => backup().choisirDossierSauvegardeAuto(...args);
 const desactiverSauvegardeAuto = (...args) => backup().desactiverSauvegardeAuto(...args);
@@ -160,6 +161,11 @@ function GestionDonnees(){
     }catch(e){Alert.alert('Sauvegarde complète impossible',String(e.message||e));}
   });
 
+  const repartagerSauvegarde=()=>executer('reshare',async()=>{
+    try{await partagerDerniereSauvegarde();}
+    catch(e){Alert.alert('Partage impossible',String(e?.message||e));}
+  });
+
   const lancerRestauration=(options={})=>executer('restore',async()=>{
     try{
       const resultat=await choisirEtRestaurerSauvegardeComplete(options);
@@ -256,7 +262,12 @@ function GestionDonnees(){
           Sans lui, l'archive ne pourra pas être restaurée.
         </Text>
         <BoutonDonnees label={action==='complete'?'Sauvegarde…':'Exporter une sauvegarde chiffrée'} disabled={occupe} onPress={()=>ouvrirSauvegarde('export')}/>
+        <BoutonDonnees label={action==='reshare'?'Partage…':'Partager la dernière sauvegarde'} disabled={occupe} secondaire onPress={repartagerSauvegarde}/>
         <BoutonDonnees label={action==='restore'?'Restauration…':'Restaurer une sauvegarde ZIP'} disabled={occupe} secondaire onPress={()=>ouvrirSauvegarde('restore')}/>
+        <Text style={[styles.cardSub,{marginTop:9,lineHeight:19}]}>
+          Une copie du ZIP chiffré reste dans le stockage privé de METRA pour être repartagée si nécessaire.
+          Enregistre-la également hors du téléphone : la copie interne ne survit pas à la désinstallation.
+        </Text>
         <Text style={[styles.cardSub,{marginTop:10,lineHeight:19,color:COLORS.red}]}>
           Les sauvegardes automatiques non chiffrées restent désactivées. Une archive existante créée avec l'ancien APK
           peut être importée après confirmation explicite. Ne désinstalle pas METRA avant d'avoir vérifié ta sauvegarde.
