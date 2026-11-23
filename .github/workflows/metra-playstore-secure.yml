@@ -16,7 +16,6 @@ on:
       - fix/metra-equipment-flatlist-legacy-20261123
       - audit/metra-all-screen-blockers-20261123
       - fix/metra-play-backup-ux-stable-20261123
-      - fix/metra-play-secure-backup-restore-20261123
   workflow_dispatch:
 
 permissions:
