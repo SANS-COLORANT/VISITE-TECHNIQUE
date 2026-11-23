@@ -12,6 +12,7 @@ import { Alert, Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text
 import { COLORS, FONTS } from './styles.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const nativeAlert = Alert.alert.bind(Alert);
 const dialogQueue = [];
@@ -48,6 +49,7 @@ function closeCurrent(after) {
 }
 
 export function DialogHost() {
+  const { bottom: modalBottomInset } = useSafeAreaInsets();
   const [dialog, setDialog] = useState(null);
   useEffect(() => {
     dialogListener = setDialog;
@@ -67,8 +69,8 @@ export function DialogHost() {
   const vertical = ordered.length > 2 || ordered.some((b) => String(b.text || '').length > 16);
 
   return (
-    <Modal visible={!!dialog} transparent animationType="fade" statusBarTranslucent onRequestClose={dismiss}>
-      <Pressable style={s.overlay} onPress={dismiss}>
+    <Modal visible={!!dialog} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={dismiss}>
+      <Pressable style={[s.overlay, { paddingBottom: Math.max(14, modalBottomInset + 14) }]} onPress={dismiss}>
         <Pressable style={s.sheet} onPress={() => {}}>
           {dialog?.title ? <Text style={s.title}>{String(dialog.title)}</Text> : null}
           {dialog?.message ? <ScrollView style={{ maxHeight: 320 }}><Text style={s.message}>{String(dialog.message)}</Text></ScrollView> : null}
