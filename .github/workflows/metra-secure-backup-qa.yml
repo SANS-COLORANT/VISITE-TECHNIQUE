@@ -5,12 +5,6 @@ on:
       - fix/metra-play-secure-backup-restore-20261123
     paths:
       - '.github/workflows/metra-secure-backup-qa.yml'
-      - 'backupPolicy.js'
-      - 'secureBackup.js'
-      - 'databaseBackup.js'
-      - 'ParametresScreen.js'
-      - 'tests/backupPlaySecure.test.mjs'
-      - '.github/scripts/run_source_patches.js'
   workflow_dispatch:
 permissions:
   contents: read
