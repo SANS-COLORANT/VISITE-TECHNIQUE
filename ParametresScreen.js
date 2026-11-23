@@ -120,6 +120,10 @@ function GestionDonnees(){
   const[pleinSoleil,setPleinSoleil]=useState(()=>getPrefSync(PREFS.pleinSoleil,'0')==='1');
   const[ongletsEnBas,setOngletsEnBas]=useState(()=>getPrefSync(PREFS.ongletsEnBas,'0')==='1');
   const[auto,setAuto]=useState(()=>etatSauvegardeAuto());
+  const [backupPassword,setBackupPassword]=useState('');
+  const [backupConfirmation,setBackupConfirmation]=useState('');
+  const [restorePassword,setRestorePassword]=useState('');
+  const [legacyZip,setLegacyZip]=useState(false);
   const basculerPleinSoleil=(v)=>{
     setPleinSoleil(v);setPrefSync(PREFS.pleinSoleil,v?'1':'0');
     Alert.alert('Plein soleil',v?'Contraste renforcé activé. L’application redémarre pour l’appliquer partout.':'Retour à l’affichage normal. L’application redémarre.',[{text:'Plus tard',style:'cancel'},{text:'Redémarrer',onPress:()=>{reloadAppAsync().catch(()=>{});}}]);
@@ -143,14 +147,19 @@ function GestionDonnees(){
 
   const sauvegarderComplet=()=>executer('complete',async()=>{
     try{
-      const r=await exporterSauvegardeComplete();
-      if(r) Alert.alert('Sauvegarde créée',`Archive complète créée avec ${r.manifeste?.counts?.visites||0} visite(s) et ${r.manifeste?.counts?.photos||0} photo(s).`);
+      if(backupPassword.length<12 || backupPassword.length>256) throw new Error('Choisis un mot de passe de 12 caractères minimum (256 maximum).');
+      if(backupPassword!==backupConfirmation) throw new Error('Les deux mots de passe de sauvegarde ne correspondent pas.');
+      const r=await exporterSauvegardeComplete({password:backupPassword});
+      if(r) Alert.alert('Sauvegarde préparée',`Archive AES-256 avec ${r.manifeste?.counts?.visites||0} visite(s) et ${r.manifeste?.counts?.photos||0} photo(s) référencée(s). Vérifie que le fichier a bien été enregistré dans le dossier choisi. Conserve son mot de passe séparément.`);
+      setBackupPassword('');setBackupConfirmation('');
     }catch(e){Alert.alert('Sauvegarde complète impossible',String(e.message||e));}
   });
 
   const lancerRestauration=()=>executer('restore',async()=>{
     try{
-      const resultat=await choisirEtRestaurerSauvegardeComplete();
+      if(!legacyZip && (restorePassword.length<12 || restorePassword.length>256)) throw new Error('Saisis le mot de passe de sauvegarde (12 caractères minimum).');
+      const resultat=await choisirEtRestaurerSauvegardeComplete({password:legacyZip?null:restorePassword,allowLegacyPlain:legacyZip});
+      setRestorePassword('');
       if(!resultat)return;
       Alert.alert(
         'Restauration terminée',
@@ -177,7 +186,7 @@ function GestionDonnees(){
 
   const demanderRestauration=()=>Alert.alert(
     'Restaurer une sauvegarde complète ?',
-    'Les données actuellement présentes sur cette tablette seront remplacées par le contenu de l’archive sélectionnée. Une copie de sécurité temporaire est créée automatiquement pendant l’opération.',
+    'Cette opération REMPLACE les visites et les médias locaux par ceux du ZIP sélectionné. Une copie de secours est préservée pendant la vérification. Confirme seulement si tu disposes d’une sauvegarde récente de la tablette actuelle.',
     [
       {text:'Annuler',style:'cancel'},
       {text:'Choisir une sauvegarde',style:'destructive',onPress:lancerRestauration},
@@ -232,23 +241,56 @@ function GestionDonnees(){
     <ReglageBascule titre="Onglets en bas (une main)" description="Dans une visite, les onglets passent au-dessus de la barre d’actions, à portée de pouce. Glisser à gauche ou à droite change d’onglet." actif={ongletsEnBas} onChange={basculerOnglets}/>
 
     <Text style={[styles.sectionLabel,{marginTop:18}]}>Sauvegardes</Text>
-    {METRA_PLAY_SECURE_BUILD ? (
+    {METRA_PLAY_SECURE_BUILD ? (<>
       <View style={[styles.card,dataCard]}>
-        <Text style={styles.cardTitle}>Sauvegarde et restauration locales indisponibles</Text>
+        <Text style={styles.cardTitle}>Sauvegarde chiffrée complète · AES-256</Text>
         <Text style={[styles.cardSub,{marginTop:8,lineHeight:19}]}>
-          La version Google Play bloque l'export et la restauration de bases et d'archives ZIP non chiffrées.
-          Les sauvegardes automatiques non chiffrées sont également désactivées.
+          Exporte la base SQLite, les visites, les photos locales et les fichiers du module Missions
+          dans une archive protégée. Le mot de passe n'est ni conservé ni récupérable par METRA.
         </Text>
-        <Text style={[styles.cardSub,{marginTop:10,lineHeight:19,color:COLORS.red}]}>
-          Les visites et photos seulement présentes sur cet appareil ne sont pas automatiquement sauvegardées.
-          Ne désinstalle pas METRA et n'efface pas les données de l'application.
-        </Text>
-        <Text style={[styles.cardSub,{marginTop:10,lineHeight:19}]}>
-          Synchronise les visites prises en charge avec l'Intranet. Une sauvegarde chiffrée complète,
-          photos comprises, devra être développée et validée séparément.
+        <TextInput accessibilityLabel="Mot de passe de sauvegarde" style={[styles.input,{marginTop:12}]} secureTextEntry
+          autoCapitalize="none" autoCorrect={false} placeholder="Mot de passe (12 caractères minimum)"
+          value={backupPassword} onChangeText={setBackupPassword}/>
+        <TextInput accessibilityLabel="Confirmer le mot de passe de sauvegarde" style={[styles.input,{marginTop:8}]} secureTextEntry
+          autoCapitalize="none" autoCorrect={false} placeholder="Confirmer le mot de passe"
+          value={backupConfirmation} onChangeText={setBackupConfirmation}/>
+        <BoutonDonnees label={action==='complete'?'Création du ZIP chiffré…':'Exporter la sauvegarde chiffrée'}
+          disabled={occupe || backupPassword.length<12 || backupPassword!==backupConfirmation}
+          onPress={sauvegarderComplet}/>
+        <Text style={[styles.cardSub,{marginTop:8}]}>
+          Enregistre le fichier hors du téléphone (Drive, OneDrive ou stockage externe) et vérifie sa présence.
         </Text>
       </View>
-    ) : (<>
+      <View style={[styles.card,dataCard]}>
+        <Text style={styles.cardTitle}>Restaurer une sauvegarde</Text>
+        <Text style={[styles.cardSub,{marginTop:6,lineHeight:19}]}>
+          Attention : la restauration remplace les données présentes sur la tablette. Fais d'abord une sauvegarde
+          de cet appareil. Après vérification, METRA demandera un redémarrage.
+        </Text>
+        <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:legacyZip}}
+          onPress={()=>{setLegacyZip(!legacyZip);setRestorePassword('');}}
+          style={{marginTop:12,padding:11,borderRadius:10,borderWidth:1,borderColor:COLORS.line}}>
+          <Text style={{fontFamily:FONTS.bodyBold,color:COLORS.ink}}>
+            {legacyZip?'✓ Archive historique ZIP non chiffrée':'Archive historique non chiffrée (optionnel)'}
+          </Text>
+          <Text style={[styles.cardSub,{marginTop:3}]}>
+            Réservé aux anciens fichiers ZIP produits par METRA. Ne partage jamais ces archives en clair.
+          </Text>
+        </TouchableOpacity>
+        {!legacyZip?<TextInput accessibilityLabel="Mot de passe de restauration" style={[styles.input,{marginTop:10}]}
+          secureTextEntry autoCapitalize="none" autoCorrect={false}
+          placeholder="Mot de passe de l’archive" value={restorePassword} onChangeText={setRestorePassword}/>:null}
+        <BoutonDonnees label={action==='restore'?'Restauration…':'Choisir le ZIP et restaurer'}
+          disabled={occupe || (!legacyZip && restorePassword.length<12)} danger onPress={demanderRestauration}/>
+      </View>
+      <View style={[styles.card,dataCard]}>
+        <Text style={styles.cardTitle}>Sauvegarde automatique</Text>
+        <Text style={[styles.cardSub,{marginTop:7,lineHeight:19}]}>
+          Les copies automatiques de base non chiffrées restent désactivées sur Google Play.
+          Utilise les archives complètes chiffrées pour préserver également les photos et les documents Missions.
+        </Text>
+      </View>
+    </>
     <View style={[styles.card,dataCard]}>
       <View style={{alignSelf:'stretch'}}>
         <Text style={styles.cardTitle}>Sauvegarde automatique</Text>
