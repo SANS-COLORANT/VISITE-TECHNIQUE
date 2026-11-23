@@ -1,4 +1,5 @@
 name: METRA Android 16 - native AES backup roundtrip QA
+# Verify both editable password controls after Android native splash initialization.
 on:
   push:
     branches:
