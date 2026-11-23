@@ -92,8 +92,17 @@ def export_test():
     record("encrypted backup dialog opens",True)
     ui.snapshot("backup-form")
     assert input_password("Mot de passe sauvegarde"), "Password field missing"
+    # On Android 16, typing the first password opens the IME over the second
+    # EditText. Without dismissing the IME, ADB taps its obscured bounds and
+    # keeps writing into the first field. The screenshot proves confirmation
+    # was empty even though input_password() returned success.
+    adb("shell","input","keyevent","KEYCODE_BACK",check=False)
+    time.sleep(1.2)
+    assert ui.await_label(["Confirmer le mot de passe"],seconds=10), "Confirmation label not visible"
     assert input_password("Confirmer mot de passe sauvegarde"), "Confirmation field missing"
     adb("shell","input","keyevent","KEYCODE_BACK",check=False)
+    time.sleep(1.2)
+    ui.snapshot("backup-filled-form")
     assert tap_scrolling("Créer le ZIP chiffré"), "Cannot confirm encrypted ZIP"
     record("AES ZIP creation requested",True)
     archive=None
