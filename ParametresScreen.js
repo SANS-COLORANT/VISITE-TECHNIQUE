@@ -290,7 +290,7 @@ function GestionDonnees(){
           Utilise les archives complètes chiffrées pour préserver également les photos et les documents Missions.
         </Text>
       </View>
-    </>
+    </>) : (<>
     <View style={[styles.card,dataCard]}>
       <View style={{alignSelf:'stretch'}}>
         <Text style={styles.cardTitle}>Sauvegarde automatique</Text>
