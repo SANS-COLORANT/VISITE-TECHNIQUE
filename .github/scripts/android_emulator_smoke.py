@@ -168,7 +168,18 @@ def main():
                     if anomaly:
                         snapshot("anomalie")
                         anomaly_tap = tap(["Annuler"], seconds=12)
-                        anomaly_closed = anomaly_tap and not find(dump(), ["Ajouter une anomalie"])
+                        initial_nodes = dump()
+                        anomaly_still_open = bool(find(initial_nodes, ["Ajouter une anomalie"]))
+                        anomaly_closed = anomaly_tap and not anomaly_still_open
+                        if not anomaly_closed:
+                            snapshot("anomalie-after-cancel")
+                            found = find(initial_nodes, ["Annuler"])
+                            info = "tap_node=" + str(anomaly_tap) + " still_open=" + str(anomaly_still_open) + " cancel_bounds=" + str(found.get("bounds") if found else None)
+                            print("ANOMALIE CLOSE DEBUG " + info, flush=True)
+                            # Diagnostiquer un premier tap avale par le clavier sans
+                            # le considerer comme un succes du parcours.
+                            retry_tap = tap(["Annuler"], seconds=8)
+                            print("ANOMALIE SECOND TAP " + str(retry_tap) + " still_open=" + str(bool(find(dump(), ["Ajouter une anomalie"]))), flush=True)
                         record("Anomalie: cancel action is clickable and modal dismisses", anomaly_closed)
                 else:
                     RESULT["warnings"].append("Quick visit creation not reachable on this emulator")
