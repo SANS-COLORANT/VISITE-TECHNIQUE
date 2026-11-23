@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - audit/metra-comprehensive-stability-20261123
+      - fix/metra-encrypted-backup-stabilization-20261123
   workflow_dispatch:
 
 permissions:
