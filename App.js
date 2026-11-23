@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, View, Text, TouchableOpacity, BackHandler, Keyboard, PanResponder, Platform, ScrollView, StatusBar, useWindowDimensions } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
+import * as SplashScreen from 'expo-splash-screen';
+import { SafeAreaProvider, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IntranetVisitSyncRuntime } from './IntranetVisitSync.js';
 import { IntranetStructureRuntime } from './IntranetStructureRuntime.js';
 import { getDb } from './db.js';
@@ -13,10 +15,9 @@ import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';
 import { getHydraulicSchemaVisible, getLab3DVisible, getMissionsVisible, subscribeLabFeatureChanges } from './featureSettings.js';
 import { AppErrorBoundary } from './AppErrorBoundary.js';
 import { R1EasterEgg } from './R1EasterEgg.js';
-import { VisualPackLoadingScreen } from './visual-packs/runtime/VisualPackLoadingScreen.js';
 import { VisualPackAsset } from './visual-packs/runtime/VisualPackAsset.js';
 import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRuntime.js';
-import { getActiveVisualPack, getVisualPackStartupDuration, resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
+import { getActiveVisualPack, resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
 import { SpiralActiveDock } from './visual-packs/spiral-active/SpiralActiveDock.js';
 import { CreditsModal } from './CreditsModal.js';
 import { CvcIcon } from './MetraCvcIcons.js';
@@ -28,6 +29,10 @@ import { BottomTabBar } from './BottomTabBar.js';
 import { ROUTE_ROOT_TABS, ROOT_TAB_ROUTES, canStartRootSwipe, rootSwipeProgress, rootSwipeTarget } from './rootTabSwipe.js';
 import { QuickVisitSheet } from './QuickVisitSheet.js';
 import { DialogHost, ToastHost, installPremiumAlert } from './PremiumDialogs.js';
+
+// Conserver l'écran natif statique jusqu'à ce que l'accueil soit prêt.
+// Aucun écran ou délai d'animation JavaScript n'est ajouté au lancement.
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // Toutes les alertes de l'application passent par la feuille maison (DA).
 installPremiumAlert();
@@ -175,6 +180,7 @@ function Lab3DFab({ onPress, bottom = 82, label = '⬡ LAB 3D' }) {
 }
 
 function AppContent({ phoneIntegralMode = false }) {
+  const { bottom: safeBottomInset } = useSafeAreaInsets();
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
   const [visualPack, setVisualPack] = useState(null);
@@ -205,12 +211,14 @@ function AppContent({ phoneIntegralMode = false }) {
       setMissionsVisibleState(missionsEnabled);
       setRuntimeVisualPalette(pack?.colors);
       setVisualPack(pack);
-      await new Promise((resolve) => setTimeout(resolve, getVisualPackStartupDuration(pack)));
       setDbReady(true);
     } catch (err) { setDbError(err); }
   }, []);
 
   useEffect(() => { initialiser(); }, [initialiser]);
+  useEffect(() => {
+    if ((dbReady && visualPack) || dbError) SplashScreen.hideAsync().catch(() => {});
+  }, [dbReady, dbError, visualPack]);
   // Sauvegarde automatique quotidienne (si un dossier a été choisi dans
   // Réglages), lancée après le démarrage pour ne pas le ralentir.
   useEffect(() => {
@@ -339,7 +347,7 @@ function AppContent({ phoneIntegralMode = false }) {
 
   if (dbError) return <View style={styles.center}><Text style={styles.errorTitle}>Erreur de démarrage</Text><Text style={styles.errorText}>{String(dbError.message || dbError)}</Text><TouchableOpacity style={[styles.btnPrimary, { marginTop: 18 }]} onPress={initialiser}><ButtonGlow /><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity></View>;
   if (!visualPack) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
-  if (!dbReady) return <VisualPackLoadingScreen pack={visualPack} />;
+  if (!dbReady) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
 
   const current = stack[stack.length - 1];
   const navigation = { navigate, goBack, goHome, goMissionsHome };
@@ -382,7 +390,7 @@ function AppContent({ phoneIntegralMode = false }) {
     { icon: '⚙', label: 'Réglages', caption: 'Packs visuels', onPress: () => navigate('Parametres') },
   ];
 
-  return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: spiralActive ? '#F4F1E8' : (missionMode ? MISSION_COLORS.bg : COLORS.bg) }} {...(backSwipeEnabled ? backSwipeResponder.panHandlers : (tabSwipeEnabled ? tabSwipeResponder.panHandlers : {}))}>
+  return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, paddingBottom: Platform.OS === 'android' ? Math.max(0, safeBottomInset) : 0, backgroundColor: spiralActive ? '#F4F1E8' : (missionMode ? MISSION_COLORS.bg : COLORS.bg) }} {...(backSwipeEnabled ? backSwipeResponder.panHandlers : (tabSwipeEnabled ? tabSwipeResponder.panHandlers : {}))}>
     {/* Barre d'état transparente : le fond à halos monte jusqu'en haut de l'écran. */}
     <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
     {!spiralActive ? <AmbientBackground accent={missionMode ? MISSION_COLORS.accent : COLORS.orange} /> : null}
@@ -461,5 +469,5 @@ export default function App() {
   const fontsReady = useAppFonts();
   if (!fontsReady) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
   const hosts = <><ToastHost /><DialogHost /></>;
-  return <AppErrorBoundary><View style={{ flex: 1 }}><AppContent phoneIntegralMode={phone} />{hosts}</View></AppErrorBoundary>;
+  return <SafeAreaProvider initialMetrics={initialWindowMetrics} style={{ flex: 1 }}><AppErrorBoundary><View style={{ flex: 1 }}><AppContent phoneIntegralMode={phone} />{hosts}</View></AppErrorBoundary></SafeAreaProvider>;
 }
