@@ -7,7 +7,7 @@ function refuserExportNonChiffre() {
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
-import { zipWithPassword, unzipWithPassword, unzip } from 'react-native-zip-archive';
+import { zip, zipWithPassword, unzipWithPassword, unzip } from 'react-native-zip-archive';
 import { getDb } from './db.js';
 import { DATABASE_NAME, DATABASE_SCHEMA_VERSION } from './database/constants.js';
 import { closeAppDatabase, openAppDatabase, verifyDatabaseIntegrity } from './database/index.js';
@@ -105,7 +105,10 @@ export async function exporterSauvegardeBase() {
 
 /** Archive complète, générée nativement sans charger les JPEG en mémoire JS. */
 export async function exporterSauvegardeComplete({ password } = {}) {
-  const secret = verifierMotDePasse(password);
+  // Les APK historiques continuent à produire le ZIP v1 en clair.
+  // Google Play n'autorise que le mode AES-256 avec mot de passe.
+  const plainLegacy = !METRA_PLAY_SECURE_BUILD && !password;
+  const secret = plainLegacy ? null : verifierMotDePasse(password);
   if (backupBusy) throw new Error('Une sauvegarde ou restauration est déjà en cours.');
   backupBusy = true;
   try {
@@ -119,8 +122,10 @@ export async function exporterSauvegardeComplete({ password } = {}) {
   const stamp = horodatageSauvegarde();
   const travail = `${FileSystem.cacheDirectory}vt-backup-${stamp}/`;
   const dossierDb = `${travail}database/`;
-  const dossierPhotos = `${travail}visite-technique/photos/`;
-  const archiveUri = `${FileSystem.cacheDirectory}METRA_Complete_AES256_${stamp}.zip`;
+  const dossierPhotos = plainLegacy ? `${travail}photos/` : `${travail}visite-technique/photos/`;
+  const archiveUri = plainLegacy
+    ? `${FileSystem.cacheDirectory}Visite_Technique_Complet_${stamp}.zip`
+    : `${FileSystem.cacheDirectory}METRA_Complete_AES256_${stamp}.zip`;
 
   await nettoyerDossier(travail);
   try {
@@ -128,11 +133,13 @@ export async function exporterSauvegardeComplete({ password } = {}) {
     await FileSystem.copyAsync({ from: sourceDb, to: `${dossierDb}${DATABASE_NAME}` });
 
     const archivesDisponibles = [];
-    for (const folder of DURABLE_FOLDERS) {
+    if (plainLegacy) {
+      await copierDossierSiPresent(cheminPhotos(), dossierPhotos);
+    } else for (const folder of DURABLE_FOLDERS) {
       const from = `${FileSystem.documentDirectory}${folder.source}`;
       const to = `${travail}${folder.archive}`;
       if (await existe(from)) {
-        await FileSystem.copyAsync({ from, to });
+        await copierDossierSiPresent(from, to);
         archivesDisponibles.push(folder.archive);
       }
     }
@@ -142,23 +149,23 @@ export async function exporterSauvegardeComplete({ password } = {}) {
     const compteVisites = await db.getFirstAsync('SELECT COUNT(*) AS n FROM visites');
     const manifeste = {
       format: BACKUP_FORMAT,
-      formatVersion: BACKUP_FORMAT_VERSION,
+      formatVersion: plainLegacy ? LEGACY_BACKUP_VERSION : BACKUP_FORMAT_VERSION,
       schemaVersion: DATABASE_SCHEMA_VERSION,
       createdAt: new Date().toISOString(),
       database: `database/${DATABASE_NAME}`,
-      photosRoot: 'visite-technique/photos/',
-      durableRoots: archivesDisponibles,
-      encryption: BACKUP_ENCRYPTION,
+      photosRoot: plainLegacy ? 'photos/' : 'visite-technique/photos/',
+      ...(!plainLegacy ? { durableRoots: archivesDisponibles, encryption: BACKUP_ENCRYPTION } : {}),
       counts: { visites: Number(compteVisites?.n || 0), photos: Number(comptePhotos?.n || 0) },
     };
     await FileSystem.writeAsStringAsync(`${travail}manifest.json`, JSON.stringify(manifeste, null, 2));
 
     if (await existe(archiveUri)) await FileSystem.deleteAsync(archiveUri, { idempotent: true });
-    await zipWithPassword(cheminNatif(travail), cheminNatif(archiveUri), secret, BACKUP_ENCRYPTION);
+    if (plainLegacy) await zip(cheminNatif(travail), cheminNatif(archiveUri));
+    else await zipWithPassword(cheminNatif(travail), cheminNatif(archiveUri), secret, BACKUP_ENCRYPTION);
     const archiveInfo = await FileSystem.getInfoAsync(archiveUri, { size: true });
     if (!archiveInfo.exists || Number(archiveInfo.size || 0) < 128) throw new Error('Archive ZIP chiffrée incomplète : aucun partage effectué.');
     await partagerFichier(archiveUri, 'Sauvegarde complète Visite Technique', 'application/zip');
-    return { uri: null, nom: archiveUri.split('/').pop(), manifeste, partage: true, encryption: BACKUP_ENCRYPTION };
+    return { uri: null, nom: archiveUri.split('/').pop(), manifeste, partage: true, encryption: plainLegacy ? null : BACKUP_ENCRYPTION };
   } finally {
     await FileSystem.deleteAsync(travail, { idempotent: true }).catch(()=>{});
     await FileSystem.deleteAsync(archiveUri, { idempotent: true }).catch(()=>{});
@@ -219,7 +226,8 @@ async function rebaserUrisDurables(db) {
 }
 async function copierDossierSiPresent(source, destination) {
   if (!(await existe(source))) return false;
-  await FileSystem.makeDirectoryAsync(destination.slice(0, destination.lastIndexOf('/') + 1), { intermediates: true });
+  const cleanDestination = destination.replace(/\/+$/, '');
+  await FileSystem.makeDirectoryAsync(cleanDestination.slice(0, cleanDestination.lastIndexOf('/') + 1), { intermediates: true });
   await FileSystem.copyAsync({ from: source, to: destination });
   return true;
 }
