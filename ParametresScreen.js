@@ -159,11 +159,18 @@ function GestionDonnees(){
         {cancelable:false}
       );
     }catch(e){
+      // Le ZIP peut être rejeté avant toute écriture. Dans ce cas, forcer
+      // une fermeture fait croire à tort qu'une restauration a commencé.
+      const sqlitePotentiellementModifie = Boolean(e?.restoreTouchedDatabase);
       Alert.alert(
         'Restauration impossible',
-        `${String(e.message||e)}\n\nPour garantir une connexion SQLite propre, ferme puis relance l’application avant de poursuivre.`,
-        [{text:'Fermer l’application',onPress:()=>BackHandler.exitApp()}],
-        {cancelable:false}
+        String(e?.message || e) + (sqlitePotentiellementModifie
+          ? '\n\nUne écriture a été tentée : ferme puis relance METRA avant toute nouvelle opération.'
+          : '\n\nAucune restauration des données locales n’a été commencée.'),
+        sqlitePotentiellementModifie
+          ? [{text:'Fermer l’application',onPress:()=>BackHandler.exitApp()}]
+          : [{text:'Compris'}],
+        {cancelable:!sqlitePotentiellementModifie}
       );
     }
   });
