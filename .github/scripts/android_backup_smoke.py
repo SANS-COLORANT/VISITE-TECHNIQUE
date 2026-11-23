@@ -46,10 +46,16 @@ def tap_scrolling(label, max_scrolls=5):
         time.sleep(0.8)
     return False
 def private_archive_path():
-    root = f"/data/user/0/{PKG}/files/metra-encrypted-backups"
-    out = adb("shell","find",root,"-maxdepth","1","-name","METRA_Chiffre_*.zip",
-        check=False,timeout=15)
-    return next((line.strip() for line in out.splitlines() if line.strip().endswith(".zip")),None)
+    # The final build keeps a durable private copy. The early #39 candidate
+    # had a temporary cache copy while Android's Sharesheet was open.
+    for root in [f"/data/user/0/{PKG}/files/metra-encrypted-backups",
+                 f"/data/user/0/{PKG}/cache"]:
+        out = adb("shell","find",root,"-maxdepth","1","-name","METRA_Chiffre_*.zip",
+            check=False,timeout=15)
+        found = next((line.strip() for line in out.splitlines() if line.strip().endswith(".zip")),None)
+        if found:
+            return found
+    return None
 def export_test():
     adb("wait-for-device")
     adb("root",check=False)
