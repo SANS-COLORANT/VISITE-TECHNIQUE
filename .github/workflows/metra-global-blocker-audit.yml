@@ -1,0 +1,52 @@
+name: METRA - Audit global des blocages application
+on:
+  push:
+    branches:
+      - audit/metra-all-screen-blockers-20261123
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  all-screen-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: '1'
+      npm_config_legacy_peer_deps: 'true'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Restore exact app dependencies without modifying runtime source
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Audit every app source and deferred screen
+        run: node .github/scripts/audit_metra_all_screens.cjs
+      - name: Test platform navigation, equipment catalogue and modal contracts
+        run: |
+          node --test .github/scripts/test_metra_settings_safe_area.cjs .github/scripts/test_metra_equipment_legacy.cjs
+          node .github/scripts/test_root_navigation_directory.js
+          node .github/scripts/test_swipe_navigation.js
+          node .github/scripts/test_remar_cta_suivant.js
+          node .github/scripts/test_photo_gallery_import.js
+          node .github/scripts/test_photo_workflow.js
+      - name: Core REMAR, Excel/PDF, Intranet and SQLite regressions
+        run: |
+          node .github/scripts/test_remar_141_intranet_matrix.js
+          node .github/scripts/test_remar_dynamic.js
+          node --import ./.github/scripts/legacy_fs_resolver.mjs --experimental-test-module-mocks --test tests/trameRemar.test.mjs
+          node tests/reportPdfFragments.test.mjs
+          node .github/scripts/test_intranet_equipment_import.js
+          node .github/scripts/test_intranet_any_visit_binding.js
+      - name: Publish full audit evidence even if a test fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: METRA-Audit-Global-20261123
+          path: audit-results/
+          if-no-files-found: warn
+          retention-days: 14
