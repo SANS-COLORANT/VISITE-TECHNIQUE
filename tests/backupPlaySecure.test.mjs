@@ -91,7 +91,9 @@ test('Play backup always uses native AES-256 and never a plain outgoing ZIP',()=
   assert.match(backend,/await zipWithPassword\(native\(travail\), native\(archive\), password, BACKUP_ENCRYPTION\)/);
   assert.match(backend,/await checkNativeEncryptedArchive\(archive\)/);
   assert.doesNotMatch(backend,/\bawait zip\(/);
-  assert.match(backend,/await safeRemove\(archive\)/);
+  assert.match(backend,/if \(!archiveValide\) await safeRemove\(archive\)/);
+  assert.match(backend,/export async function partagerDerniereSauvegardeChiffree\(\)/);
+  assert.match(backend,/const PRIVATE_BACKUP_FOLDER = 'metra-encrypted-backups\/'/);
 });
 test('import gates legacy plaintext and validates before replacing the database',()=>{
   assert.match(backend,/!autoriserArchiveAncienne/);
