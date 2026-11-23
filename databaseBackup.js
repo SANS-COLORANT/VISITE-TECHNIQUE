@@ -29,7 +29,7 @@ function verifierMotDePasse(password) {
 }
 
 function safeArchiveRelative(path, field) {
-  const value = String(path || '').replace(/\\/g, '/');
+  const value = String(path || '').replace(/\\/g, '/').replace(/\/$/, '');
   if (!value || value.startsWith('/') || value.startsWith('./') || value.includes('//') ||
       value.split('/').some(part => part === '..' || part === '.' || !part) ||
       /^[A-Za-z]:/.test(value) || /[\x00-\x1F]/.test(value)) throw new Error(`Chemin non sûr dans l’archive (${field}).`);
@@ -185,85 +185,149 @@ async function lireEtVerifierManifeste(dossier) {
   return { manifeste, dbBackup, photosBackup: `${dossier}${photosRelative}`, archiveVersion };
 }
 
-async function rebaserUrisPhotos(db) {
-  const rows = await db.getAllAsync('SELECT id, uri FROM photos');
-  const nouvelleRacine = cheminPhotos();
-  for (const row of rows) {
-    const uri = String(row.uri || '');
-    const marqueur = `/${PHOTOS_RELATIVE_ROOT}`;
-    const position = uri.indexOf(marqueur);
-    if (position < 0) continue;
-    const relatif = uri.slice(position + marqueur.length);
-    await db.runAsync('UPDATE photos SET uri=? WHERE id=?', [`${nouvelleRacine}${relatif}`, row.id]);
+
+async function rebaserUrisDurables(db) {
+  // Les URI locales absolues doivent suivre le nouveau dossier documentDirectory.
+  const tables = await db.getAllAsync("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+  for (const table of tables) {
+    const name = String(table.name || '');
+    if (!/^[A-Za-z0-9_]+$/.test(name)) continue;
+    const columns = await db.getAllAsync('PRAGMA table_info("' + name + '")');
+    for (const column of columns) {
+      const col = String(column.name || '');
+      if (!/^[A-Za-z0-9_]+$/.test(col) || !/(uri|path|chemin|file)/i.test(col)) continue;
+      const rows = await db.getAllAsync(
+        'SELECT rowid AS _metra_rowid, "' + col + '" AS _metra_uri FROM "' + name +
+        '" WHERE "' + col + '" LIKE ? OR "' + col + '" LIKE ?',
+        ['%/visite-technique/%', '%/metra-missions/%']
+      ).catch(() => []);
+      for (const row of rows) {
+        const previous = String(row._metra_uri || '');
+        if (!previous.startsWith('file://')) continue;
+        const marker = ['/visite-technique/', '/metra-missions/'].find((root) => previous.includes(root));
+        if (!marker) continue;
+        const suffix = previous.slice(previous.indexOf(marker) + 1);
+        if (suffix.split('/').includes('..')) continue;
+        const updated = FileSystem.documentDirectory + suffix;
+        if (updated !== previous) await db.runAsync(
+          'UPDATE "' + name + '" SET "' + col + '"=? WHERE rowid=?',
+          [updated, row._metra_rowid]
+        );
+      }
+    }
   }
 }
-
-export async function choisirEtRestaurerSauvegardeComplete() {
-  refuserExportNonChiffre();
+async function copierDossierSiPresent(source, destination) {
+  if (!(await existe(source))) return false;
+  await FileSystem.makeDirectoryAsync(destination.slice(0, destination.lastIndexOf('/') + 1), { intermediates: true });
+  await FileSystem.copyAsync({ from: source, to: destination });
+  return true;
+}
+export async function choisirEtRestaurerSauvegardeComplete({ password = null, allowLegacyPlain = false } = {}) {
+  if (backupBusy) throw new Error('Une sauvegarde ou restauration est déjà en cours.');
+  if (allowLegacyPlain && password) throw new Error('Choisis le mode archive historique OU le mode chiffré.');
+  const secret = allowLegacyPlain ? null : verifierMotDePasse(password);
   const selection = await DocumentPicker.getDocumentAsync({
-    type: ['application/zip', 'application/octet-stream'],
-    copyToCacheDirectory: true,
-    multiple: false,
+    type: ['application/zip', 'application/octet-stream', 'application/x-zip-compressed'],
+    copyToCacheDirectory: true, multiple: false,
   });
   if (selection.canceled) return null;
   const asset = selection.assets?.[0];
   if (!asset?.uri) throw new Error('Fichier de sauvegarde inaccessible.');
 
-  const restauration = `${FileSystem.cacheDirectory}vt-restore-${Date.now()}/`;
-  await nettoyerDossier(restauration);
-  await unzip(cheminNatif(asset.uri), cheminNatif(restauration));
-  const { manifeste, dbBackup, photosBackup } = await lireEtVerifierManifeste(restauration);
-
-  const dbCourante = await getDb();
-  await dbCourante.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
-  const sourceActuelle = cheminBaseSQLite();
-  const securite = `${FileSystem.cacheDirectory}vt-before-restore-${Date.now()}/`;
-  await nettoyerDossier(securite);
-  await FileSystem.copyAsync({ from: sourceActuelle, to: `${securite}${DATABASE_NAME}` });
-  const photosActuelles = cheminPhotos();
-  if (await existe(photosActuelles)) await FileSystem.copyAsync({ from: photosActuelles, to: `${securite}photos/` });
-
+  backupBusy = true;
+  const stamp = Date.now();
+  const restauration = FileSystem.cacheDirectory + 'vt-restore-' + stamp + '/';
+  const securite = FileSystem.documentDirectory + 'metra-recovery/pre-restore-' + stamp + '/';
+  const currentDb = cheminBaseSQLite();
   let remplacementCommence = false;
+  let originalProtected = false;
   try {
+    await nettoyerDossier(restauration);
+    try {
+      if (allowLegacyPlain) await unzip(cheminNatif(asset.uri), cheminNatif(restauration));
+      else await unzipWithPassword(cheminNatif(asset.uri), cheminNatif(restauration), secret);
+    } catch (error) {
+      throw new Error(allowLegacyPlain
+        ? 'Archive historique illisible ou corrompue. Aucune donnée remplacée.'
+        : 'Déchiffrement impossible : mot de passe incorrect ou archive endommagée. Aucune donnée remplacée.');
+    }
+    const { manifeste, dbBackup, photosBackup, archiveVersion } = await lireEtVerifierManifeste(restauration);
+    if (allowLegacyPlain !== (archiveVersion === LEGACY_BACKUP_VERSION)) {
+      throw new Error(allowLegacyPlain ? 'Cette archive est chiffrée : désactive le mode historique.'
+        : 'Cette archive est non chiffrée : active le mode ZIP historique.');
+    }
+    const roots = archiveVersion === BACKUP_FORMAT_VERSION
+      ? (Array.isArray(manifeste.durableRoots) ? manifeste.durableRoots : null) : null;
+    if (archiveVersion === BACKUP_FORMAT_VERSION && !roots) throw new Error('Liste des dossiers durables absente.');
+    if (roots) for (const root of roots) {
+      if (!DURABLE_FOLDERS.some((folder) => folder.archive === root)) throw new Error('Dossier inconnu dans le manifeste.');
+      if (!(await existe(restauration + root))) throw new Error('Dossier attendu absent : ' + root);
+    }
+    if (archiveVersion === LEGACY_BACKUP_VERSION && !(await existe(photosBackup))) {
+      throw new Error('Archive historique sans répertoire photos.');
+    }
+    const dbCourante = await getDb();
+    await dbCourante.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
+    const controleActuel = await verifyDatabaseIntegrity(dbCourante);
+    if (!controleActuel.integrityOk || !controleActuel.foreignKeysOk) {
+      throw new Error('Base actuelle non intègre : restauration interrompue.');
+    }
+    // Le dossier de secours ne se trouve PAS dans le ZIP : il est préservé en cas d'erreur.
+    await nettoyerDossier(securite);
+    await FileSystem.copyAsync({ from: currentDb, to: securite + DATABASE_NAME });
+    for (const folder of DURABLE_FOLDERS) {
+      await copierDossierSiPresent(FileSystem.documentDirectory + folder.source, securite + folder.archive);
+    }
+    originalProtected = true;
     await closeAppDatabase();
     remplacementCommence = true;
-    await nettoyerJournauxSQLite(sourceActuelle);
-
-    await FileSystem.copyAsync({ from: dbBackup, to: sourceActuelle });
-    await FileSystem.deleteAsync(photosActuelles, { idempotent: true });
-    if (await existe(photosBackup)) await FileSystem.copyAsync({ from: photosBackup, to: photosActuelles });
-    else await FileSystem.makeDirectoryAsync(photosActuelles, { intermediates: true });
-
-    const dbRestauree = await openAppDatabase();
-    await rebaserUrisPhotos(dbRestauree);
-    const controle = await verifyDatabaseIntegrity(dbRestauree);
-    if (!controle.integrityOk || !controle.foreignKeysOk) throw new Error('La base restaurée n’a pas passé le contrôle d’intégrité.');
-    await dbRestauree.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
-    await closeAppDatabase();
-    await nettoyerJournauxSQLite(sourceActuelle);
-
-    await FileSystem.deleteAsync(restauration, { idempotent: true });
-    await FileSystem.deleteAsync(securite, { idempotent: true });
-    return { manifeste, controle, restartRequired: true };
-  } catch (error) {
-    // Indiquer au panneau appelant si SQLite et les photos ont pu être touchées.
-    // Une erreur avant sélection/validation de l'archive ne justifie jamais
-    // d'imposer la fermeture de METRA.
-    if (remplacementCommence && error && typeof error === 'object') {
-      error.restoreTouchedDatabase = true;
+    await nettoyerJournauxSQLite(currentDb);
+    await FileSystem.copyAsync({ from: dbBackup, to: currentDb });
+    if (archiveVersion === BACKUP_FORMAT_VERSION) {
+      for (const folder of DURABLE_FOLDERS) {
+        if (!roots.includes(folder.archive)) continue;
+        const dest = FileSystem.documentDirectory + folder.source;
+        await FileSystem.deleteAsync(dest, { idempotent: true });
+        await copierDossierSiPresent(restauration + folder.archive, dest);
+      }
+    } else {
+      const dest = cheminPhotos();
+      await FileSystem.deleteAsync(dest, { idempotent: true });
+      await copierDossierSiPresent(photosBackup, dest);
     }
-    if (remplacementCommence) {
+    const restoredDb = await openAppDatabase();
+    await rebaserUrisDurables(restoredDb);
+    const controle = await verifyDatabaseIntegrity(restoredDb);
+    if (!controle.integrityOk || !controle.foreignKeysOk) throw new Error('La base restaurée a échoué au contrôle d’intégrité.');
+    await restoredDb.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
+    await closeAppDatabase();
+    await nettoyerJournauxSQLite(currentDb);
+    await FileSystem.deleteAsync(securite, { idempotent: true });
+    return { manifeste, controle, restartRequired: true, encrypted: !allowLegacyPlain };
+  } catch (error) {
+    if (remplacementCommence && originalProtected) {
+      if (error && typeof error === 'object') error.restoreTouchedDatabase = true;
       try {
         await closeAppDatabase();
-        await nettoyerJournauxSQLite(sourceActuelle);
-        await FileSystem.copyAsync({ from: `${securite}${DATABASE_NAME}`, to: sourceActuelle });
-        await FileSystem.deleteAsync(photosActuelles, { idempotent: true });
-        if (await existe(`${securite}photos/`)) await FileSystem.copyAsync({ from: `${securite}photos/`, to: photosActuelles });
-      } catch {}
+        await nettoyerJournauxSQLite(currentDb);
+        await FileSystem.copyAsync({ from: securite + DATABASE_NAME, to: currentDb });
+        for (const folder of DURABLE_FOLDERS) {
+          const snapshot = securite + folder.archive;
+          if (!(await existe(snapshot))) continue;
+          const dest = FileSystem.documentDirectory + folder.source;
+          await FileSystem.deleteAsync(dest, { idempotent: true });
+          await copierDossierSiPresent(snapshot, dest);
+        }
+      } catch (rollbackError) {
+        throw new Error('ÉCHEC DE RESTAURATION ET DE RETOUR ARRIÈRE. Ne désinstalle pas METRA. Copie de secours conservée dans metra-recovery. ' +
+          String(rollbackError?.message || rollbackError));
+      }
     }
     throw error;
   } finally {
-    try { await FileSystem.deleteAsync(restauration, { idempotent: true }); } catch {}
+    backupBusy = false;
+    await FileSystem.deleteAsync(restauration, { idempotent: true }).catch(() => {});
   }
 }
 
