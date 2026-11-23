@@ -13,6 +13,11 @@ module.exports = ({ config }) => {
   if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraPlaySecurity')) plugins.push('./plugins/withMetraPlaySecurity');
   if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraDpop')) plugins.push('./plugins/withMetraDpop');
   if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraMissionTools')) plugins.push('./plugins/withMetraMissionTools');
+  // Controlled native pilot only: no R8 activation in normal Play releases.
+  if (process.env.METRA_EXPERIMENTAL_R8 === '1' &&
+    !plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraDexR8')) {
+    plugins.push('./plugins/withMetraDexR8');
+  }
 
   // Keep JavaScript and the generated Android manifest on the exact same
   // source of truth. The file is also committed with `false` as a safe
