@@ -27,6 +27,7 @@ import {
 const ROOTS = Object.freeze(['visite-technique/', 'metra-missions/']);
 const DATA_ROOT = 'data/';
 const BACKUP_PREFIX = 'METRA_Chiffre_';
+const PRIVATE_BACKUP_FOLDER = 'metra-encrypted-backups/';
 let backupBusy = false;
 
 const native = (uri) => String(uri || '').replace(/^file:\/\//, '');
@@ -114,7 +115,8 @@ export async function exporterSauvegardeChiffree({ motDePasse } = {}) {
   backupBusy = true;
   const id = stamp();
   const travail = FileSystem.cacheDirectory + 'metra-backup-work-' + id + '/';
-  const archive = FileSystem.cacheDirectory + BACKUP_PREFIX + id + '.zip';
+  const archive = root() + PRIVATE_BACKUP_FOLDER + BACKUP_PREFIX + id + '.zip';
+  let archiveValide = false;
   try {
     const db = await getDb();
     const integrity = await verifyDatabaseIntegrity(db);
@@ -144,17 +146,41 @@ export async function exporterSauvegardeChiffree({ motDePasse } = {}) {
     };
     validerManifesteSauvegarde(manifeste, DATABASE_NAME, DATABASE_SCHEMA_VERSION);
     await FileSystem.writeAsStringAsync(travail + 'manifest.json', JSON.stringify(manifeste));
+    await ensureDir(root() + PRIVATE_BACKUP_FOLDER);
     await safeRemove(archive);
     await zipWithPassword(native(travail), native(archive), password, BACKUP_ENCRYPTION);
     await checkNativeEncryptedArchive(archive);
+    archiveValide = true; // Garder cette copie chiffrée durable pour un nouveau partage.
     if (!(await Sharing.isAvailableAsync())) throw new Error('Le partage des fichiers est indisponible sur cet appareil.');
     await Sharing.shareAsync(archive, { mimeType: 'application/zip', dialogTitle: 'Enregistrer la sauvegarde chiffrée METRA' });
-    return { manifeste, nom: archive.split('/').pop(), partage: true, encryption: BACKUP_ENCRYPTION };
+    return { manifeste, nom: archive.split('/').pop(), uri: archive, partage: true, encryption: BACKUP_ENCRYPTION, savedLocally: true };
   } finally {
     await safeRemove(travail);
-    await safeRemove(archive);
+    if (!archiveValide) await safeRemove(archive);
     backupBusy = false;
   }
+}
+
+/** Android Sharesheet may outlive the call. Keep the verified encrypted ZIP
+ * private and allow users to share again without recreating the archive.
+ */
+export async function partagerDerniereSauvegardeChiffree() {
+  if (backupBusy) throw new Error('Une sauvegarde est en cours, réessaie après sa fin.');
+  const folder = root() + PRIVATE_BACKUP_FOLDER;
+  const info = await FileSystem.getInfoAsync(folder);
+  if (!info?.exists) throw new Error('Aucune sauvegarde chiffrée locale à partager.');
+  const files = (await FileSystem.readDirectoryAsync(folder))
+    .filter(name => name.startsWith(BACKUP_PREFIX) && name.endsWith('.zip'))
+    .sort().reverse();
+  for (const name of files) {
+    const uri = folder + name;
+    if (!(await exists(uri))) continue;
+    await checkNativeEncryptedArchive(uri);
+    if (!(await Sharing.isAvailableAsync())) throw new Error('Le partage Android est indisponible.');
+    await Sharing.shareAsync(uri, { mimeType: 'application/zip', dialogTitle: 'Enregistrer la sauvegarde METRA hors du téléphone' });
+    return { nom: name, uri, partage: true };
+  }
+  throw new Error('Aucune archive chiffrée valide à partager.');
 }
 async function inspectArchive(uri, { motDePasse, autoriserArchiveAncienne }) {
   const entries = await listContents(native(uri));
