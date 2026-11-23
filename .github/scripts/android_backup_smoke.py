@@ -50,8 +50,13 @@ def input_password(label):
     print("BACKUP EDITTEXT TARGET " + label + " class=" + node.get("class", "") + " bounds=" + str(a), flush=True)
     adb("shell", "input", "tap", str((a[0]+a[2])//2), str((a[1]+a[3])//2))
     adb("shell", "input", "text", PASSWORD)
-    # Do not send KEYCODE_BACK here: when the IME has already hidden,
-    # Android interprets BACK as dismissing the entire React Native Modal.
+    if not is_confirm:
+        # After entering the first password the keyboard may move the sheet.
+        # Hide it *once*, while its EditText is focused, then re-read the
+        # accessibility tree so the confirmation is tapped at stable bounds.
+        time.sleep(1)
+        adb("shell", "input", "keyevent", "KEYCODE_BACK", check=False)
+        time.sleep(1.5)
     return True
 def tap_scrolling(label, max_scrolls=5):
     for attempt in range(max_scrolls):
@@ -93,7 +98,7 @@ def export_test():
     ui.snapshot("backup-form")
     assert input_password("Mot de passe sauvegarde"), "Password field missing"
     assert input_password("Confirmer mot de passe sauvegarde"), "Confirmation field missing"
-    adb("shell","input","keyevent","KEYCODE_BACK",check=False)
+    ui.snapshot("backup-filled")
     assert tap_scrolling("Créer le ZIP chiffré"), "Cannot confirm encrypted ZIP"
     record("AES ZIP creation requested",True)
     archive=None
