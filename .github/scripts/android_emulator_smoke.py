@@ -98,6 +98,18 @@ def tap(labels, seconds=20):
     verify_alive()
     return True
 
+def await_modal_dismissed(modal_title, return_label, seconds=12):
+    # uiautomator peut servir un ancien XML pendant l'animation de fermeture.
+    # Attendre que l'ecran principal soit de nouveau visible au lieu de faire
+    # un seul dump immediat qui donne un faux echec.
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        nodes = dump()
+        if nodes and not find(nodes, [modal_title]) and find(nodes, [return_label]):
+            return True
+        time.sleep(1)
+    return False
+
 def fatal_logs():
     log = adb("logcat","-d","-v","brief","AndroidRuntime:E","ReactNativeJS:E","*:S",timeout=30,check=False)
     (OUT/"emulator-logcat-errors.txt").write_text(log[-180000:],encoding="utf-8")
@@ -161,25 +173,17 @@ def main():
                     if note:
                         snapshot("note")
                         note_tap = tap(["Fermer"], seconds=12)
-                        note_closed = note_tap and not find(dump(), ["Note libre — ICPE", "Note libre — TRAME REMAR"])
+                        note_closed = note_tap and await_modal_dismissed("Note libre — ICPE", "Anomalie")
                         record("Note: close action is clickable and modal dismisses", note_closed)
                     anomaly = tap(["Anomalie"], seconds=15)
                     record("visit Anomalie shortcut", anomaly)
                     if anomaly:
                         snapshot("anomalie")
                         anomaly_tap = tap(["Annuler"], seconds=12)
-                        initial_nodes = dump()
-                        anomaly_still_open = bool(find(initial_nodes, ["Ajouter une anomalie"]))
-                        anomaly_closed = anomaly_tap and not anomaly_still_open
+                        anomaly_closed = anomaly_tap and await_modal_dismissed("Ajouter une anomalie", "Anomalie")
                         if not anomaly_closed:
                             snapshot("anomalie-after-cancel")
-                            found = find(initial_nodes, ["Annuler"])
-                            info = "tap_node=" + str(anomaly_tap) + " still_open=" + str(anomaly_still_open) + " cancel_bounds=" + str(found.get("bounds") if found else None)
-                            print("ANOMALIE CLOSE DEBUG " + info, flush=True)
-                            # Diagnostiquer un premier tap avale par le clavier sans
-                            # le considerer comme un succes du parcours.
-                            retry_tap = tap(["Annuler"], seconds=8)
-                            print("ANOMALIE SECOND TAP " + str(retry_tap) + " still_open=" + str(bool(find(dump(), ["Ajouter une anomalie"]))), flush=True)
+                            print("ANOMALIE CLOSE UNCONFIRMED, cancel_tap=" + str(anomaly_tap), flush=True)
                         record("Anomalie: cancel action is clickable and modal dismisses", anomaly_closed)
                 else:
                     RESULT["warnings"].append("Quick visit creation not reachable on this emulator")
