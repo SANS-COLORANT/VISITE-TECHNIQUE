@@ -1,4 +1,5 @@
 name: METRA encrypted backup regression gate
+# Baseline native candidate: verify durable encrypted archive and safe restores.
 on:
   push:
     branches:
