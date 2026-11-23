@@ -1,16 +1,26 @@
 /**
- * Liste rapide : FlashList (recyclage des cellules) pour les longues listes
- * à une colonne ; FlatList classique sinon (colonnes multiples avec
- * columnWrapperStyle, que FlashList ne gère pas).
+ * Compatibilite de listes METRA avec l'architecture React Native legacy.
+ *
+ * Cette application Play Store est construite avec newArchEnabled=false
+ * (Expo SDK 54 / React Native 0.81). FlashList v2 exige Fabric et peut faire
+ * fermer la page Catalogue des equipements lors du montage de la liste.
+ *
+ * FlatList est une implementation native prise en charge pour les deux
+ * architectures. Garder la signature FastList pour ne modifier aucun ecran.
  */
 import React from 'react';
 import { FlatList } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
 
-export function FastList({ estimatedItemSize = 96, numColumns = 1, columnWrapperStyle, ...props }) {
-  if (numColumns > 1 || columnWrapperStyle) {
-    return <FlatList numColumns={numColumns} columnWrapperStyle={columnWrapperStyle} {...props} />;
-  }
-  const { initialNumToRender, maxToRenderPerBatch, windowSize, updateCellsBatchingPeriod, removeClippedSubviews, style, ...rest } = props;
-  return <FlashList estimatedItemSize={estimatedItemSize} {...rest} />;
+export function FastList({ estimatedItemSize: _estimatedItemSize = 96, numColumns = 1, columnWrapperStyle, ...props }) {
+  return (
+    <FlatList
+      {...props}
+      numColumns={numColumns}
+      columnWrapperStyle={numColumns > 1 ? columnWrapperStyle : undefined}
+      initialNumToRender={props.initialNumToRender ?? 12}
+      maxToRenderPerBatch={props.maxToRenderPerBatch ?? 12}
+      windowSize={props.windowSize ?? 7}
+      removeClippedSubviews={props.removeClippedSubviews ?? false}
+    />
+  );
 }
