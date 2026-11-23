@@ -1,6 +1,6 @@
 
 import { METRA_PLAY_SECURE_BUILD } from './playSecurityRuntime.generated.js';
-import { exporterSauvegardeChiffree, choisirEtRestaurerSauvegardeChiffree } from './secureBackup.js';
+import { exporterSauvegardeChiffree, choisirEtRestaurerSauvegardeChiffree, partagerDerniereSauvegardeChiffree } from './secureBackup.js';
 
 function refuserExportNonChiffre() {
   if (METRA_PLAY_SECURE_BUILD) throw new Error('Sauvegarde non chiffrée désactivée dans METRA Google Play. Synchronisez les visites avec l’Intranet ; une sauvegarde chiffrée nécessitera un développement dédié.');
@@ -152,6 +152,12 @@ async function rebaserUrisPhotos(db) {
     const relatif = uri.slice(position + marqueur.length);
     await db.runAsync('UPDATE photos SET uri=? WHERE id=?', [`${nouvelleRacine}${relatif}`, row.id]);
   }
+}
+
+/** Repartage la dernière archive locale AES-256, jamais un export .db brut. */
+export async function partagerDerniereSauvegarde() {
+  if (!METRA_PLAY_SECURE_BUILD) throw new Error('Utilise l’export complet du profil APK.');
+  return partagerDerniereSauvegardeChiffree();
 }
 
 export async function choisirEtRestaurerSauvegardeComplete(options = {}) {
