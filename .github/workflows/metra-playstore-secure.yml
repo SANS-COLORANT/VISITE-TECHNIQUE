@@ -23,7 +23,7 @@ permissions:
 
 concurrency:
   group: metra-play-secure-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/experiment/') }}
 
 jobs:
   secure-android:
