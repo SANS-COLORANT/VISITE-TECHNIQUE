@@ -160,19 +160,23 @@ def main():
                     record("visit Note shortcut", note)
                     if note:
                         snapshot("note")
-                        tap(["Fermer"], seconds=12)
+                        note_tap = tap(["Fermer"], seconds=12)
+                        note_closed = note_tap and not find(dump(), ["Note libre — ICPE", "Note libre — TRAME REMAR"])
+                        record("Note: close action is clickable and modal dismisses", note_closed)
                     anomaly = tap(["Anomalie"], seconds=15)
                     record("visit Anomalie shortcut", anomaly)
                     if anomaly:
                         snapshot("anomalie")
-                        tap(["Annuler"], seconds=12)
+                        anomaly_tap = tap(["Annuler"], seconds=12)
+                        anomaly_closed = anomaly_tap and not find(dump(), ["Ajouter une anomalie"])
+                        record("Anomalie: cancel action is clickable and modal dismisses", anomaly_closed)
                 else:
                     RESULT["warnings"].append("Quick visit creation not reachable on this emulator")
             else:
                 RESULT["warnings"].append("Quick visit button was not exposed in the emulator accessibility tree")
         else:
             RESULT["warnings"].append("Could not navigate to Accueil from the catalogue UI")
-        return 0
+        return 1 if RESULT["errors"] else 0
     except Exception as exc:
         record("emulator instrumentation", False, repr(exc))
         snapshot("failure")
