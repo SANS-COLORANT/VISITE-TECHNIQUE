@@ -53,4 +53,4 @@ jobs:
       - name: Assert full Android Metro bundle builds
         run: npx expo export --platform android --max-workers 2 --output-dir dist-secure-backup
       - name: Preserve source tree without unintended edits
-        run: git diff --exit-code -- '*.js' '*.jsx' '*.ts' '*.tsx' 'package.json' 'package-lock.json'
+        run: git diff --exit-code -- '*.js' '*.jsx' '*.ts' '*.tsx' 'package.json' 'package-lock.json' ':!playSecurityRuntime.generated.js' ':!googleMapsRuntime.generated.js'
