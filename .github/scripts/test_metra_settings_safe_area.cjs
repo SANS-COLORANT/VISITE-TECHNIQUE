@@ -41,3 +41,11 @@ test('Security contract remains on Play workflow; no data migrations added', () 
   assert.match(play, /Sign and produce the official Google Play App Bundle/);
   assert.match(app, /"package": "com\.visitetechnique\.tablet"/);
 });
+
+test('Shared visit, quick visit, attach visit, and equipment modals avoid Android system controls', () => {
+  for (const name of ['VisitKit.js','QuickVisitSheet.js','AttachVisitSheet.js','EquipmentCatalogueBrowser.js']) {
+    const source = src(name);
+    assert.match(source, /navigationBarTranslucent/, name);
+    assert.match(source, /useSafeAreaInsets/, name);
+  }
+});
