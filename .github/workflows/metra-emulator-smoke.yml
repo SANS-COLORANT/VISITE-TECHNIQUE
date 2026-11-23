@@ -44,10 +44,7 @@ jobs:
           heap-size: 512M
           disk-size: 6G
           disable-animations: true
-          script: |
-            APK="$(find qa-apk -type f -name '*.apk' | head -1)"
-            adb install -r "$APK"
-            python3 .github/scripts/android_emulator_smoke.py
+          script: adb install -r "$(find qa-apk -type f -name '*.apk' | head -1)" && python3 .github/scripts/android_emulator_smoke.py
       - name: Archive screenshots, hierarchy findings and crash logs
         uses: actions/upload-artifact@v4
         if: always()
