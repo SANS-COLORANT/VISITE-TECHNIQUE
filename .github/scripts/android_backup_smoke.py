@@ -50,7 +50,8 @@ def input_password(label):
     print("BACKUP EDITTEXT TARGET " + label + " class=" + node.get("class", "") + " bounds=" + str(a), flush=True)
     adb("shell", "input", "tap", str((a[0]+a[2])//2), str((a[1]+a[3])//2))
     adb("shell", "input", "text", PASSWORD)
-    adb("shell", "input", "keyevent", "KEYCODE_BACK", check=False)
+    # Do not send KEYCODE_BACK here: when the IME has already hidden,
+    # Android interprets BACK as dismissing the entire React Native Modal.
     return True
 def tap_scrolling(label, max_scrolls=5):
     for attempt in range(max_scrolls):
