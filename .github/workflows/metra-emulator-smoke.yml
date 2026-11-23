@@ -5,6 +5,7 @@ on:
       - audit/metra-all-screen-blockers-20261123
     paths:
       - '.github/workflows/metra-emulator-smoke.yml'
+      - '.github/scripts/android_emulator_smoke.py'
   workflow_dispatch:
 
 permissions:
