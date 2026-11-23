@@ -31,12 +31,26 @@ def adb(*argv, check=True, timeout=40):
         encoding="utf-8", errors="replace", timeout=timeout,
         check=check).stdout
 def input_password(label):
-    node = ui.await_label([label], seconds=18)
+    # Android accessibility may expose a nearby title with a similar name.
+    # Select actual EditText controls in top-to-bottom order, never the label.
+    is_confirm = "Confirmer" in label
+    target = 1 if is_confirm else 0
+    nodes = ui.dump()
+    fields = [n for n in nodes
+              if "EditText" in n.get("class", "") or "AutoCompleteTextView" in n.get("class", "")]
+    fields.sort(key=lambda n: int(re.findall(r"\d+", n.get("bounds", "0,0,0,0"))[1]))
+    node = fields[target] if len(fields) > target else ui.await_label(
+        ["Retaper le mot de passe"] if is_confirm else ["Mot de passe de la sauvegarde"], seconds=18)
     if not node:
+        print("BACKUP EDITTEXT NOT FOUND " + label + ", nodes=" + str(len(fields)), flush=True)
         return False
     a = list(map(int, re.findall(r"\d+", node["bounds"])))
+    if len(a) != 4:
+        return False
+    print("BACKUP EDITTEXT TARGET " + label + " class=" + node.get("class", "") + " bounds=" + str(a), flush=True)
     adb("shell", "input", "tap", str((a[0]+a[2])//2), str((a[1]+a[3])//2))
     adb("shell", "input", "text", PASSWORD)
+    adb("shell", "input", "keyevent", "KEYCODE_BACK", check=False)
     return True
 def tap_scrolling(label, max_scrolls=5):
     for attempt in range(max_scrolls):
