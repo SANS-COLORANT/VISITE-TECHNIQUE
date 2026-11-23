@@ -1,5 +1,5 @@
 name: METRA Android 16 - native AES backup roundtrip QA
-# Verify both editable password controls without dismissing the entire Android modal.
+# Verify actual production-candidate #44 encrypted backup with stable password focus.
 on:
   push:
     branches:
@@ -24,8 +24,8 @@ jobs:
       - name: Download exact QA APK from the signed Play candidate 39
         uses: actions/download-artifact@v4
         with:
-          name: METRA-Android16-QA-39
-          run-id: 45190697863
+          name: METRA-Android16-QA-44
+          run-id: 45194050713
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: qa-apk
       - name: Validate APK selection
@@ -56,7 +56,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: METRA-NATIVE-AES-39
+          name: METRA-NATIVE-AES-44
           path: audit-results/
           if-no-files-found: warn
           retention-days: 14
