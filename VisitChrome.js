@@ -305,9 +305,11 @@ const s = StyleSheet.create({
   sideCount: { fontSize: 10.5, fontFamily: FONTS.bodySemi, color: COLORS.inkFaint },
   counters: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   counter: { fontSize: 11.5, fontFamily: FONTS.bodyBold },
-  barWrap: { paddingHorizontal: 12, paddingTop: 4, paddingBottom: 8 },
-  bar: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 18, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+  // Surface pleine et contrastée, entièrement au-dessus de la zone système Android.
+  // Ne pas appliquer d'opacité au conteneur : les actions terrain doivent rester lisibles.
+  barWrap: { paddingHorizontal: 12, paddingTop: 6, paddingBottom: 10, backgroundColor: '#F3F1EC' },
+  bar: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 18, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: '#D8D2C9', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   act: { flex: 1, flexDirection: 'row', minHeight: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 6 },
   actMain: { shadowColor: COLORS.orange, shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 5 },
-  actText: { fontSize: 12.5, fontFamily: FONTS.bodyBold, color: COLORS.inkSoft },
+  actText: { fontSize: 12.5, fontFamily: FONTS.bodyBold, color: COLORS.ink },
 });
