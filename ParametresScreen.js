@@ -117,6 +117,18 @@ function dateCourte(iso){
 }
 
 function GestionDonnees(){
+  const { bottom: backupBottomInset } = useSafeAreaInsets();
+  const [backupMode, setBackupMode] = useState(null);
+  const [backupPassword, setBackupPassword] = useState('');
+  const [backupPasswordConfirm, setBackupPasswordConfirm] = useState('');
+  const [backupLegacy, setBackupLegacy] = useState(false);
+  const ouvrirSauvegarde = (mode) => {
+    setBackupPassword(''); setBackupPasswordConfirm(''); setBackupLegacy(false); setBackupMode(mode);
+  };
+  const fermerSauvegarde = () => {
+    if (action) return;
+    setBackupMode(null); setBackupPassword(''); setBackupPasswordConfirm(''); setBackupLegacy(false);
+  };
   const[pleinSoleil,setPleinSoleil]=useState(()=>getPrefSync(PREFS.pleinSoleil,'0')==='1');
   const[ongletsEnBas,setOngletsEnBas]=useState(()=>getPrefSync(PREFS.ongletsEnBas,'0')==='1');
   const[auto,setAuto]=useState(()=>etatSauvegardeAuto());
@@ -141,16 +153,16 @@ function GestionDonnees(){
     catch(e){Alert.alert('Sauvegarde impossible',String(e.message||e));}
   });
 
-  const sauvegarderComplet=()=>executer('complete',async()=>{
+  const sauvegarderComplet=(options={})=>executer('complete',async()=>{
     try{
-      const r=await exporterSauvegardeComplete();
-      if(r) Alert.alert('Sauvegarde créée',`Archive complète créée avec ${r.manifeste?.counts?.visites||0} visite(s) et ${r.manifeste?.counts?.photos||0} photo(s).`);
+      const r=await exporterSauvegardeComplete(options);
+      if(r) Alert.alert('Partage de sauvegarde ouvert',`Archive ${r.encryption ? 'chiffrée AES-256' : 'ZIP'} créée pour ${r.manifeste?.counts?.visites||0} visite(s) et ${r.manifeste?.counts?.photos||0} photo(s). Vérifie que le ZIP est bien enregistré dans ton dossier/Drive avant de le considérer comme sauvegardé.`);
     }catch(e){Alert.alert('Sauvegarde complète impossible',String(e.message||e));}
   });
 
-  const lancerRestauration=()=>executer('restore',async()=>{
+  const lancerRestauration=(options={})=>executer('restore',async()=>{
     try{
-      const resultat=await choisirEtRestaurerSauvegardeComplete();
+      const resultat=await choisirEtRestaurerSauvegardeComplete(options);
       if(!resultat)return;
       Alert.alert(
         'Restauration terminée',
@@ -175,12 +187,12 @@ function GestionDonnees(){
     }
   });
 
-  const demanderRestauration=()=>Alert.alert(
+  const demanderRestauration=(options={})=>Alert.alert(
     'Restaurer une sauvegarde complète ?',
     'Les données actuellement présentes sur cette tablette seront remplacées par le contenu de l’archive sélectionnée. Une copie de sécurité temporaire est créée automatiquement pendant l’opération.',
     [
       {text:'Annuler',style:'cancel'},
-      {text:'Choisir une sauvegarde',style:'destructive',onPress:lancerRestauration},
+      {text:'Choisir une sauvegarde',style:'destructive',onPress:()=>lancerRestauration(options)},
     ]
   );
 
@@ -232,23 +244,75 @@ function GestionDonnees(){
     <ReglageBascule titre="Onglets en bas (une main)" description="Dans une visite, les onglets passent au-dessus de la barre d’actions, à portée de pouce. Glisser à gauche ou à droite change d’onglet." actif={ongletsEnBas} onChange={basculerOnglets}/>
 
     <Text style={[styles.sectionLabel,{marginTop:18}]}>Sauvegardes</Text>
-    {METRA_PLAY_SECURE_BUILD ? (
+    {METRA_PLAY_SECURE_BUILD ? (<>
       <View style={[styles.card,dataCard]}>
-        <Text style={styles.cardTitle}>Sauvegarde et restauration locales indisponibles</Text>
-        <Text style={[styles.cardSub,{marginTop:8,lineHeight:19}]}>
-          La version Google Play bloque l'export et la restauration de bases et d'archives ZIP non chiffrées.
-          Les sauvegardes automatiques non chiffrées sont également désactivées.
+        <Text style={styles.cardTitle}>Sauvegarde complète chiffrée</Text>
+        <Text style={[styles.cardSub,{marginTop:7,lineHeight:19}]}>
+          Exporte les visites, la base SQLite, les photos de visites et les médias/documents des Missions en archive ZIP AES-256.
+          Conserve le ZIP hors du téléphone (Drive, OneDrive ou ordinateur).
         </Text>
+        <Text style={[styles.cardSub,{marginTop:9,lineHeight:19}]}>
+          Un mot de passe fort de 16 caractères minimum est obligatoire. Il ne sera pas stocké dans METRA.
+          Sans lui, l'archive ne pourra pas être restaurée.
+        </Text>
+        <BoutonDonnees label={action==='complete'?'Sauvegarde…':'Exporter une sauvegarde chiffrée'} disabled={occupe} onPress={()=>ouvrirSauvegarde('export')}/>
+        <BoutonDonnees label={action==='restore'?'Restauration…':'Restaurer une sauvegarde ZIP'} disabled={occupe} secondaire onPress={()=>ouvrirSauvegarde('restore')}/>
         <Text style={[styles.cardSub,{marginTop:10,lineHeight:19,color:COLORS.red}]}>
-          Les visites et photos seulement présentes sur cet appareil ne sont pas automatiquement sauvegardées.
-          Ne désinstalle pas METRA et n'efface pas les données de l'application.
-        </Text>
-        <Text style={[styles.cardSub,{marginTop:10,lineHeight:19}]}>
-          Synchronise les visites prises en charge avec l'Intranet. Une sauvegarde chiffrée complète,
-          photos comprises, devra être développée et validée séparément.
+          Les sauvegardes automatiques non chiffrées restent désactivées. Une archive existante créée avec l'ancien APK
+          peut être importée après confirmation explicite. Ne désinstalle pas METRA avant d'avoir vérifié ta sauvegarde.
         </Text>
       </View>
-    ) : (<>
+      <Modal visible={!!backupMode} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent
+        onRequestClose={fermerSauvegarde}>
+        <View style={[styles.modalOverlay,{paddingBottom:Math.max(16,backupBottomInset+16)}]}>
+          <View style={[styles.modalSheet,{maxHeight:'88%'}]}>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={styles.modalTitle}>{backupMode==='export'?'Protéger la sauvegarde':'Restaurer une sauvegarde'}</Text>
+              <Text style={[styles.cardSub,{marginTop:8,lineHeight:19}]}>
+                {backupMode==='export'
+                  ? 'Saisis un mot de passe fort et confirme-le. Conserve-le séparément du ZIP. La sauvegarde contient des données métier et des photographies.'
+                  : 'Entre le mot de passe de l’archive chiffrée. Pour une ancienne archive ZIP non chiffrée, active l’option ci-dessous.'}
+              </Text>
+              <Text style={[styles.fieldLabel,{marginTop:14}]}>Mot de passe {backupMode==='export'?'(16 caractères minimum)':''}</Text>
+              <TextInput style={styles.input} value={backupPassword} onChangeText={setBackupPassword}
+                secureTextEntry autoCapitalize="none" autoCorrect={false} textContentType="password"
+                placeholder="Mot de passe de la sauvegarde" accessibilityLabel="Mot de passe sauvegarde"/>
+              {backupMode==='export'?<>
+                <Text style={[styles.fieldLabel,{marginTop:12}]}>Confirmer le mot de passe</Text>
+                <TextInput style={styles.input} value={backupPasswordConfirm} onChangeText={setBackupPasswordConfirm}
+                  secureTextEntry autoCapitalize="none" autoCorrect={false} textContentType="password"
+                  placeholder="Retaper le mot de passe" accessibilityLabel="Confirmer mot de passe sauvegarde"/>
+              </>:null}
+              {backupMode==='restore'?<TouchableOpacity accessibilityRole="checkbox"
+                accessibilityState={{checked:backupLegacy}}
+                onPress={()=>setBackupLegacy(v=>!v)}
+                style={{flexDirection:'row',alignItems:'center',gap:12,paddingVertical:15}}>
+                <Text style={{fontSize:20,color:COLORS.orange}}>{backupLegacy?'☑':'☐'}</Text>
+                <Text style={[styles.cardSub,{flex:1,lineHeight:19}]}>Importer une ancienne sauvegarde ZIP non chiffrée (ancien APK METRA). À utiliser uniquement avec un fichier de confiance.</Text>
+              </TouchableOpacity>:null}
+              <View style={[styles.modalActions,{marginTop:15}]}>
+                <TouchableOpacity style={styles.btnSecondary} disabled={occupe} onPress={fermerSauvegarde}>
+                  <Text style={styles.btnSecondaryText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.btnPrimary, {flex:1},
+                  (backupMode==='export' && (backupPassword.length<16 || backupPassword!==backupPasswordConfirm)
+                    || backupMode==='restore' && !backupLegacy && backupPassword.length<16) && {opacity:.5}]}
+                  disabled={occupe || (backupMode==='export' && (backupPassword.length<16 || backupPassword!==backupPasswordConfirm))
+                    || (backupMode==='restore' && !backupLegacy && backupPassword.length<16)}
+                  onPress={()=>{
+                    const password=backupPassword, legacy=backupLegacy, mode=backupMode;
+                    setBackupMode(null);setBackupPassword('');setBackupPasswordConfirm('');setBackupLegacy(false);
+                    if(mode==='export') sauvegarderComplet({motDePasse:password});
+                    else demanderRestauration({motDePasse:password,autoriserArchiveAncienne:legacy});
+                  }}>
+                  <Text style={styles.btnPrimaryText}>{backupMode==='export'?'Créer le ZIP chiffré':'Choisir le ZIP'}</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </>) : (<>
     <View style={[styles.card,dataCard]}>
       <View style={{alignSelf:'stretch'}}>
         <Text style={styles.cardTitle}>Sauvegarde automatique</Text>
