@@ -1,0 +1,51 @@
+name: METRA encrypted backup regression gate
+# Baseline native candidate: verify durable encrypted archive and safe restores.
+on:
+  push:
+    branches:
+      - fix/metra-play-secure-backup-restore-20261123
+    paths:
+      - '.github/workflows/metra-secure-backup-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  secure-backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      npm_config_legacy_peer_deps: 'true'
+      METRA_PLAY_SECURE_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify exact npm lock and hardened ZIP
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node -e "const j=require('./package-lock.json'); if(j.packages['node_modules/react-native-zip-archive'].version!=='9.5.3')process.exit(1)"
+      - name: Audit backup and all previously committed runtime contracts
+        run: |
+          node --test tests/backupPlaySecure.test.mjs
+          node --test .github/scripts/test_metra_play_backup_ui.cjs
+          node .github/scripts/run_source_patches.js
+      - name: Audit whole application imports, routes and modal risks
+        run: node .github/scripts/audit_metra_all_screens.cjs
+      - name: Check REMAR and SQLite roundtrip regressions
+        run: |
+          node .github/scripts/test_remar_141_intranet_matrix.js
+          node .github/scripts/test_remar_dynamic.js
+          node .github/scripts/test_photo_workflow.js
+          node .github/scripts/test_intranet_visit_upload.js
+          node --import ./.github/scripts/legacy_fs_resolver.mjs --experimental-test-module-mocks --test tests/trameRemar.test.mjs
+      - name: Assert full Android Metro bundle builds
+        run: npx expo export --platform android --max-workers 2 --output-dir dist-secure-backup
+      - name: Preserve source tree without unintended edits
+        run: git diff --exit-code -- '*.js' '*.jsx' '*.ts' '*.tsx' 'package.json' 'package-lock.json' ':!playSecurityRuntime.generated.js' ':!googleMapsRuntime.generated.js'

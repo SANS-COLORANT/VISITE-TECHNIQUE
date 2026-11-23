@@ -1,0 +1,61 @@
+name: METRA Android 16 - native AES backup roundtrip QA
+on:
+  push:
+    branches:
+      - fix/metra-play-secure-backup-restore-20261123
+    paths:
+      - '.github/workflows/metra-native-backup-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  android-backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install independent AES ZIP verification reader
+        run: python3 -m pip install --quiet 'pyzipper==0.3.6'
+      - name: Download exact QA APK from the signed Play candidate 39
+        uses: actions/download-artifact@v4
+        with:
+          name: METRA-Android16-QA-39
+          run-id: 45190697863
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: qa-apk
+      - name: Validate APK selection
+        run: |
+          test "$(find qa-apk -type f -name '*.apk' | wc -l)" -eq 1
+          find qa-apk -type f -name '*.apk' -print
+      - name: Enable KVM for emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Prove AES-256 native archive, decrypt and wrong-password safety on disposable emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 6G
+          disable-animations: true
+          script: |
+            set -eu
+            adb install -r "$(find qa-apk -type f -name '*.apk' | head -1)"
+            python3 .github/scripts/android_backup_smoke.py
+      - name: Collect synthetic-device screenshots and crash logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: METRA-NATIVE-AES-39
+          path: audit-results/
+          if-no-files-found: warn
+          retention-days: 14

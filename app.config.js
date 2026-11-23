@@ -7,7 +7,7 @@ module.exports = ({ config }) => {
   const androidConfig = android.config || {};
   const plugins = [...(config.plugins || [])];
   // SDK 54 mandates config plugins for assets, fonts and protected preferences.
-  for (const id of ['expo-asset', 'expo-font', 'expo-secure-store']) {
+  for (const id of ['expo-asset', 'expo-font', 'expo-secure-store', 'react-native-zip-archive']) {
     if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === id)) plugins.push(id);
   }
   if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraPlaySecurity')) plugins.push('./plugins/withMetraPlaySecurity');
