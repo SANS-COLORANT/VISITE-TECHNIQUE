@@ -1,0 +1,58 @@
+name: METRA - Smoke Android des ecrans terrain
+on:
+  push:
+    branches:
+      - audit/metra-all-screen-blockers-20261123
+    paths:
+      - '.github/workflows/metra-emulator-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  android-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download signed native QA APK from METRA Play candidate 31
+        uses: actions/download-artifact@v4
+        with:
+          name: METRA-Android16-QA-31
+          run-id: 45150554724
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: qa-apk
+      - name: Verify APK selected for this Android smoke test
+        run: |
+          test "$(find qa-apk -type f -name '*.apk' | wc -l)" -eq 1
+          find qa-apk -type f -name '*.apk' -print
+      - name: Enable KVM for emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Test launch, settings, catalogue and visit shortcuts (Android 16)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 6G
+          disable-animations: true
+          script: |
+            APK="$(find qa-apk -type f -name '*.apk' | head -1)"
+            adb install -r "$APK"
+            python3 .github/scripts/android_emulator_smoke.py
+      - name: Archive screenshots, hierarchy findings and crash logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: METRA-Android-Emulator-Smoke-31
+          path: audit-results/
+          if-no-files-found: warn
+          retention-days: 14
