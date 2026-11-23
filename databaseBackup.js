@@ -201,6 +201,12 @@ export async function choisirEtRestaurerSauvegardeComplete() {
     await FileSystem.deleteAsync(securite, { idempotent: true });
     return { manifeste, controle, restartRequired: true };
   } catch (error) {
+    // Indiquer au panneau appelant si SQLite et les photos ont pu être touchées.
+    // Une erreur avant sélection/validation de l'archive ne justifie jamais
+    // d'imposer la fermeture de METRA.
+    if (remplacementCommence && error && typeof error === 'object') {
+      error.restoreTouchedDatabase = true;
+    }
     if (remplacementCommence) {
       try {
         await closeAppDatabase();
