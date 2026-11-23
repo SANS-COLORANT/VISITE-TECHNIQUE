@@ -7,13 +7,35 @@ function refuserExportNonChiffre() {
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
-import { zip, unzip } from 'react-native-zip-archive';
+import { zipWithPassword, unzipWithPassword, unzip } from 'react-native-zip-archive';
 import { getDb } from './db.js';
 import { DATABASE_NAME, DATABASE_SCHEMA_VERSION } from './database/constants.js';
 import { closeAppDatabase, openAppDatabase, verifyDatabaseIntegrity } from './database/index.js';
 
 const BACKUP_FORMAT = 'visite-technique-backup';
-const BACKUP_FORMAT_VERSION = 1;
+const BACKUP_FORMAT_VERSION = 2;
+const LEGACY_BACKUP_VERSION = 1;
+const BACKUP_ENCRYPTION = 'AES-256';
+const DURABLE_FOLDERS = Object.freeze([
+  { source: 'visite-technique/', archive: 'visite-technique/' },
+  { source: 'metra-missions/', archive: 'metra-missions/' },
+]);
+let backupBusy = false;
+
+function verifierMotDePasse(password) {
+  const value = String(password || '');
+  if (value.length < 12 || value.length > 256) throw new Error('Mot de passe de sauvegarde : 12 à 256 caractères requis. Il ne peut pas être récupéré par METRA.');
+  return value;
+}
+
+function safeArchiveRelative(path, field) {
+  const value = String(path || '').replace(/\\/g, '/');
+  if (!value || value.startsWith('/') || value.startsWith('./') || value.includes('//') ||
+      value.split('/').some(part => part === '..' || part === '.' || !part) ||
+      /^[A-Za-z]:/.test(value) || /[\x00-\x1F]/.test(value)) throw new Error(`Chemin non sûr dans l’archive (${field}).`);
+  return value;
+}
+
 const PHOTOS_RELATIVE_ROOT = 'visite-technique/photos/';
 
 function horodatageSauvegarde(date = new Date()) {
@@ -82,27 +104,39 @@ export async function exporterSauvegardeBase() {
 }
 
 /** Archive complète, générée nativement sans charger les JPEG en mémoire JS. */
-export async function exporterSauvegardeComplete() {
-  refuserExportNonChiffre();
+export async function exporterSauvegardeComplete({ password } = {}) {
+  const secret = verifierMotDePasse(password);
+  if (backupBusy) throw new Error('Une sauvegarde ou restauration est déjà en cours.');
+  backupBusy = true;
+  try {
   const db = await getDb();
   await db.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
+  const controleSource = await verifyDatabaseIntegrity(db);
+  if (!controleSource.integrityOk || !controleSource.foreignKeysOk) throw new Error('Base locale non intègre : sauvegarde arrêtée pour préserver les données.');
   const sourceDb = cheminBaseSQLite();
   if (!(await existe(sourceDb))) throw new Error('Fichier de base SQLite introuvable');
 
   const stamp = horodatageSauvegarde();
   const travail = `${FileSystem.cacheDirectory}vt-backup-${stamp}/`;
   const dossierDb = `${travail}database/`;
-  const dossierPhotos = `${travail}photos/`;
-  const archiveUri = `${FileSystem.cacheDirectory}Visite_Technique_Complet_${stamp}.zip`;
+  const dossierPhotos = `${travail}visite-technique/photos/`;
+  const archiveUri = `${FileSystem.cacheDirectory}METRA_Complete_AES256_${stamp}.zip`;
 
   await nettoyerDossier(travail);
   try {
     await FileSystem.makeDirectoryAsync(dossierDb, { intermediates: true });
     await FileSystem.copyAsync({ from: sourceDb, to: `${dossierDb}${DATABASE_NAME}` });
 
-    const photosSource = cheminPhotos();
-    if (await existe(photosSource)) await FileSystem.copyAsync({ from: photosSource, to: dossierPhotos });
-    else await FileSystem.makeDirectoryAsync(dossierPhotos, { intermediates: true });
+    const archivesDisponibles = [];
+    for (const folder of DURABLE_FOLDERS) {
+      const from = `${FileSystem.documentDirectory}${folder.source}`;
+      const to = `${travail}${folder.archive}`;
+      if (await existe(from)) {
+        await FileSystem.copyAsync({ from, to });
+        archivesDisponibles.push(folder.archive);
+      }
+    }
+    if (!(await existe(dossierPhotos))) await FileSystem.makeDirectoryAsync(dossierPhotos, { intermediates: true });
 
     const comptePhotos = await db.getFirstAsync('SELECT COUNT(*) AS n FROM photos');
     const compteVisites = await db.getFirstAsync('SELECT COUNT(*) AS n FROM visites');
@@ -112,32 +146,43 @@ export async function exporterSauvegardeComplete() {
       schemaVersion: DATABASE_SCHEMA_VERSION,
       createdAt: new Date().toISOString(),
       database: `database/${DATABASE_NAME}`,
-      photosRoot: 'photos/',
+      photosRoot: 'visite-technique/photos/',
+      durableRoots: archivesDisponibles,
+      encryption: BACKUP_ENCRYPTION,
       counts: { visites: Number(compteVisites?.n || 0), photos: Number(comptePhotos?.n || 0) },
     };
     await FileSystem.writeAsStringAsync(`${travail}manifest.json`, JSON.stringify(manifeste, null, 2));
 
     if (await existe(archiveUri)) await FileSystem.deleteAsync(archiveUri, { idempotent: true });
-    await zip(cheminNatif(travail), cheminNatif(archiveUri));
+    await zipWithPassword(cheminNatif(travail), cheminNatif(archiveUri), secret, BACKUP_ENCRYPTION);
+    const archiveInfo = await FileSystem.getInfoAsync(archiveUri, { size: true });
+    if (!archiveInfo.exists || Number(archiveInfo.size || 0) < 128) throw new Error('Archive ZIP chiffrée incomplète : aucun partage effectué.');
     await partagerFichier(archiveUri, 'Sauvegarde complète Visite Technique', 'application/zip');
-    return { uri: null, nom: archiveUri.split('/').pop(), manifeste, partage: true };
+    return { uri: null, nom: archiveUri.split('/').pop(), manifeste, partage: true, encryption: BACKUP_ENCRYPTION };
   } finally {
     await FileSystem.deleteAsync(travail, { idempotent: true }).catch(()=>{});
     await FileSystem.deleteAsync(archiveUri, { idempotent: true }).catch(()=>{});
   }
+  } finally { backupBusy = false; }
 }
 
 async function lireEtVerifierManifeste(dossier) {
   const uri = `${dossier}manifest.json`;
   if (!(await existe(uri))) throw new Error('Cette archive ne contient pas de manifeste Visite Technique.');
   const manifeste = JSON.parse(await FileSystem.readAsStringAsync(uri));
-  if (manifeste?.format !== BACKUP_FORMAT || Number(manifeste?.formatVersion) !== BACKUP_FORMAT_VERSION) throw new Error('Format de sauvegarde non reconnu.');
+  const archiveVersion = Number(manifeste?.formatVersion);
+  if (manifeste?.format !== BACKUP_FORMAT || ![BACKUP_FORMAT_VERSION, LEGACY_BACKUP_VERSION].includes(archiveVersion)) throw new Error('Format de sauvegarde non reconnu.');
+  if (archiveVersion === BACKUP_FORMAT_VERSION && manifeste?.encryption !== BACKUP_ENCRYPTION) throw new Error('Le manifeste de sauvegarde chiffrée est invalide.');
   const version = Number(manifeste.schemaVersion || 0);
   if (!Number.isFinite(version) || version < 1) throw new Error('Version de base absente ou invalide.');
   if (version > DATABASE_SCHEMA_VERSION) throw new Error(`Cette sauvegarde utilise une base plus récente (v${version}) que l’application (v${DATABASE_SCHEMA_VERSION}).`);
-  const dbBackup = `${dossier}${manifeste.database || `database/${DATABASE_NAME}`}`;
+  const dbRelative = safeArchiveRelative(manifeste.database || `database/${DATABASE_NAME}`, 'database');
+  if (dbRelative !== `database/${DATABASE_NAME}`) throw new Error('Emplacement SQLite inattendu dans l’archive.');
+  const photosRelative = safeArchiveRelative(manifeste.photosRoot || 'photos/', 'photosRoot');
+  if (![ 'photos/', 'visite-technique/photos/' ].includes(photosRelative.endsWith('/') ? photosRelative : `${photosRelative}/`)) throw new Error('Emplacement photos inattendu.');
+  const dbBackup = `${dossier}${dbRelative}`;
   if (!(await existe(dbBackup))) throw new Error('Base SQLite absente de la sauvegarde.');
-  return { manifeste, dbBackup, photosBackup: `${dossier}${manifeste.photosRoot || 'photos/'}` };
+  return { manifeste, dbBackup, photosBackup: `${dossier}${photosRelative}`, archiveVersion };
 }
 
 async function rebaserUrisPhotos(db) {
