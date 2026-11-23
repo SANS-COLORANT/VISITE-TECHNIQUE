@@ -60,12 +60,24 @@ async function requireSpace(requiredBytes) {
 async function checkPhotos(db) {
   // All new visit photos are private app files and must physically exist.
   const rows = await db.getAllAsync('SELECT id, uri FROM photos');
-  let missing = 0;
+  let missing = 0, outsideBackup = 0;
+  const allowed = ROOTS.map(folder => root() + folder);
   for (const row of rows) {
     const uri = String(row.uri || '');
-    if (uri.startsWith(root()) && !(await exists(uri))) missing++;
+    if (!uri) { missing++; continue; }
+    const managed = allowed.some(folder => uri.startsWith(folder));
+    // Do not silently claim that gallery/cache/external photos are inside
+    // a complete backup when the referenced bytes are outside owned roots.
+    if (!managed && (/^file:\/\//.test(uri) || /^content:\/\//.test(uri))) {
+      outsideBackup++;
+      continue;
+    }
+    if (managed && !(await exists(uri))) missing++;
   }
-  if (missing) throw new Error(missing + ' photo(s) locale(s) référencée(s) sont introuvables. Sauvegarde complète suspendue : lancer le diagnostic des données.');
+  if (missing || outsideBackup) {
+    throw new Error('Sauvegarde complète suspendue : ' + missing + ' photo(s) manquante(s), ' +
+      outsideBackup + ' photo(s) référencée(s) hors des dossiers durables METRA. Ne supprime pas l’application. Fais d’abord diagnostiquer ou rapatrier ces fichiers.');
+  }
   return rows.length;
 }
 async function countRows(db) {
