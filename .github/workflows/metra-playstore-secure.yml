@@ -13,6 +13,7 @@ on:
       - fix/astra27-reject-partial-photo-http-20261120
       - fix/metra-launch-safe-area-20261123
       - fix/metra-settings-modal-recovery-20261123
+      - fix/metra-equipment-flatlist-legacy-20261123
   workflow_dispatch:
 
 permissions:
@@ -74,6 +75,7 @@ jobs:
         run: |
           npm run verify:metra
           node --test .github/scripts/test_metra_settings_safe_area.cjs
+          node --test .github/scripts/test_metra_equipment_legacy.cjs
           # Fail the release when the vulnerable npm-registry SheetJS is bundled.
           node .github/scripts/assert_sheetjs_secure.cjs
           # Node ESM cannot resolve the Expo SDK54 legacy directory import; Metro
