@@ -2,6 +2,7 @@
 import React, { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions, Animated, Easing } from 'react-native';
 import { StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SWIPE_NEIGHBOUR_OPACITY, SWIPE_NEIGHBOUR_SCALE, rubberBand, settleSpring, shouldStartSwipe, swipeDirection } from './swipeNavigation.js';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, styles } from './styles.js';
@@ -125,6 +126,9 @@ function VisiteScreen({ route, onBack }) {
   const initialPreview = visitePreview || runtimeInitial?.preview || null;
   const initialTab = runtimeInitial?.ui?.activeTab || getNavigationState(visitNavKey)?.activeTab || 'p-infos';
   const { width, height } = useWindowDimensions();
+  // Les Modal Android sont des fenêtres distinctes, indépendantes du padding
+  // de la racine. Éviter la barre de navigation système dans leurs feuilles.
+  const { bottom: modalBottomInset } = useSafeAreaInsets();
   // Capture libre depuis la barre : la photographie reste locale par défaut.
   const [captureLibreEnCours, setCaptureLibreEnCours] = useState(false);
   const [signatureVisible, setSignatureVisible] = useState(false);
@@ -953,7 +957,7 @@ function VisiteScreen({ route, onBack }) {
         photoLabel={estParcoursRemar && activeTab==='p-remar-cta' && remarActiveCta?.id
           ? 'Photo CTA' : 'Photo libre'} onAnomalie={() => setAnomalieVisible(true)} /> : null}
 
-      <Modal visible={noteVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}>
+      <Modal visible={noteVisible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={fermerNote}><View style={[styles.modalOverlay, { paddingBottom: Math.max(12, modalBottomInset + 12) }]}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Note libre — {trame.nom}</Text>
         <TextInput style={[styles.input, { height: 160, textAlignVertical: 'top' }]} multiline value={noteTxt} onChangeText={onChangeNoteTxt} placeholder="Notes générales sur la visite..." />
         <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}><ButtonGlow /><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
@@ -999,7 +1003,7 @@ function VisiteScreen({ route, onBack }) {
         }}
       />
       <SignatureSheet visible={signatureVisible} initial={signature} onClose={() => setSignatureVisible(false)} onSave={enregistrerSignature} />
-      <Modal visible={anomalieVisible} transparent animationType="fade" onRequestClose={() => setAnomalieVisible(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}>
+      <Modal visible={anomalieVisible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={() => setAnomalieVisible(false)}><View style={[styles.modalOverlay, { paddingBottom: Math.max(12, modalBottomInset + 12) }]}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Ajouter une anomalie</Text><Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" style={{ marginTop: 12, flexGrow: 0 }} contentContainerStyle={{ gap: 8 }}>
           {motifsAnomalie.map((motif) => { const on = motifActif(anomalieTxt, motifsAnomalie) === motif; return <TouchableOpacity key={motif} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setAnomalieTxt(appliquerMotif(anomalieTxt, motif, motifsAnomalie))} style={[styles.avisChip, { flex: 0, paddingHorizontal: 12 }, on && { backgroundColor: COLORS.orangeLight, borderColor: COLORS.orange }]}>
