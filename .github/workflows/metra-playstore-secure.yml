@@ -15,6 +15,7 @@ on:
       - fix/metra-settings-modal-recovery-20261123
       - fix/metra-equipment-flatlist-legacy-20261123
       - audit/metra-all-screen-blockers-20261123
+      - experiment/metra-r8-dex-20261123
   workflow_dispatch:
 
 permissions:
@@ -32,6 +33,7 @@ jobs:
       CI: '1'
       EXPO_NO_TELEMETRY: '1'
       METRA_PLAY_SECURE_BUILD: '1'
+      METRA_EXPERIMENTAL_R8: '1' # Pilot branch only, never enable in the normal release channel
       GOOGLE_MAPS_API_KEY: ''
       npm_config_legacy_peer_deps: 'true'
       GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8 -Dorg.gradle.workers.max=2'
@@ -77,6 +79,7 @@ jobs:
           npm run verify:metra
           node --test .github/scripts/test_metra_settings_safe_area.cjs
           node --test .github/scripts/test_metra_equipment_legacy.cjs
+          node --test .github/scripts/test_metra_r8_dex_experiment.cjs
           node --test .github/scripts/test_photo_ocr_gallery_contract.cjs
           node .github/scripts/audit_metra_all_screens.cjs
           # Fail the release when the vulnerable npm-registry SheetJS is bundled.
@@ -136,6 +139,9 @@ jobs:
           grep -qx 'export const METRA_PLAY_SECURE_BUILD = true;' playSecurityRuntime.generated.js
           npx expo prebuild --clean --platform android --no-install
           test -s android/gradlew
+          grep -qx 'android.enableMinifyInReleaseBuilds=true' android/gradle.properties
+          grep -qx 'android.enableShrinkResourcesInReleaseBuilds=false' android/gradle.properties
+          grep -q 'minifyEnabled enableMinifyInReleaseBuilds' android/app/build.gradle
           test -s android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
           grep -q 'followRedirects(false)' android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
           grep -q 'followSslRedirects(false)' android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
@@ -213,7 +219,10 @@ jobs:
           echo 'Signed App Bundle integrity: verified (self-signed upload certificate expected).'
           jarcert="$(keytool -printcert -jarfile release/METRA-PlayStore.aab | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
           test "$actual" = "$jarcert"
+          test -s android/app/build/outputs/mapping/release/mapping.txt
+          cp android/app/build/outputs/mapping/release/mapping.txt release/METRA-R8-mapping.txt
           sha256sum release/METRA-PlayStore.aab > release/METRA-PlayStore.aab.sha256
+          python3 .github/scripts/measure_metra_dex_r8.py release/METRA-PlayStore.aab release/METRA-DEX-R8-metrics.json
           rm -f android/app/metra-release.keystore
 
       - name: Archive Play signing QA result and test APK
@@ -231,5 +240,16 @@ jobs:
         with:
           name: METRA-PlayStore-AAB-${{ github.run_number }}
           path: release/METRA-PlayStore.aab*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Archive R8 DEX metrics and exact matching symbol mapping
+        if: steps.signing.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: METRA-DEX-R8-SYMBOLS-${{ github.run_number }}
+          path: |
+            release/METRA-DEX-R8-metrics.json
+            release/METRA-R8-mapping.txt
           if-no-files-found: error
           retention-days: 30
