@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { activateTablet, getActivationStatus, syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
 import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory, listImportedApiClients } from './symfonyApiCacheDb.js';
@@ -14,6 +14,8 @@ import { startPhotoDownload } from './latestVisitPhotoTasks.js';
 import { filterLatestVisitPhotos, photoSummary } from './latestVisitPhotoModel.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { ButtonGlow } from './ButtonGlow.js';
+import { ActivationQrScanner } from './ActivationQrScanner.js';
+import { isActivationCode } from './activationCode.js';
 
 const SURFACE = '#FFFFFF';
 const BORDER = '#E6E8EC';
@@ -106,6 +108,37 @@ function MetraDirectoryScreen({ navigation, route }) {
   const [activationVisible, setActivationVisible] = useState(false);
   const [activationCode, setActivationCode] = useState('');
   const [activating, setActivating] = useState(false);
+  const [activationScanOpen, setActivationScanOpen] = useState(false);
+  const [activationNotice, setActivationNotice] = useState('');
+  const activationInFlightRef = useRef(false);
+  const activationScanRef = useRef(false);
+  const closeActivationScan = useCallback((message = 'Scan annulé. La saisie manuelle reste disponible.') => {
+    if (!activationScanRef.current) return;
+    activationScanRef.current = false;
+    setActivationScanOpen(false);
+    setActivationNotice(message);
+  }, []);
+  const acceptActivationQr = useCallback((value) => {
+    if (!activationScanRef.current || !isActivationCode(value)) return;
+    activationScanRef.current = false;
+    setActivationCode(value);
+    setActivationNotice('Code lu. Vérifie-le puis appuie sur Activer.');
+    setActivationScanOpen(false);
+  }, []);
+  const openActivationScan = () => {
+    if (activationInFlightRef.current || activationScanRef.current) return;
+    Keyboard.dismiss();
+    activationScanRef.current = true;
+    setActivationNotice('');
+    setActivationScanOpen(true);
+  };
+  const closeActivation = () => {
+    if (activationInFlightRef.current) return;
+    if (activationScanRef.current) { closeActivationScan(); return; }
+    setActivationVisible(false);
+    setActivationCode('');
+    setActivationNotice('');
+  };
   const [selectedClient, setSelectedClient] = useState(null);
   const [selectedSite, setSelectedSite] = useState(null);
   const [siteClient, setSiteClient] = useState(null);
@@ -172,16 +205,30 @@ function MetraDirectoryScreen({ navigation, route }) {
   };
 
   const activate = async () => {
-    if (activationCode.length !== 48 || activating) return;
+    if (!isActivationCode(activationCode) || activationInFlightRef.current || activationScanRef.current) return;
+    activationInFlightRef.current = true;
     setActivating(true);
     try {
       await activateTablet(activationCode);
       setActivationCode('');
+      setActivationNotice('');
       setActivationVisible(false);
-      await syncAuthorizedClients();
-      await Promise.all([search(query), refreshStatus()]);
-    } catch (e) { Alert.alert('Activation impossible', String(e.message || e)); }
-    finally { setActivating(false); }
+      await refreshStatus();
+      try {
+        await syncAuthorizedClients();
+        await Promise.all([search(query), refreshStatus()]);
+      } catch {
+        Alert.alert('Tablette activée', 'La synchronisation initiale a échoué. Réessaie depuis la recherche Intranet.');
+      }
+    } catch (e) {
+      // Do not display or log arbitrary server error bodies or credentials.
+      setActivationNotice(e?.code === 'invalid_grant'
+        ? 'Code refusé : il peut être expiré, déjà utilisé ou remplacé. Génère un nouveau code.'
+        : 'Activation impossible. Vérifie la connexion et réessaie ou contacte le support.');
+    } finally {
+      activationInFlightRef.current = false;
+      setActivating(false);
+    }
   };
 
   const refreshClientPreparation = async (remoteClientId) => {
@@ -568,19 +615,26 @@ function MetraDirectoryScreen({ navigation, route }) {
       onClose={closeClientLatestPhotos}
     />
 
-    <Modal visible={activationVisible} transparent animationType="fade" onRequestClose={() => setActivationVisible(false)}>
+    <Modal visible={activationVisible} transparent animationType="fade" onRequestClose={closeActivation}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, { borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>
         <Text style={{ color: ACCENT, fontSize: 10, fontFamily: FONTS.black, letterSpacing: 0.8 }}>CONNEXION SÉCURISÉE</Text>
-        <Text style={[styles.modalTitle, { marginTop: 5 }]}>Activer cette tablette</Text>
-        <Text style={[styles.cardSub, { marginBottom: 14, lineHeight: 18 }]}>Colle le code de 48 caractères généré dans l’administration Énergie & Service. La clé privée reste protégée dans Android Keystore.</Text>
-        <View style={{ borderRadius: 13, borderWidth: 1, borderColor: activationCode.length === 48 ? '#B7E4CF' : BORDER, backgroundColor: '#F8F9FB', paddingHorizontal: 12 }}>
-          <TextInput style={{ minHeight: 50, color: INK, fontSize: 15, letterSpacing: 0.4 }} value={activationCode} onChangeText={(v) => setActivationCode(v.replace(/\s/g, '').slice(0, 48))} placeholder="Code d’activation" placeholderTextColor="#98A2B3" autoCapitalize="none" autoCorrect={false} autoFocus />
-        </View>
-        <Text style={{ alignSelf: 'flex-end', color: activationCode.length === 48 ? SUCCESS : MUTED, fontSize: 11.5, fontFamily: FONTS.bold, marginTop: 6 }}>{activationCode.length} / 48</Text>
-        <View style={[styles.modalActions, { marginTop: 16 }]}>
-          <TouchableOpacity style={styles.btnSecondary} onPress={() => setActivationVisible(false)} disabled={activating}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.btnPrimary} onPress={activate} disabled={activating || activationCode.length !== 48}><ButtonGlow /><Text style={styles.btnPrimaryText}>{activating ? 'Activation…' : 'Activer'}</Text></TouchableOpacity>
-        </View>
+        {activationScanOpen ? <ActivationQrScanner onRead={acceptActivationQr} onCancel={closeActivationScan} /> : <>
+          <Text style={[styles.modalTitle, { marginTop: 5 }]}>Activer cette tablette</Text>
+          <Text style={[styles.cardSub, { marginBottom: 14, lineHeight: 18 }]}>Scanne le QR code ou saisis le code de 48 caractères généré dans l’administration Énergie & Service. La clé privée reste protégée dans Android Keystore.</Text>
+          <TouchableOpacity accessibilityRole="button" disabled={activating} style={[styles.btnSecondary, { marginBottom: 12 }]} onPress={openActivationScan}>
+            <Text style={styles.btnSecondaryText}>Scanner le QR code</Text>
+          </TouchableOpacity>
+          <View style={{ borderRadius: 13, borderWidth: 1, borderColor: isActivationCode(activationCode) ? '#B7E4CF' : BORDER, backgroundColor: '#F8F9FB', paddingHorizontal: 12 }}>
+            <TextInput accessibilityLabel="Code d’activation" editable={!activating} style={{ minHeight: 50, color: INK, fontSize: 15, letterSpacing: 0.4 }} value={activationCode} onChangeText={(v) => { setActivationCode(v.replace(/\s/g, '').slice(0, 48)); setActivationNotice(''); }} placeholder="Code d’activation" placeholderTextColor="#98A2B3" autoCapitalize="none" autoCorrect={false} />
+          </View>
+          <Text style={{ alignSelf: 'flex-end', color: isActivationCode(activationCode) ? SUCCESS : MUTED, fontSize: 11.5, fontFamily: FONTS.bold, marginTop: 6 }}>{activationCode.length} / 48</Text>
+          {activationCode.length === 48 && !isActivationCode(activationCode) ? <Text style={{ color: '#9A4C0A', fontSize: 12, marginTop: 6 }}>Utilise uniquement les chiffres 0–9 et les lettres a–f minuscules.</Text> : null}
+          {activationNotice ? <Text accessibilityLiveRegion="polite" style={{ color: MUTED, fontSize: 12.5, marginTop: 8, lineHeight: 18 }}>{activationNotice}</Text> : null}
+          <View style={[styles.modalActions, { marginTop: 16 }]}>
+            <TouchableOpacity accessibilityRole="button" style={styles.btnSecondary} onPress={closeActivation} disabled={activating}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" style={styles.btnPrimary} onPress={activate} disabled={activating || !isActivationCode(activationCode)}><ButtonGlow /><Text style={styles.btnPrimaryText}>{activating ? 'Activation…' : 'Activer'}</Text></TouchableOpacity>
+          </View>
+        </>}
       </View></View>
     </Modal>
   </View>;

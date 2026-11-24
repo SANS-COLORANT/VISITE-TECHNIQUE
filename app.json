@@ -47,6 +47,14 @@
           "photosPermission": "Autoriser Visite Technique à accéder aux photos nécessaires aux visites techniques.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Autoriser METRA à scanner le QR code d’activation.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
       ]
     ],
     "extra": {

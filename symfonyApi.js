@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import { NativeModules } from 'react-native';
+import { isActivationCode } from './activationCode.js';
 import { cacheAuthorizedClients, cachePreparation, getApiSyncState, markApiError, updateApiSyncState } from './symfonyApiCacheDb.js';
 
 export const METRA_API_BASE_URL = 'https://intranet-energieetservice.com';
@@ -254,7 +255,7 @@ async function rawRequest(method, url, { accessToken = null, body = null, header
 
 export async function activateTablet(code) {
   const activationCode = String(code || '').trim();
-  if (activationCode.length !== 48) throw new Error('Le code d’activation doit contenir exactement 48 caractères.');
+  if (!isActivationCode(activationCode)) throw new Error('Le code d’activation doit contenir exactement 48 caractères hexadécimaux minuscules.');
 
   const url = endpoint('/api/tablettes/activation');
   const tokens = await rawRequest('POST', url, {
