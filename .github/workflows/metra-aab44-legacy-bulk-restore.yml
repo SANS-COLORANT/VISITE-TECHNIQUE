@@ -1,0 +1,94 @@
+name: METRA AAB44 - historical large ZIP restore
+on:
+  push:
+    branches:
+      - qa/metra-aab44-restore-data-retention-20261124
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  signed-aab-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install independent ZIP and media verification tools
+        run: |
+          python -m pip install 'pyzipper==0.3.6' 'Pillow==11.3.0'
+          python -m py_compile .github/scripts/android_aab_restore_retention.py .github/scripts/android_backup_smoke.py
+      - name: Download historical signed AAB 38
+        uses: actions/download-artifact@v4
+        with:
+          name: METRA-PlayStore-AAB-38
+          run-id: 45171292885
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: aab38
+      - name: Download exact signed AAB 44
+        uses: actions/download-artifact@v4
+        with:
+          name: METRA-PlayStore-AAB-44
+          run-id: 45194050713
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: aab44
+      - name: Verify cryptographic hashes and signatures, generate APKs from exact AABs
+        run: |
+          set -euo pipefail
+          mkdir -p audit-results
+          curl --fail --location --retry 3 https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar -o "$RUNNER_TEMP/bundletool.jar"
+          keytool -genkeypair -keystore "$RUNNER_TEMP/qa.p12" -storetype PKCS12 -storepass android -keypass android -alias metraqa -keyalg RSA -keysize 2048 -validity 365 -dname "CN=Disposable METRA QA"
+          for n in 38 44; do
+            dir="aab$n"
+            test "$(find "$dir" -name '*.aab' -type f | wc -l)" -eq 1
+            aab="$(find "$dir" -name '*.aab' -type f)"
+            expected="$(awk '{print $1}' "$(find "$dir" -name '*.aab.sha256' -type f)")"
+            actual="$(sha256sum "$aab" | awk '{print $1}')"
+            test "$expected" = "$actual"
+            printf 'AAB %s SHA256 %s\n' "$n" "$actual" | tee -a audit-results/aab-identity.txt
+            jarsigner -verify "$aab" > "audit-results/aab$n-signature.txt"
+            grep -q 'jar verified' "audit-results/aab$n-signature.txt"
+            java -jar "$RUNNER_TEMP/bundletool.jar" validate --bundle="$aab"
+            java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle="$aab" > "audit-results/aab$n-manifest.xml"
+            java -jar "$RUNNER_TEMP/bundletool.jar" build-apks --bundle="$aab" --output="$dir/test.apks" --mode=universal --ks="$RUNNER_TEMP/qa.p12" --ks-pass=pass:android --ks-key-alias=metraqa --key-pass=pass:android
+            unzip -p "$dir/test.apks" universal.apk > "$dir/test.apk"
+            test -s "$dir/test.apk"
+            sha256sum "$dir/test.apk" >> audit-results/aab-identity.txt
+          done
+          tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          for n in 38 44; do
+            "$tools/apksigner" verify --verbose "aab$n/test.apk"
+            "$tools/aapt" dump badging "aab$n/test.apk" > "audit-results/aab$n-apk-badging.txt"
+            grep -q "package: name='com.visitetechnique.tablet'" "audit-results/aab$n-apk-badging.txt"
+          done
+      - name: Enable emulator KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Restore synthetic historical ZIP with 101 visits and 466 JPEGs
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 8G
+          disable-animations: true
+          script: |
+            python3 .github/scripts/android_legacy_bulk_restore.py aab44/test.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: METRA-AAB44-HISTORICAL-BULK-RESTORE-EVIDENCE
+          path: audit-results/
+          if-no-files-found: warn
+          retention-days: 14
