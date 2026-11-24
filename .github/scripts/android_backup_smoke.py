@@ -73,15 +73,24 @@ def private_archive_path():
     return None
 def export_test():
     adb("wait-for-device")
-    adb("root",check=False)
-    adb("wait-for-device")
+    # Root setup is already performed by the qualification harness. Restart
+    # adbd only if strictly needed; wait for package manager before launching.
+    if adb("shell","id","-u",check=False).strip()!="0":
+        adb("root",check=False)
+        adb("wait-for-device")
+    deadline=time.monotonic()+60
+    while time.monotonic()<deadline:
+        if "package:" in adb("shell","pm","path",PKG,check=False):break
+        time.sleep(2)
     adb("shell","monkey","-p",PKG,"-c","android.intent.category.LAUNCHER","1")
     # Android 16 may display the native splash before the JS process starts.
     # Avoid interpreting the normal launch window as a native crash.
     deadline = time.monotonic() + 75
     while time.monotonic() < deadline and not ui.app_running():
         time.sleep(1)
-    assert ui.app_running(), "METRA process never launched after 75 seconds"
+    if not ui.app_running():
+        ui.snapshot("backup-startup-failed")
+        raise AssertionError("METRA process never launched after 75 seconds")
     assert ui.await_label(["Réglages"],seconds=80), "Home not available"
     record("home visible",True)
     assert ui.tap(["Réglages"],seconds=24), "Cannot reach settings"

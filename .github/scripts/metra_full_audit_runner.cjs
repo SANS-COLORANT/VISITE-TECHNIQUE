@@ -50,6 +50,9 @@ const suites = [
   ]],
   ['reports', [
     ['node', 'tests/reportPdfFragments.test.mjs'],
+    ['node', 'tests/reportFidelity.test.mjs'],
+    ['node', 'tests/reportPerformance.test.mjs'],
+    ['node', 'tests/mobileLayout.test.mjs'],
     ['node', '.github/scripts/test_lot06_report_fidelity.js'],
     ['node', '.github/scripts/test_report_row_visibility.js'],
     ['node', '.github/scripts/test_visit_date_persistence.js'],

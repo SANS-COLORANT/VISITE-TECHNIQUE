@@ -246,7 +246,7 @@ function AppContent({ phoneIntegralMode = false }) {
 
   const currentName = stack[stack.length - 1]?.name || 'Home';
   // Les racines Accueil/Clients/Réglages possèdent leur propre geste d'onglet.
-  const backSwipeEnabled = stack.length > 1 && BACK_SWIPE_ROUTES.has(currentName) && !ROUTE_ROOT_TABS[currentName];
+  const backSwipeEnabled = stack.length > 1 && currentName!=='ClientPilotage' && BACK_SWIPE_ROUTES.has(currentName) && !ROUTE_ROOT_TABS[currentName];
   const backSwipeResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_event, gesture) => (
       backSwipeEnabled
@@ -283,8 +283,10 @@ function AppContent({ phoneIntegralMode = false }) {
   );
   const rootOrderIndex=Math.max(0,ROOT_TAB_KEYS.indexOf(tabSwipeKey));
   const tabSwipeResponder=useMemo(()=>PanResponder.create({
+    onMoveShouldSetPanResponderCapture:(event,gesture)=>tabSwipeEnabled && (event.nativeEvent.touches?.length||1)===1 && canStartRootSwipe(tabSwipeKey,gesture.dx,gesture.dy),
     onMoveShouldSetPanResponder:(_event,gesture)=>tabSwipeEnabled && canStartRootSwipe(tabSwipeKey,gesture.dx,gesture.dy),
-    onPanResponderTerminationRequest:()=>true,
+    onPanResponderTerminationRequest:()=>false,
+    onShouldBlockNativeResponder:()=>true,
     onPanResponderGrant:()=>{
       tabGestureSerial.current+=1;
       tabGestureActive.current=true;

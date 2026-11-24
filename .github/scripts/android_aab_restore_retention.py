@@ -303,6 +303,7 @@ def main():
     a,apath=snapshot("02-new-AAB-after-update")
     assert a==a0,"update changed synthetic rows or media"
     mark("Previous to new AAB in-place update, no uninstall, equality of 13 tables and 3 SHA256")
+    launch()
     aes.export_test()
     arc=aes.private_archive_path()
     assert arc,"native encrypted archive absent"

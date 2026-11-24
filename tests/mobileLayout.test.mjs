@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {getPilotageColumnWindow} from '../pilotageDensity.js';
+import {getPilotageColumnWindow,getPilotagePanGeometry,clampPilotageZoom,clampPilotageOffset,rescalePilotageOffset,visiblePilotageColumns,fitPilotageZoom} from '../pilotageDensity.js';
 import {rootSwipeProgress,rootSwipePosition,rootSwipeTarget} from '../rootTabSwipe.js';
 const source=name=>readFileSync(name,'utf8');
 test('all categories visible in complete viewport-sized columns, phone/tablet and font scaling',()=>{
@@ -47,4 +47,25 @@ test('pager and dock driven by the same absolute animated value',()=>{
  assert.ok(a.includes('swipeProgress={tabSwipeProgress}'));
  assert.ok(b.includes('inputRange:[0,1,2]'));
  assert.ok(!b.includes('deltaToNext'));
+});
+
+test('continuous pilotage zoom and horizontal pan cover every column without losing label column',()=>{
+ for(const width of [250,330,360,600,1000])for(const count of [1,7,19]){
+   const g=getPilotagePanGeometry({width,count,zoom:1});
+   const small=getPilotagePanGeometry({width,count,zoom:.38});
+   assert.ok(g.leftWidth<=width*.44&&small.leftWidth<=g.leftWidth);
+   assert.ok(small.cellWidth<=g.cellWidth);
+   assert.equal(clampPilotageOffset(-50,g),0);
+   assert.equal(clampPilotageOffset(1e5,g),g.maxOffset);
+   assert.equal(visiblePilotageColumns(g.maxOffset,g).end,count);
+   const target=rescalePilotageOffset(g.maxOffset/2,g,small,.5);
+   assert.ok(target>=0&&target<=small.maxOffset);
+   assert.ok(fitPilotageZoom(width,count)>=.38);
+ }
+ assert.equal(clampPilotageZoom(5),1.65);
+ assert.equal(clampPilotageZoom(.01),.38);
+ const s=source('ClientPilotageScreen.js');
+ assert.ok(s.includes('onStartShouldSetPanResponderCapture')&&s.includes('distance/s.distance'));
+ assert.ok(s.includes('transform:[{translateX:animatedX}]')&&s.includes('scrollEnabled={!gesturing}'));
+ assert.ok(s.includes('Réduire le zoom')&&s.includes('Agrandir le zoom'));
 });

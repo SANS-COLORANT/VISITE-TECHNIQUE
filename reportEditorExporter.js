@@ -267,7 +267,7 @@ async function lireAssetBinaire(moduleId) {
   throw new Error('Asset PDF illisible');
 }
 
-async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, coverDataUri, pdfSource=null) {
+async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, coverDataUri, pdfSource=null,navigationBatches=[]) {
   // Reuse the merged document rather than serializing and parsing it again.
   const pdf = pdfSource || await PDFDocument.load(await lirePdfBinaire(uriSource));
   const pages = pdf.getPages();
@@ -281,7 +281,8 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
       bold.widthOfTextAtSize(String(v || ''), 9);
   } catch (error) {
     console.warn('Habillage PDF Unicode non pris en charge ; PDF imprimé complet conservé.', error);
-    if(uriSource)return uriSource;
+    installReportNavigation(pdf,navigationBatches);
+    if(uriSource&&navigationBatches.length===0)return uriSource;
     return sauvegarderPdfBinaire(pdf);
   }
   const mm = (value) => value * 72 / 25.4;
@@ -418,6 +419,7 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
     page.drawText(pageText, { x: x + arrowW + (numW - tW) / 2, y: footerY + 4, size: 6.6, font: bold, color: rgb(1, 1, 1) });
   });
 
+  installReportNavigation(pdf,navigationBatches);
   checkReportCancelled(config);
   return sauvegarderPdfBinaire(pdf);
 }
@@ -516,11 +518,10 @@ async function imprimerPdfParFragments({datas,config,photosConfig,onProgress}) {
       progress('Impression',count,lots.length);
       await new Promise(resolve=>setTimeout(resolve,0));
     }
-    const nav=installReportNavigation(final,navigationBatches);
-    Object.assign(metrics,{bookmarks:nav.bookmarks,exactLocalLinks:nav.exact,headerPrintJobs:1});
+    metrics.headerPrintJobs=1;
     const after=reportPhotoCacheStats();
     Object.assign(metrics,{photoCacheHits:after.hits-cacheBefore.hits,photoEncodes:after.encoded-cacheBefore.encoded,assembleMs:Date.now()-started,pages:final.getPageCount()});
-    return {pdf:final,coverDataUri:header.coverDataUri,metrics};
+    return {pdf:final,coverDataUri:header.coverDataUri,metrics,navigationBatches};
   }catch(error){
     if(error?.code==='METRA_REPORT_CANCELLED')throw error;
     throw Error('Génération PDF interrompue ('+count+'/'+lots.length+' lots) : '+String(error?.message||error));
@@ -532,6 +533,7 @@ export async function preparerApercuPdfFragmente({datas,config,photosConfig}){
   beginReportPhotoExport();
   try{
     const result=await imprimerPdfParFragments({datas,config,photosConfig});
+    installReportNavigation(result.pdf,result.navigationBatches);
     return await sauvegarderPdfBinaire(result.pdf,'rapport_apercu');
   }finally{endReportPhotoExport();}
 }
@@ -559,7 +561,7 @@ async function exporterUnFormatEdite({datas,config,photosConfig,format,dossier})
     checkReportCancelled(config);
     config.onReportProgress?.({phase:'Pagination et assemblage',done:0,total:1});
     const finishStart=Date.now();
-    habille=await habillerPdfEdite(null,config,siteFooter,clientCover,result.coverDataUri,result.pdf);
+    habille=await habillerPdfEdite(null,config,siteFooter,clientCover,result.coverDataUri,result.pdf,result.navigationBatches);
     result.metrics.finishMs=Date.now()-finishStart;
     checkReportCancelled(config);
     config.onReportProgress?.({phase:'Enregistrement',done:0,total:1});

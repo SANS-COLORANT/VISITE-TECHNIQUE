@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, Animated, FlatList, Modal, PanResponder, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { buildMatrixCells, getClientTechnicalMatrix, getMatrixCellPhotos, normAvis } from './clientTechnicalMatrix.js';
@@ -11,7 +11,7 @@ import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { prewarmSiteLocals } from './navigationPrewarm.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { SkeletonList } from './Skeleton.js';
-import { getPilotageColumnWindow } from './pilotageDensity.js';
+import { clampPilotageZoom, clampPilotageOffset, getPilotagePanGeometry, visiblePilotageColumns, rescalePilotageOffset, fitPilotageZoom, PILOTAGE_ZOOM_MIN, PILOTAGE_ZOOM_MAX } from './pilotageDensity.js';
 
 const STATE = {
   green: { bg: '#E8F5E9', border: '#2E7D32', text: '#1B5E20', symbol: '✓' },
@@ -40,10 +40,14 @@ async function mapAvecConcurrence(items, limite, worker) {
   await Promise.all(workers); return resultats;
 }
 
-function Cell({ cell, onPress, width = 98 }) {
+function Cell({ cell, onPress, width = 98, zoom=1, label='' }) {
   const p = STATE[cell.state] || STATE.none;
   const count = cell.state === 'red' || cell.state === 'orange' ? (cell.ns || 0) : cell.state === 'unknown' ? ((cell.nr || 0)+(cell.nv || 0)) : cell.state === 'green' ? (cell.s || 0) : (cell.so || 0);
-  return <TouchableOpacity disabled={!cell.total} onPress={onPress} style={{ width: Math.max(1,width - 6), minHeight: 50, margin: 3, paddingVertical: 5, borderRadius: 10, borderWidth: 1.5, borderColor: p.border, backgroundColor: p.bg, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 16, fontFamily: FONTS.black, color: p.text }}>{p.symbol} {count || ''}</Text><Text style={{ fontSize: 8.5, color: p.text, marginTop: 2 }}>{cell.total ? `${cell.s} S · ${cell.ns} N.S` : 'Non concerné'}</Text></TouchableOpacity>;
+  const inset=Math.max(1,Math.round(3*zoom));
+  return <TouchableOpacity accessibilityRole="button" accessibilityLabel={label+' : '+cell.s+' satisfaisant(s), '+cell.ns+' non satisfaisant(s)'} disabled={!cell.total} onPress={onPress} style={{width:Math.max(1,width-2*inset),minHeight:Math.max(21,50*zoom),margin:inset,paddingVertical:Math.max(1,4*zoom),borderRadius:Math.max(3,10*zoom),borderWidth:Math.max(.75,1.5*zoom),borderColor:p.border,backgroundColor:p.bg,alignItems:'center',justifyContent:'center'}}>
+    <Text numberOfLines={1} allowFontScaling={false} style={{fontSize:Math.max(9,16*zoom),fontFamily:FONTS.black,color:p.text}}>{p.symbol} {count||''}</Text>
+    {zoom>=.65?<Text numberOfLines={1} allowFontScaling={false} style={{fontSize:Math.max(6.5,8.5*zoom),color:p.text,marginTop:1}}>{cell.total?`${cell.s} S · ${cell.ns} N.S`:'Non concerné'}</Text>:null}
+  </TouchableOpacity>;
 }
 
 function Stat({ value, label, sub }) {
@@ -55,19 +59,64 @@ function Chip({ label, active, onPress, danger = false }) {
 }
 
 /**
- * A single vertical virtualized list owns the whole pilotage screen.
- * A responsive window of complete category columns avoids conflicting nested
- * vertical scrolls and preserves the site/local column on small devices.
+ * A single vertical virtualized list, shared horizontal offset and continuous
+ * pinch zoom. No nested vertical scrollers or per-row scroll synchronization.
  */
-function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, nomClient, openCell, header, footer }) {
+function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, nomClient, openCell, header:headerContent, footer:footerContent }) {
   const {width,fontScale}=useWindowDimensions();
   const [collapsed,setCollapsed]=useState({});
-  const [page,setPage]=useState(0);
-  const [viewport,setViewport]=useState(0);
-  const geometry=getPilotageColumnWindow({width:Math.max(1,(viewport||width)-30),fontScale,count:categories.length,page});
-  const {leftWidth,cellWidth,pages,start,end}=geometry;
-  const shown=categories.slice(start,end);
-  useEffect(()=>{if(page!==geometry.page)setPage(geometry.page);},[page,geometry.page]);
+  const [zoom,setZoom]=useState(1),[viewport,setViewport]=useState(0);
+  const [gesturing,setGesturing]=useState(false);
+  const [range,setRange]=useState({start:0,end:0});
+  const animatedX=useRef(new Animated.Value(0)).current;
+  const offset=useRef(0),inMatrix=useRef(false),gestureState=useRef(null);
+  const params=useRef({});
+  params.current={width:Math.max(1,(viewport||width)-28),count:categories.length,fontScale};
+  const geometry=getPilotagePanGeometry({...params.current,zoom});
+  const geometryRef=useRef(geometry);
+  geometryRef.current=geometry;
+  const {leftWidth,cellWidth,categoryViewport,contentWidth,rowHeight,headerHeight}=geometry;
+  const applyOffset=useCallback((value,g=geometryRef.current)=>{
+    const x=clampPilotageOffset(value,g);
+    offset.current=x;animatedX.setValue(-x);
+    const next=visiblePilotageColumns(x,g);
+    setRange(old=>old.start===next.start&&old.end===next.end?old:next);
+  },[animatedX]);
+  useEffect(()=>{applyOffset(offset.current,geometryRef.current);},[viewport,width,fontScale,categories.length,zoom,applyOffset]);
+  const applyZoom=useCallback((target,anchor=.5)=>{
+    const old=geometryRef.current,z=clampPilotageZoom(target);
+    if(Math.abs(z-old.zoom)<.012)return;
+    const next=getPilotagePanGeometry({...params.current,zoom:z});
+    const x=rescalePilotageOffset(offset.current,old,next,anchor);
+    geometryRef.current=next;setZoom(z);applyOffset(x,next);
+  },[applyOffset]);
+  const touchDistance=touches=>touches?.length>=2?Math.hypot(touches[0].pageX-touches[1].pageX,touches[0].pageY-touches[1].pageY):0;
+  const pinchAnchor=touches=>{
+    const g=geometryRef.current;
+    return Math.max(0,Math.min(1,((touches[0].pageX+touches[1].pageX)/2-14-g.leftWidth)/g.categoryViewport));
+  };
+  const responder=useMemo(()=>PanResponder.create({
+    onStartShouldSetPanResponderCapture:e=>inMatrix.current&&e.nativeEvent.touches?.length>=2,
+    onMoveShouldSetPanResponderCapture:(e,g)=>inMatrix.current&&(e.nativeEvent.touches?.length>=2||
+      (Math.abs(g.dx)>10&&Math.abs(g.dx)>Math.abs(g.dy)*1.5)),
+    onPanResponderGrant:e=>{
+      const touches=e.nativeEvent.touches||[],distance=touchDistance(touches);
+      gestureState.current={mode:distance>0?'pinch':'pan',offset:offset.current,zoom:geometryRef.current.zoom,distance,anchor:distance?pinchAnchor(touches):.5};
+      setGesturing(true);
+    },
+    onPanResponderMove:(e,g)=>{
+      const s=gestureState.current;if(!s)return;
+      const touches=e.nativeEvent.touches||[],distance=touchDistance(touches);
+      if(distance>0){
+        if(s.mode!=='pinch'){s.mode='pinch';s.distance=distance;s.zoom=geometryRef.current.zoom;s.anchor=pinchAnchor(touches);}
+        if(s.distance>0)applyZoom(s.zoom*distance/s.distance,s.anchor);
+      }else if(s.mode==='pan'){applyOffset(s.offset-g.dx);}
+    },
+    onPanResponderTerminationRequest:()=>false,
+    onShouldBlockNativeResponder:()=>true,
+    onPanResponderRelease:()=>{gestureState.current=null;inMatrix.current=false;setGesturing(false);},
+    onPanResponderTerminate:()=>{gestureState.current=null;inMatrix.current=false;setGesturing(false);},
+  }),[applyOffset,applyZoom]);
   const rows=useMemo(()=>{
     if(!categories.length||!sites.length)return [];
     const result=[{key:'__columns__',kind:'columns'}];
@@ -79,59 +128,77 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
   },[sites,categories,collapsed]);
   const ouvrirSite=site=>navigation.navigate('SiteLocals',{siteId:site.id,nomSite:site.nom_site,clientId,nomClient});
   const choisirCellule=(ligne,category)=>{
-    const cible=ligne.kind==='site'?ligne.site:ligne.local;
-    const cell=cible.cells?.[category.key];
+    const cible=ligne.kind==='site'?ligne.site:ligne.local,cell=cible.cells?.[category.key];
     if(!cell?.total)return;
     openCell(ligne.kind==='local'?{...ligne.site,nom_site:ligne.site.nom_site+' · '+ligne.local.nom}:ligne.site,category,cell);
   };
   const frame={marginHorizontal:14,borderLeftWidth:1,borderRightWidth:1,borderColor:COLORS.line,backgroundColor:'#fff'};
-  const move=direction=>setPage(Math.max(0,Math.min(pages-1,geometry.page+direction)));
-  const pageButton=(direction,label,icon)=>{
-    const disabled=direction<0?geometry.page===0:geometry.page>=pages-1;
-    return <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}}
-      disabled={disabled} onPress={()=>move(direction)}
-      style={{minWidth:44,minHeight:38,alignItems:'center',justifyContent:'center',borderRadius:8,borderWidth:1,borderColor:COLORS.line,opacity:disabled ? .32 : 1}}>
-      <Text style={{color:COLORS.orangeDark,fontFamily:FONTS.black,fontSize:18}}>{icon}</Text>
-    </TouchableOpacity>;
-  };
-  return <FlatList
+  const matrixTouch=()=>{inMatrix.current=true;};
+  const outsideTouch=()=>{inMatrix.current=false;};
+  const header=<View onTouchStart={outsideTouch}>{headerContent}</View>;
+  const footer=<View onTouchStart={outsideTouch}>{footerContent}</View>;
+  const controls=(label,value,action,disabled=false)=><TouchableOpacity accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={action} style={{minWidth:36,minHeight:35,paddingHorizontal:6,alignItems:'center',justifyContent:'center',borderRadius:8,borderWidth:1,borderColor:COLORS.line,opacity:disabled ? .35 : 1}}>
+    <Text allowFontScaling={false} style={{fontSize:12,color:COLORS.orangeDark,fontFamily:FONTS.bold}}>{value}</Text>
+  </TouchableOpacity>;
+  const panBy=direction=>applyOffset(offset.current+direction*Math.max(cellWidth,categoryViewport*.8));
+  const columns=render=><View style={{width:categoryViewport,overflow:'hidden',flexShrink:0}}>
+    <Animated.View style={{width:contentWidth,flexDirection:'row',alignItems:'stretch',transform:[{translateX:animatedX}]}}>
+      {categories.map((category,i)=><View key={category.key} importantForAccessibility={i>=range.start&&i<range.end?'auto':'no-hide-descendants'} style={{width:cellWidth,flexShrink:0,justifyContent:'center'}}>{render(category)}</View>)}
+    </Animated.View>
+  </View>;
+  return <View style={{flex:1,minHeight:0}} {...responder.panHandlers}>
+  <FlatList
     style={{flex:1,minHeight:0}}
     onLayout={e=>{const w=Math.round(e.nativeEvent.layout.width);setViewport(v=>v===w?v:w);}}
     data={rows} keyExtractor={item=>item.key}
     ListHeaderComponent={header} ListFooterComponent={footer}
     ListEmptyComponent={<View style={{marginHorizontal:14,padding:20,backgroundColor:'#fff'}}><Text style={{textAlign:'center',color:COLORS.muted}}>Aucun constat ne correspond aux filtres.</Text></View>}
     stickyHeaderIndices={rows.length?[1]:[]}
-    extraData={geometry.page+':'+leftWidth+':'+cellWidth+':'+end}
+    extraData={zoom+':'+leftWidth+':'+cellWidth+':'+range.start+':'+range.end}
     contentContainerStyle={{paddingBottom:28}}
-    keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator
+    keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator scrollEnabled={!gesturing}
     initialNumToRender={8} maxToRenderPerBatch={8} windowSize={7} removeClippedSubviews={false}
     renderItem={({item:ligne})=>{
-      if(ligne.kind==='columns')return <View style={[frame,{backgroundColor:'#FDFCFA',borderBottomWidth:1}]}>
-        {pages>1?<View style={{flexDirection:'row',alignItems:'center',gap:8,padding:8}}>
-          {pageButton(-1,'Catégories précédentes','‹')}
-          <View style={{flex:1,alignItems:'center'}}><Text style={{fontSize:11,fontFamily:FONTS.bold,color:COLORS.ink}}>Catégories {start+1}–{end} / {categories.length}</Text><Text style={{fontSize:9,color:COLORS.muted}}>Afficher les autres colonnes</Text></View>
-          {pageButton(1,'Catégories suivantes','›')}
-        </View>:null}
+      if(ligne.kind==='columns')return <View onTouchStart={matrixTouch} style={[frame,{backgroundColor:'#FDFCFA',borderBottomWidth:1}]}>
+        <View style={{padding:6,gap:4}}>
+          <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:4}}>
+            {controls('Réduire le zoom','−',()=>applyZoom(zoom-.15),zoom<=PILOTAGE_ZOOM_MIN+.01)}
+            <Text accessibilityLabel={'Zoom '+Math.round(zoom*100)+' pour cent'} style={{fontFamily:FONTS.bold,fontSize:12,color:COLORS.ink}}>{Math.round(zoom*100)} %</Text>
+            {controls('Agrandir le zoom','+',()=>applyZoom(zoom+.15),zoom>=PILOTAGE_ZOOM_MAX-.01)}
+            {controls('Adapter à l’écran','Adapter',()=>{applyZoom(fitPilotageZoom(params.current.width,categories.length,fontScale),0);applyOffset(0);})}
+            {controls('Zoom normal','100 %',()=>applyZoom(1))}
+          </View>
+          <View style={{flexDirection:'row',alignItems:'center',gap:4}}>
+            {controls('Catégories précédentes','‹',()=>panBy(-1),range.start===0&&offset.current<1)}
+            <View style={{flex:1}}><Text numberOfLines={1} style={{fontSize:10,textAlign:'center',color:COLORS.inkSoft}}>Colonnes {range.start+1}–{range.end} / {categories.length}</Text>
+              <View style={{height:3,backgroundColor:'#E6E4E0',borderRadius:2,overflow:'hidden',marginTop:2}}>
+                <Animated.View style={{height:3,width:Math.max(12,Math.min(100,categoryViewport/Math.max(1,contentWidth)*100))+'%',backgroundColor:COLORS.orange,borderRadius:2}}/>
+              </View>
+            </View>
+            {controls('Catégories suivantes','›',()=>panBy(1),geometry.maxOffset<=offset.current+1)}
+          </View>
+          <Text style={{fontSize:9,textAlign:'center',color:COLORS.muted}}>Glisser latéralement · pincer à deux doigts · défiler verticalement</Text>
+        </View>
         <View style={{flexDirection:'row',alignItems:'stretch'}}>
-          <View style={{width:leftWidth,padding:7,justifyContent:'center',borderRightWidth:1,borderColor:COLORS.line}}><Text style={{fontSize:11,fontFamily:FONTS.black}}>Sites / locaux</Text></View>
-          {shown.map(category=><View key={category.key} style={{width:cellWidth,minHeight:42,padding:4,justifyContent:'center'}}><Text style={{fontSize:10,textAlign:'center',fontFamily:FONTS.bold}}>{category.label}</Text></View>)}
+          <View style={{width:leftWidth,minHeight:headerHeight,padding:Math.max(2,5*zoom),justifyContent:'center',borderRightWidth:1,borderColor:COLORS.line}}><Text allowFontScaling={false} style={{fontSize:Math.max(7,11*zoom),fontFamily:FONTS.black}}>Sites / locaux</Text></View>
+          {columns(category=><View style={{minHeight:headerHeight,padding:Math.max(1,4*zoom),justifyContent:'center'}}><Text allowFontScaling={false} style={{fontSize:Math.max(6.5,10*zoom),textAlign:'center',fontFamily:FONTS.bold}}>{category.label}</Text></View>)}
         </View>
       </View>;
-      const isSite=ligne.kind==='site', cible=isSite?ligne.site:ligne.local;
-      return <View style={[frame,{flexDirection:'row',minHeight:60,alignItems:'stretch',borderBottomWidth:1,backgroundColor:isSite?'#FFF4E9':'#fff'}]}>
+      const isSite=ligne.kind==='site',cible=isSite?ligne.site:ligne.local;
+      return <View onTouchStart={matrixTouch} style={[frame,{flexDirection:'row',minHeight:rowHeight,alignItems:'stretch',borderBottomWidth:1,backgroundColor:isSite?'#FFF4E9':'#fff'}]}>
         <TouchableOpacity accessibilityRole="button"
           accessibilityLabel={isSite?'Afficher ou masquer les locaux de '+ligne.site.nom_site:'Ouvrir '+ligne.local.nom+' du site '+ligne.site.nom_site}
           accessibilityState={isSite?{expanded:!collapsed[ligne.site.id]}:undefined}
           onPress={()=>isSite?setCollapsed(state=>({...state,[ligne.site.id]:!state[ligne.site.id]})):ouvrirSite(ligne.site)}
           onLongPress={isSite?()=>ouvrirSite(ligne.site):undefined}
-          style={{width:leftWidth,flexShrink:0,paddingHorizontal:6,paddingLeft:isSite?6:12,paddingVertical:7,justifyContent:'center',borderRightWidth:1,borderColor:COLORS.line}}>
-          <Text style={{fontSize:isSite?11:10.5,color:isSite?COLORS.primary:COLORS.inkSoft,fontFamily:FONTS.bold}}>{isSite?(collapsed[ligne.site.id]?'▸ ':'▾ ')+ligne.site.nom_site:'↳ '+ligne.local.nom}</Text>
-          <Text numberOfLines={2} style={{color:COLORS.muted,fontSize:9,marginTop:3}}>{isSite?(ligne.site.locals||[]).length+' local(aux) · '+(ligne.site.adresse||'Adresse non renseignée'):(ligne.local.records||[]).length+' constat(s)'}</Text>
+          style={{width:leftWidth,flexShrink:0,paddingHorizontal:Math.max(2,6*zoom),paddingVertical:Math.max(2,5*zoom),justifyContent:'center',borderRightWidth:1,borderColor:COLORS.line}}>
+          <Text allowFontScaling={false} style={{fontSize:Math.max(7,(isSite?11:10.5)*zoom),color:isSite?COLORS.primary:COLORS.inkSoft,fontFamily:FONTS.bold}}>{isSite?(collapsed[ligne.site.id]?'▸ ':'▾ ')+ligne.site.nom_site:'↳ '+ligne.local.nom}</Text>
+          {zoom>=.65?<Text allowFontScaling={false} numberOfLines={2} style={{color:COLORS.muted,fontSize:Math.max(6.5,9*zoom),marginTop:2}}>{isSite?(ligne.site.locals||[]).length+' local(aux) · '+(ligne.site.adresse||'Adresse non renseignée'):(ligne.local.records||[]).length+' constat(s)'}</Text>:null}
         </TouchableOpacity>
-        {shown.map(category=><View key={category.key} style={{width:cellWidth,justifyContent:'center'}}><Cell width={cellWidth} cell={cible.cells?.[category.key]||{total:0,state:'none'}} onPress={()=>choisirCellule(ligne,category)}/></View>)}
+        {columns(category=><Cell zoom={zoom} width={cellWidth} label={category.label+' · '+(isSite?ligne.site.nom_site:ligne.local.nom)} cell={cible.cells?.[category.key]||{total:0,state:'none',s:0,ns:0}} onPress={()=>choisirCellule(ligne,category)}/>)}
       </View>;
     }}
-  />;
+  /></View>;
 }
 function recordMatches(record, site, filters) {
   const avis = normAvis(record.avis);
@@ -347,7 +414,7 @@ export function ClientPilotageScreen({ route, navigation }) {
 
     <View style={{marginHorizontal:14,padding:12,borderTopLeftRadius:16,borderTopRightRadius:16,backgroundColor:'#fff',borderWidth:1,borderColor:COLORS.line}}>
       <Text style={styles.sectionLabel}>Cartographie technique</Text>
-      <Text style={{color:COLORS.muted,fontSize:10.5,marginTop:4}}>Rouge : criticité 4–5 · orange : N.S · gris : information incomplète. Défile verticalement pour voir tous les locaux et utilise les flèches pour afficher les catégories.</Text>
+      <Text style={{color:COLORS.muted,fontSize:10.5,marginTop:4}}>Rouge : criticité 4–5 · orange : N.S · gris : information incomplète. Glisse le tableau de gauche à droite et de haut en bas. Pince à deux doigts pour régler le zoom, ou utilise − / +. Les sites et locaux restent visibles.</Text>
     </View>
       </>}
       footer={<>

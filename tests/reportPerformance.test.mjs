@@ -86,7 +86,7 @@ test('450 unique JPEGs: cache warm export uses zero encodes, content change and 
 test('binary copy creates only a new output, cancellation and safe fallback remain wired',()=>{
  const s=readFileSync('reportEditorExporter.js','utf8');
  assert.match(s,/await lirePdfBinaire\(printed.uri\)/);
- assert.match(s,/habillerPdfEdite\(null,config,siteFooter,clientCover,result.coverDataUri,result.pdf\)/);
+ assert.match(s,/habillerPdfEdite\(null,config,siteFooter,clientCover,result.coverDataUri,result.pdf,result.navigationBatches\)/);
  assert.match(s,/checkReportCancelled/);
  assert.match(s,/creerFichierSafDepuisFichier/);
  assert.match(s,/copyReportToDocument/);

@@ -44,3 +44,38 @@ export function getPilotageColumnWindow({width=390,fontScale=1,count=0,page=0}={
   const cellWidth=Math.floor(available/pageSize);
   return {leftWidth,cellWidth,pageSize,pages,page:current,start,end};
 }
+
+/** A continuous viewport in dp. One shared horizontal offset controls every
+ * row, including the sticky header. Widths change with physical zoom; the
+ * label column stays visible without exceeding 44% of the device viewport. */
+export const PILOTAGE_ZOOM_MIN=.38;
+export const PILOTAGE_ZOOM_MAX=1.65;
+export function clampPilotageZoom(scale){
+  const n=Number(scale);return Math.max(PILOTAGE_ZOOM_MIN,Math.min(PILOTAGE_ZOOM_MAX,Number.isFinite(n)?n:1));
+}
+export function getPilotagePanGeometry({width=360,zoom=1,count=0,fontScale=1}={}){
+  const w=Math.max(1,Math.floor(Number(width)||360)),z=clampPilotageZoom(zoom),n=Math.max(0,Math.floor(Number(count)||0));
+  const fs=Math.min(1.35,Math.max(1,Number(fontScale)||1));
+  const leftWidth=Math.max(1,Math.min(Math.floor(w*.44),Math.round((w>=650?200:155)*z*fs)));
+  const cellWidth=Math.max(34,Math.round(108*z*fs)),categoryViewport=Math.max(1,w-leftWidth-2);
+  const contentWidth=cellWidth*n;
+  return {zoom:z,width:w,leftWidth,cellWidth,categoryViewport,contentWidth,maxOffset:Math.max(0,contentWidth-categoryViewport),count:n,rowHeight:Math.max(24,Math.round(60*z)),headerHeight:Math.max(23,Math.round(45*z))};
+}
+export function clampPilotageOffset(offset,g){
+  return Math.max(0,Math.min(g.maxOffset,Number(offset)||0));
+}
+export function visiblePilotageColumns(offset,g){
+  if(!g.count)return {start:0,end:0};
+  const x=clampPilotageOffset(offset,g);
+  return {start:Math.floor(x/g.cellWidth),end:Math.min(g.count,Math.ceil((x+g.categoryViewport)/g.cellWidth))};
+}
+export function rescalePilotageOffset(offset,oldGeometry,nextGeometry,anchor=.5){
+  const fraction=Math.max(0,Math.min(1,Number(anchor)||0));
+  const logical=(clampPilotageOffset(offset,oldGeometry)+oldGeometry.categoryViewport*fraction)/oldGeometry.cellWidth;
+  return clampPilotageOffset(logical*nextGeometry.cellWidth-nextGeometry.categoryViewport*fraction,nextGeometry);
+}
+export function fitPilotageZoom(width,count,fontScale=1){
+  if(!count)return 1;
+  const fs=Math.min(1.35,Math.max(1,Number(fontScale)||1));
+  return clampPilotageZoom((Math.max(1,width)-2)/((width>=650?200:155)+108*count)/fs);
+}

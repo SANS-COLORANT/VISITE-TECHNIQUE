@@ -7,7 +7,7 @@ import { Asset } from 'expo-asset';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { getDb } from './db.js';
 import { projectReportMaterials, fullReportLabel, formatReportMeasurement, A4_REPORT_POINTS, ensureReportA4 } from './reportFidelity.js';
-import { reportMarker } from './reportPdfNavigation.js';
+import { reportMarker, installReportNavigation } from './reportPdfNavigation.js';
 import { obtenirTrame, DEFAULT_TRAME_ID, normaliserSectionCode } from './trameRegistry.js';
 import { construireRemarDynamiquePourRapport, remarDynamicOwnsMapping } from './remarDynamicExportDb.js';
 import { readNetworkProgrammingForVisit } from './networkProgrammingDb.js';
@@ -214,6 +214,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
   const champMap = new Map(champs.map((r) => [`${r.section_code}||${r.cle}`, r.valeur || '']));
   const ctrlMap = new Map(controles.map((r) => [`${r.section_code}||${r.cle}`, r]));
   const sections = [];
+  const consumedMeterIds=new Set();
 
   // PA technical rubriques remain reportable even though the UI hides their tabs.
   const reportOrder = modelePreAllumage
@@ -277,6 +278,8 @@ export async function chargerDonneesVisiteRapport(visiteId) {
           if (dynamiquePrioritaire && !remplacement) return null;
           const controle = remplacement && f.type==='controle'
             ? remplacement : ctrlMap.get(`${code}||${f.cle}`);
+          const meterMatches=(['p-releves','p-remar-releves'].includes(panelId)&&f.type==='champ')?compteurs.filter(c=>String(c.destination||'')===String(f.cle||'')&&String(c.valeur??'').trim()):[];
+          if(meterMatches.length){for(const c of meterMatches)consumedMeterIds.add(c.id);return {label:f.cle,type:f.type,avis:'',comment:meterMatches.map(c=>formatReportMeasurement(c.valeur,c.unite)).join('\n')};}
           return {
             label: f.cle,
             type: f.type,
@@ -309,7 +312,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
       }));
     }
     if (panelId==='p-remar-releves'&&compteurs.length) {
-      groups.push({title:'Compteurs',rows:compteurs.map(c=>({
+      groups.push({title:'Compteurs complémentaires',rows:compteurs.filter(c=>!consumedMeterIds.has(c.id)).map(c=>({
         label:c.label||'Compteur',type:'champ',
         comment:formatReportMeasurement(c.valeur,c.unite),
       }))});
@@ -353,7 +356,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     if (panelId === 'p-releves' && compteurs.length) {
       groups.push({
         title: 'Compteurs complémentaires',
-        rows: compteurs.map((c) => ({
+        rows: compteurs.filter(c=>!consumedMeterIds.has(c.id)).map((c) => ({
           label: c.label || 'Compteur',
           type: 'champ',
           avis: '',
@@ -1045,6 +1048,7 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
     page.drawText(pageText, { x: x + arrowW + (numW - tW) / 2, y: footerY + 4, size: 6.6, font: bold, color: rgb(1, 1, 1) });
   });
 
+  installReportNavigation(pdf);
   const outBase64 = await pdf.saveAsBase64({ dataUri: false });
   const outUri = `${FileSystem.cacheDirectory}rapport_habille_${Date.now()}.pdf`;
   await FileSystem.writeAsStringAsync(outUri, outBase64, { encoding: FileSystem.EncodingType.Base64 });

@@ -10,7 +10,7 @@ export function canStartRootSwipe(key, dx, dy) {
 }
 export function rootSwipeTarget(key, dx, vx = 0) {
   if (Math.abs(dx) < 12 || (Math.abs(dx) < 38 && Math.abs(vx) < 0.65)) return null;
-  if(dx*vx<0 && Math.abs(vx)>.25)return null;
+  if(Math.abs(dx)<120&&dx*vx<0 && Math.abs(vx)>.25)return null;
   const index = ROOT_TAB_KEYS.indexOf(key);
   if (index < 0) return null;
   const direction = dx < 0 ? 1 : -1;

@@ -1,0 +1,11 @@
+# METRA — rapport volumineux et pilotage tactile
+
+Corrections issues d'un audit local d'un PDF volumineux et de son archive. Aucun fichier client, texte métier, photo, base ou archive réelle ajouté au dépôt.
+- A4 demandé à Expo Print et vérifié avant fusion; PNG exacts issus des assets versionnés, contrôle binaire en CI. Garde PDF remplacée, et non masquée par une seconde garde; photo de garde choisie illisible = erreur explicite.
+- Sauts de page systématiques retirés des rubriques techniques, réserves, matériels; sauts manuels de l'éditeur conservés. Six photos standard par page, titres et tableaux maintenus ensemble autant que le moteur d'impression le permet; lignes et commentaires multilignes conservés.
+- Lecture du matériel de la visite sans mutation de base. Projection par identité explicite Intranet et empreinte des champs: variantes conflictuelles conservées et signalées; homonymes sans identité stable jamais fusionnés. Import des deux chemins refuse les doublons de même identité à valeurs divergentes et ignore les répétitions équivalentes. Aucun nettoyage destructif ni écriture Intranet.
+- Noms complets, unités, compteurs structurés prioritaires seulement pour destination explicite. Validation du nombre et ordre des identifiants photo par fragment et par lot; exclusions volontaires confirmées.
+- Sommaire complet, signets PDF et destinations exactes par local lorsque Android conserve ses annotations; repli honnête par lot, jamais de numéro inventé.
+- Pilotage tactile: glissement horizontal libre, défilement vertical natif, pincement à deux doigts de 38 à 165 %, boutons +/−, adapter, 100 %, colonne site/local et entêtes fixes. Liste virtualisée huit lignes par lot. Retour par bouton sur écran pilotage, pas de geste retour concurrent. Gestes racines capturés avant les listes verticales.
+- Recettes existantes conservées. Nouveau test natif des boutons et du glissement du tableau; pincement réel à deux doigts et rendu sur téléphone/tablette restent à vérifier physiquement. Benchmark candidat froid/chaud avant ancien AAB; échec ancien moteur documenté sans inventer de comparaison. 
+- Pas de publication automatique Google Play; AAB qualifié uniquement après validation de toutes les recettes du candidat.

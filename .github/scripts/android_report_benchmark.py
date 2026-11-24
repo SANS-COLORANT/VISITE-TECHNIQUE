@@ -10,7 +10,7 @@ import re
 import sqlite3
 import sys
 import time
-from PIL import Image
+from PIL import Image, ImageStat
 from pypdf import PdfReader
 import android_aab_restore_retention as qa
 
@@ -71,16 +71,17 @@ def find_output():
 
 def open_report():
     tap("Clients");tap(CLIENT,90);tap("Documents",90);tap("Créer un rapport PDF / Word",60)
-    assert qa.ui.await_label(["Nouveau rapport"],seconds=90)
+    assert qa.ui.await_label(["Nouveau rapport","Paramètres du rapport","Nos réf. / Chrono"],seconds=90),"report configuration screen unavailable"
+    qa.ui.snapshot("report-config")
     tap("Ex. 2026-0147")
     qa.adb("shell","input","text","QAPERF")
     qa.adb("shell","input","keyevent","4")
     scroll_tap("Tout sélectionner")
     assert qa.ui.await_label(["45/45"],seconds=30),"45 final visits not selected"
     scroll_tap("Choisir les photos et la couverture")
-    assert qa.ui.await_label(["Photos et couverture"],seconds=180)
+    assert qa.ui.await_label(["Photos et couverture","Valider les photos"],seconds=180),"photo selection screen unavailable"
     tap("Valider les photos",90)
-    assert qa.ui.await_label(["Mise en page du rapport"],seconds=90)
+    assert qa.ui.await_label(["Mise en page du rapport","Générer le rapport PDF"],seconds=90),"report layout screen unavailable"
 
 def approve_storage():
     nodes=qa.ui.dump()
@@ -113,6 +114,17 @@ def verify_pdf(path,tag):
         for ref in obj.get_object().values():
             x=ref.get_object()
             if x.get("/Subtype")=="/Image" and int(x.get("/Width",0))==720 and int(x.get("/Height",0))==600:embedded+=1
+    if tag.startswith("candidate"):
+        assert all(abs(float(p.mediabox.width)-595)<2 and abs(float(p.mediabox.height)-842)<2 for p in reader.pages),"non-A4 report"
+        cover=[im.image for im in reader.pages[0].images if im.image.width>=100 and im.image.height>=100]
+        assert cover and any(max(ImageStat.Stat(im.convert("RGB")).stddev)>2 for im in cover),"cover missing or black"
+        for page in reader.pages:
+            n=len(re.findall(r"QAPHOTO\d{4}",page.extract_text() or ""))
+            if n:
+                raster=[im.image for im in page.images if im.image.width>=100 and im.image.height>=100]
+                assert len(raster)>=n,"caption without a corresponding raster photograph"
+                assert all(max(ImageStat.Stat(im.convert("RGB")).stddev)>2 for im in raster),"blank or black photograph"
+        assert reader.outline,"report navigation bookmarks missing"
     # Android print may choose a different raster resolution. Caption
     # integrity is mandatory; report raster count as evidence rather than
     # assuming a particular Chromium encoding of image streams.
@@ -163,20 +175,28 @@ def main():
     qa.adb("shell","wm","size","1080x2400")
     qa.adb("shell","wm","density","320")
     time.sleep(3);qa.root_emulator()
-    for name,apk in (("baseline-aab44",previous),("candidate-cold",current)):
+    # Candidate completeness is never skipped merely because the historic
+    # baseline cannot reach the report screen on this emulator.
+    def run_apk(name,apk,warm=False):
         qa.adb("uninstall",qa.PKG,check=False)
         qa.shell("rm -rf /sdcard/Documents/METRA")
         qa.adb("install",apk,timeout=180);qa.launch()
         hashes=seed();qa.launch();open_report();export(name);verify_originals(hashes)
-        if name=="candidate-cold":
+        if warm:
             export("candidate-warm");verify_originals(hashes)
             assert not qa.ui.fatal_logs(),"fatal Android error"
-    old,cold,warm=RESULT["runs"]
-    RESULT["coldSpeedup"]=old["wallSeconds"]/cold["wallSeconds"]
-    RESULT["warmSpeedup"]=old["wallSeconds"]/warm["wallSeconds"]
-    # Do not invent a performance pass or enforce a phone SLA on an emulator.
-    # The test gates actual completeness, not a hypothetical 60s result.
-    qa.mark("45 visits and 450 captions preserved in all three native PDFs; originals unchanged")
+    run_apk("candidate-cold",current,True)
+    qa.mark("450 captions and corresponding raster images, A4, cover, bookmarks, reserves and equipment verified twice; originals unchanged")
+    try:
+        run_apk("baseline-aab44",previous)
+        cold,warm,old=RESULT["runs"]
+        RESULT["coldSpeedup"]=old["wallSeconds"]/cold["wallSeconds"]
+        RESULT["warmSpeedup"]=old["wallSeconds"]/warm["wallSeconds"]
+    except Exception as e:
+        RESULT["baselineUnavailable"]=str(e)
+        print("BASELINE UNAVAILABLE; no comparative speed claim: "+str(e),flush=True)
+        try:qa.ui.snapshot("baseline-report-failed")
+        except Exception:pass
 
 if __name__=="__main__":
     try:main()
