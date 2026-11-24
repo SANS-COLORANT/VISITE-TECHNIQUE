@@ -63,6 +63,9 @@ def main():
     qa.ui.snapshot("canvas-end")
     qa.mark("native simultaneous X/Y movement, compact header, zoom and final rows")
     tap("Ouvrir la liste accessible")
+    for _ in range(5):
+        if qa.ui.find(qa.ui.dump(),["Sites / locaux"]):break
+        qa.adb("shell","input","swipe","380","1300","380","660","350");time.sleep(.7)
     assert qa.ui.await_label(["Sites / locaux"],seconds=60)
     tap("Ouvrir le tableau tactile")
     assert qa.ui.await_label(["Tableau pilotage tactile"],seconds=60)

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Alert, Animated, FlatList, Modal, PanResponder, Platform, requireNativeComponent, ScrollView, Text, TextInput, TouchableOpacity, UIManager, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, BackHandler, FlatList, Modal, PanResponder, Platform, requireNativeComponent, ScrollView, Text, TextInput, TouchableOpacity, UIManager, View, useWindowDimensions } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { buildMatrixCells, getClientTechnicalMatrix, getMatrixCellPhotos, normAvis } from './clientTechnicalMatrix.js';
@@ -238,6 +238,7 @@ function TactileTechnicalMatrix(props){
     const sub=AccessibilityInfo.addEventListener('screenReaderChanged',v=>{if(v)setAccessible(true);});
     return()=>{mounted=false;sub.remove();};
   },[]);
+  useEffect(()=>{if(!details)return;const sub=BackHandler.addEventListener('hardwareBackPress',()=>{setDetails(false);return true;});return()=>sub.remove();},[details]);
   const model=useMemo(()=>buildPilotageCanvasModel(sites,categories,collapsed),[sites,categories,collapsed]);
   const categoryMap=useMemo(()=>new Map(categories.map(c=>[String(c.key),c])),[categories]);
   const openSite=site=>navigation.navigate('SiteLocals',{siteId:site.id,nomSite:site.nom_site,clientId,nomClient});
