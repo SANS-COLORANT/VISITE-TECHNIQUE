@@ -20,6 +20,7 @@ function loaded(file,start,end,symbol,deps){
 }
 const esc=(v)=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const dateFr=(v)=>{const a=String(v||'').slice(0,10).split('-');return a.length===3?a[2]+'/'+a[1]+'/'+a[0]:String(v||'');};
+const fidelity=new Function(source('reportFidelity.js').replace(/^export /gm,'')+'\nreturn {projectReportMaterials,fullReportLabel,formatReportMeasurement};')();
 const network=new Function(source('networkProgramming.js').replace(/^export /gm,'')+
   '\nreturn {networkTemperatureSeries,validateWeeklySchedule,formatWeeklySchedule};')();
 function reportFixture({trame,model=null,controls=[],networks=[],points=[],dynamic=null,programmed=new Map()}){
@@ -40,7 +41,7 @@ function reportFixture({trame,model=null,controls=[],networks=[],points=[],dynam
   const deps={
     PA_REPORT_ORDER:['p-pa-infos','p-pa-batiments','p-pa-compteurs','p-pa-regulation','p-pa-chaufferie','p-pa-sst','p-pa-conclusion'],
     REPORT_SECTION_META:{},
-    getDb,listerMateriel:async()=>[],obtenirTrame:()=>trame,DEFAULT_TRAME_ID:'icpe_v1',
+    getDb,...fidelity,listerMateriel:async()=>[],obtenirTrame:()=>trame,DEFAULT_TRAME_ID:'icpe_v1',
     chargerPreAllumageModulaire:async()=>model,listerAliasesPreAllumage:async()=>({}),
     lireContextePhotosRemar:async()=>null,construireRemarDynamiquePourRapport:async()=>dynamic,
     normaliserSectionCode:(p,s)=>p.replace('p-','')+'.'+s.toLowerCase().replace(/[^a-z0-9]+/g,'_'),

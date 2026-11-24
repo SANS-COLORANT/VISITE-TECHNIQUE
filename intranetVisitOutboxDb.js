@@ -135,7 +135,11 @@ async function assertRowTargetsImportedClient(db, row) {
     JOIN api_local_links l ON l.remote_site_id=remote_site.remote_site_id AND l.remote_present=1
     WHERE v.id=? AND c.remote_client_id=?
       AND COALESCE(remote_site.local_site_id,cs.local_site_id)=local_site.id
-      AND l.remote_local_id=? LIMIT 1`, [String(row.visite_id), String(row.remote_client_id), String(payloadLocalId)]);
+      AND l.remote_local_id=?
+      AND c.autorise=1
+      AND (v.api_remote_local_id IS NULL OR trim(v.api_remote_local_id)='' OR v.api_remote_local_id=l.remote_local_id)
+      AND (v.installation_id IS NULL OR (l.local_installation_id=v.installation_id AND EXISTS(SELECT 1 FROM installations i WHERE i.id=v.installation_id AND i.site_id=v.site_id)))
+      LIMIT 1`, [String(row.visite_id), String(row.remote_client_id), String(payloadLocalId)]);
   if (linked) return null;
   const error = Object.assign(new Error(
     'Cet envoi ne correspond plus au client, au site ou au local Intranet importé lié à la visite. METRA bloque cet ancien envoi avant tout appel réseau.'

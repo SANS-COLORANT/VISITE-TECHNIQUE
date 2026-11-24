@@ -41,3 +41,19 @@ export async function reconcileImportedEquipmentInventory(db, {
   }
   return { retired: absentIds.size, detached };
 }
+
+/** Duplicate explicit source identity in the same payload is not a second
+ * physical item. Divergent payload variants are ambiguous: reject atomically
+ * rather than arbitrarily selecting a revision. No-ID twins are preserved. */
+export function uniqueImportedMaterialRows(rows=[]){
+  const seen=new Map(),result=[];
+  const fields=['categorie','nombre','designation','numeroMateriel','reseauDesservi','marque','modele','caracteristiques','annee','etat'];
+  for(const row of rows){
+    const id=String(row?.id??'').trim();
+    if(!id){result.push(row);continue;}
+    const fingerprint=JSON.stringify(fields.map(k=>String(row?.[k]??'').normalize('NFC').trim().replace(/\s+/g,' ').toLowerCase()));
+    if(!seen.has(id)){seen.set(id,fingerprint);result.push(row);}
+    else if(seen.get(id)!==fingerprint)throw Error('Listing Intranet incohérent : même identité matériel avec des valeurs divergentes. Import annulé.');
+  }
+  return result;
+}

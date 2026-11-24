@@ -87,8 +87,12 @@ export function validerEntreesZip(entries) {
     throw new Error('Archive ZIP vide ou comportant trop d’entrées.');
   }
   let total = 0;
+  const seen = new Map();
   for (const entry of entries) {
     const path = normaliserCheminArchive(entry.path);
+    const key = path.replace(/\/$/, '');
+    if (seen.has(key)) throw new Error('Entrée ZIP dupliquée : restauration refusée.');
+    seen.set(key,entry.isDirectory===true || path.endsWith('/'));
     if (!path || (entry.isDirectory !== true && !entry.isEncrypted)) {
       // Legacy archives can be plaintext; caller explicitly approves those.
       if (!path) throw new Error('Entrée ZIP invalide.');
@@ -97,6 +101,13 @@ export function validerEntreesZip(entries) {
     if (!Number.isFinite(bytes) || bytes < 0) throw new Error('Taille de fichier ZIP invalide.');
     total += bytes;
     if (total > BACKUP_MAX_UNCOMPRESSED_BYTES) throw new Error('Archive trop volumineuse pour une restauration sûre.');
+  }
+  for(const key of seen.keys()) {
+    const segments=key.split('/');
+    for(let i=1;i<segments.length;i++) {
+      const parent=segments.slice(0,i).join('/');
+      if(seen.has(parent) && !seen.get(parent))throw new Error('Conflit fichier/dossier dans le ZIP.');
+    }
   }
   return total;
 }

@@ -2,6 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { DATABASE_NAME } from './constants.js';
 import { migrateDatabase, verifyDatabaseIntegrity } from './migrate.js';
 import { repairIntranetSiteLocalIdentityOnce } from '../intranetIdentityRepairDb.js';
+import { restoreSessionActive, recoverInterruptedRestore } from './restoreRecoveryRuntime.js';
 let databasePromise = null;
 let catalogueEnrichmentPromise = null;
 const CORE_REFERENCE_META_KEY='reference_catalog_icpe_v2';
@@ -52,6 +53,7 @@ async function configurerSQLitePourTablette(db) {
 }
 
 export async function ensureEquipmentCatalogReady() {
+  if(restoreSessionActive())throw new Error('Restauration en cours.');
   if (!catalogueEnrichmentPromise) {
     catalogueEnrichmentPromise = (async () => {
       const db = await openAppDatabase();
@@ -65,9 +67,16 @@ export async function ensureEquipmentCatalogReady() {
   return catalogueEnrichmentPromise;
 }
 
-export function openAppDatabase() {
+export async function waitForDatabaseBackgroundWork(){
+  if(catalogueEnrichmentPromise)await catalogueEnrichmentPromise;
+}
+export function openAppDatabase({restoreValidation=false}={}) {
+  const active=restoreSessionActive();
+  if(active && !restoreValidation)return Promise.reject(new Error('Restauration en cours.'));
+  if(!active && restoreValidation)return Promise.reject(new Error('Session de restauration absente.'));
   if (!databasePromise) {
     databasePromise = (async () => {
+      if(!active)await recoverInterruptedRestore();
       const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
       await configurerSQLitePourTablette(db);
       installerCompatibiliteVisite(db);
@@ -84,7 +93,7 @@ export function openAppDatabase() {
 }
 
 /** Ferme la connexion native afin de pouvoir remplacer la base pendant une restauration. */
-export async function closeAppDatabase() {
+export async function closeAppDatabase({strict=false}={}) {
   const promise = databasePromise;
   databasePromise = null;
   catalogueEnrichmentPromise = null;
@@ -92,8 +101,9 @@ export async function closeAppDatabase() {
   try {
     const db = await promise;
     await db.closeAsync();
-  } catch {
-    // La promesse peut déjà être en échec ; les références sont malgré tout remises à zéro.
+  } catch (error) {
+    // A replacement must never proceed after an unconfirmed native close.
+    if(strict)throw error;
   }
 }
 

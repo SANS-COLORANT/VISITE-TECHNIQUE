@@ -10,18 +10,20 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
+import * as SQLite from 'expo-sqlite';
 import {
   zipWithPassword, unzipWithPassword, unzip, isPasswordProtected,
   listContents,
 } from 'react-native-zip-archive';
 import { getDb } from './db.js';
 import { DATABASE_NAME, DATABASE_SCHEMA_VERSION } from './database/constants.js';
-import { closeAppDatabase, openAppDatabase, verifyDatabaseIntegrity } from './database/index.js';
+import { closeAppDatabase, openAppDatabase, verifyDatabaseIntegrity, waitForDatabaseBackgroundWork } from './database/index.js';
+import { beginRestoreSession, endRestoreSession, getRestoreJournal } from './database/restoreRecoveryRuntime.js';
 import { getSaveActivity } from './saveActivity.js';
 import {
   BACKUP_FORMAT, BACKUP_FORMAT_VERSION, BACKUP_ENCRYPTION,
   BACKUP_MAX_UNCOMPRESSED_BYTES, validerMotDePasseSauvegarde,
-  validerManifesteSauvegarde, validerEntreesZip,
+  validerManifesteSauvegarde, validerEntreesZip, normaliserCheminArchive, rebaserUriLocale,
 } from './backupPolicy.js';
 
 const ROOTS = Object.freeze(['visite-technique/', 'metra-missions/']);
@@ -101,7 +103,7 @@ async function snapshotDatabase(db, destination) {
   }
 }
 async function cleanJournals(base) {
-  for (const suffix of ['-wal', '-shm', '-journal']) await safeRemove(base + suffix);
+  for (const suffix of ['-wal', '-shm', '-journal']) await FileSystem.deleteAsync(base + suffix,{idempotent:true});
 }
 async function copyRoots(from, to) {
   for (const name of ROOTS) {
@@ -228,49 +230,115 @@ async function validateRestoredContent(unpacked, encrypted) {
   return { manifeste, policy, restoredDatabase };
 }
 const safeSqlId = (id) => '"' + String(id).replace(/"/g, '""') + '"';
-async function rebaseKnownFileUris(db) {
-  const map = {
-    photos: ['uri'],
-    api_latest_visit_photos: ['local_uri'],
-    api_photo_files: ['local_uri'],
-    mission_photos: ['file_uri', 'preview_uri', 'thumbnail_uri'],
-    mission_documents: ['file_uri'],
-    mission_map_layers: ['source_uri'],
-  };
-  for (const [table, columns] of Object.entries(map)) {
-    const existsTable = await db.getFirstAsync("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [table]);
-    if (!existsTable) continue;
-    const cols = new Set((await db.getAllAsync('PRAGMA table_info(' + safeSqlId(table) + ')')).map(r => r.name));
-    for (const col of columns) {
-      if (!cols.has(col)) continue;
-      const identifier = safeSqlId(col), name = safeSqlId(table);
-      for (const folder of ROOTS) {
-        const marker = '/' + folder;
-        await db.runAsync(
-          'UPDATE ' + name + ' SET ' + identifier + ' = ? || substr(' + identifier +
-            ', instr(' + identifier + ', ?) + length(?)) WHERE instr(' + identifier + ', ?) > 0',
-          [root() + folder, marker, marker, marker]
-        );
-      }
+const MEDIA_COLUMNS = Object.freeze({
+  photos: ['uri'],
+  api_latest_visit_photos: ['local_uri'],
+  api_photo_files: ['local_uri'],
+  mission_photos: ['file_uri','preview_uri','thumbnail_uri'],
+  mission_documents: ['file_uri'],
+  mission_map_layers: ['source_uri'],
+  mission_measure_series: ['source_file_uri'],
+});
+function relativeOwnedUri(value) {
+  const text=String(value||'');
+  if(!/^file:\/\//i.test(text) && !text.startsWith('/')) return null;
+  for(const folder of ROOTS) {
+    const marker='/'+folder;
+    const i=text.indexOf(marker);
+    if(i<0) continue;
+    const rel=normaliserCheminArchive(text.slice(i+marker.length));
+    // Reject percent-encoded separators/dot traversal as well as plain traversal.
+    const decoded=decodeURIComponent(rel);
+    normaliserCheminArchive(decoded);
+    if(decoded.split('/').length!==rel.split('/').length || decoded.includes('\\')) throw new Error('Chemin de média non sûr.');
+    if(rel.endsWith('/')) throw new Error('Référence de fichier invalide.');
+    return folder+rel;
+  }
+  return null;
+}
+async function eachMedia(db,callback) {
+  for (const [table, columns] of Object.entries(MEDIA_COLUMNS)) {
+    const found=await db.getFirstAsync("SELECT name FROM sqlite_master WHERE type='table' AND name=?",[table]);
+    if(!found)continue;
+    const cols=new Set((await db.getAllAsync('PRAGMA table_info('+safeSqlId(table)+')')).map(r=>r.name));
+    for(const col of columns) {
+      if(!cols.has(col))continue;
+      const name=safeSqlId(table),identifier=safeSqlId(col);
+      const rows=await db.getAllAsync('SELECT DISTINCT '+identifier+' AS uri FROM '+name+' WHERE '+identifier+' IS NOT NULL AND '+identifier+" != ''");
+      for(const {uri} of rows)await callback({table,name,identifier,uri});
     }
   }
 }
-async function assertPhotoIntegrity(db, expected) {
-  const counts = await countRows(db);
-  if (counts.visites !== expected.visites || counts.photos !== expected.photos) {
-    throw new Error('Les nombres de visites/photos restaurés ne correspondent pas au manifeste.');
-  }
-  await checkPhotos(db);
+async function rebaseKnownFileUris(db) {
+  await eachMedia(db,async ({name,identifier,uri})=>{
+    const relative=relativeOwnedUri(uri);
+    if(relative && root()+relative!==uri) await db.runAsync('UPDATE '+name+' SET '+identifier+'=? WHERE '+identifier+'=?',[root()+relative,uri]);
+  });
 }
-
-/** Import AES-256 archives and explicitly authorized legacy plaintext v1 archives. */
-export async function choisirEtRestaurerSauvegardeChiffree({ motDePasse = '', autoriserArchiveAncienne = false } = {}) {
+async function mediaReport(db, policy, unpacked = null) {
+  const missing=new Set(), unarchived=new Set(), missingPhotos=new Set();
+  // Inspect the staged archive, not the old device's files. For v1 only visit
+  // photos were archived; other local references are explicitly not guaranteed.
+  await eachMedia(db,async ({table,uri})=>{
+    const relative=relativeOwnedUri(uri);
+    const key=table+':'+uri;
+    if(!relative) {
+      if(table==='photos' || /^file:\/\//i.test(uri) || /^content:\/\//i.test(uri) || uri.startsWith('/')) {
+        missing.add(key);if(table==='photos')missingPhotos.add(key);
+      }
+      return;
+    }
+    if(policy.formatVersion===1 && !relative.startsWith('visite-technique/photos/')) {
+      unarchived.add(key);
+      if(table==='photos'){missing.add(key);missingPhotos.add(key);}
+      return;
+    }
+    const path=unpacked
+      ? (policy.formatVersion===1 ? unpacked+'photos/'+relative.slice('visite-technique/photos/'.length) : unpacked+DATA_ROOT+relative)
+      : root()+relative;
+    const item=await FileSystem.getInfoAsync(path,{size:true});
+    if(!item.exists || item.isDirectory || !(Number(item.size)>0)){
+      missing.add(key);if(table==='photos')missingPhotos.add(key);
+    }
+  });
+  // Empty primary photo URIs are not represented by eachMedia.
+  const empty=await db.getFirstAsync("SELECT COUNT(*) AS n FROM photos WHERE uri IS NULL OR uri=''");
+  return { missingMedia:missing.size+Number(empty?.n||0), missingVisitPhotos:missingPhotos.size+Number(empty?.n||0), unarchivedMedia:unarchived.size };
+}
+function assertMediaConsent(report, allowPartial) {
+  if(report.missingMedia && !allowPartial) throw new Error(report.missingMedia+' référence(s) média non récupérable(s). Aucune donnée ne sera remplacée. Pour récupérer uniquement les données disponibles, choisis explicitement la restauration partielle.');
+}
+async function assertCounts(db,expected) {
+  const counts=await countRows(db);
+  if(counts.visites!==expected.visites || counts.photos!==expected.photos) throw new Error('Les nombres de visites/photos ne correspondent pas au manifeste.');
+}
+async function validateStagedDatabase(unpacked,policy,allowPartial) {
+  // A separate native connection validates the extracted database before touching the live DB.
+  const staged=await SQLite.openDatabaseAsync(DATABASE_NAME,{useNewConnection:true},unpacked+'database/');
+  try {
+    await staged.execAsync('PRAGMA query_only = ON;');
+    const integrity=await verifyDatabaseIntegrity(staged);
+    if(!integrity.integrityOk || !integrity.foreignKeysOk) throw new Error('La base de la sauvegarde est corrompue.');
+    const schema=await staged.getFirstAsync('SELECT MAX(version) AS version FROM schema_migrations');
+    if(Number(schema?.version)!==policy.schemaVersion)throw new Error('Version SQLite différente du manifeste.');
+    await assertCounts(staged,policy);
+    const report=await mediaReport(staged,policy,unpacked);
+    assertMediaConsent(report,allowPartial);
+    return report;
+  } finally { await staged.closeAsync(); }
+}
+/** Import AES-256 or a trusted historical plaintext v1. Missing media may
+ * be recovered explicitly, without deleting rows or pretending recovery is complete.
+ * A durable verified rollback marker is armed BEFORE replacement.
+ */
+export async function choisirEtRestaurerSauvegardeChiffree({ motDePasse = '', autoriserArchiveAncienne = false, autoriserRestaurationPartielle = false } = {}) {
   requireIdle();
   backupBusy = true;
   const id = stamp();
   const extracted = FileSystem.cacheDirectory + 'metra-restore-work-' + id + '/';
-  const safety = root() + 'metra-restore-rollback-' + id + '/';
-  let copiedSafety = false, replaced = false, rollbackSucceeded = false;
+  const journal = getRestoreJournal();
+  const safety = journal.snapshotPath(id);
+  let session = false, armed = false, committed = false, rollbackSucceeded = false;
   try {
     const selection = await DocumentPicker.getDocumentAsync({
       type: ['application/zip', 'application/octet-stream', '*/*'],
@@ -286,73 +354,82 @@ export async function choisirEtRestaurerSauvegardeChiffree({ motDePasse = '', au
       if (scan.encrypted) await unzipWithPassword(native(asset.uri), native(extracted), motDePasse);
       else await unzip(native(asset.uri), native(extracted));
     } catch (error) {
-      if (scan.encrypted) throw new Error('Déchiffrement impossible. Vérifie le mot de passe ou l’intégrité du ZIP. ' + String(error?.message || ''));
-      throw error;
+      if (scan.encrypted) throw new Error('Déchiffrement impossible. Vérifie le mot de passe ou l’intégrité du ZIP.');
+      throw new Error('Archive ZIP illisible ou endommagée. Aucune donnée remplacée.');
     }
     const { manifeste, policy, restoredDatabase } = await validateRestoredContent(extracted, scan.encrypted);
-    const db = await getDb();
+    const stagedReport = await validateStagedDatabase(extracted,policy,autoriserRestaurationPartielle);
     const currentDb = dbUri();
     if (!(await exists(currentDb))) throw new Error('Base actuelle introuvable : restauration annulée.');
+    await getDb();
+    const activity=getSaveActivity();
+    if(activity.pending>0 || activity.lastError) throw new Error('Des modifications sont encore en cours : réessaie après leur enregistrement.');
+    beginRestoreSession();session=true;
+    await waitForDatabaseBackgroundWork();
+    if(await journal.hasPending())throw new Error('Redémarre METRA pour terminer la récupération précédente.');
+    // Close all normal database users first. Take the SQLite snapshot through
+    // a dedicated connection while new application DB access is blocked.
+    await closeAppDatabase({strict:true});
     await cleanDir(safety);
     await ensureDir(safety + 'database/');
-    await snapshotDatabase(db, safety + 'database/' + DATABASE_NAME);
-    // For legacy v1, preserve directories not backed up by the original app.
+    const db=await SQLite.openDatabaseAsync(DATABASE_NAME,{useNewConnection:true});
+    try {
+      const verification=await verifyDatabaseIntegrity(db);
+      if(!verification.integrityOk || !verification.foreignKeysOk)throw new Error('Base actuelle invalide : remplacement refusé.');
+      await snapshotDatabase(db, safety + 'database/' + DATABASE_NAME);
+    } finally { await db.closeAsync(); }
     await copyRoots(root(), safety);
-    copiedSafety = true;
+    await journal.arm(id);
+    armed = true;
 
-    await closeAppDatabase();
-    replaced = true;
     await cleanJournals(currentDb);
+    await FileSystem.deleteAsync(currentDb,{idempotent:true});
     await FileSystem.copyAsync({ from: restoredDatabase, to: currentDb });
     if (policy.formatVersion === 1) {
       const previousPhotos = root() + 'visite-technique/photos/';
-      await safeRemove(previousPhotos);
+      await FileSystem.deleteAsync(previousPhotos,{idempotent:true});
       if (await exists(extracted + 'photos/')) await FileSystem.copyAsync({ from: extracted + 'photos/', to: previousPhotos });
       else await ensureDir(previousPhotos);
     } else {
       for (const name of ROOTS) {
-        await safeRemove(root() + name);
+        await FileSystem.deleteAsync(root() + name,{idempotent:true});
         await FileSystem.copyAsync({ from: extracted + DATA_ROOT + name, to: root() + name });
       }
     }
-    const restoredDb = await openAppDatabase();
+    const restoredDb = await openAppDatabase({restoreValidation:true});
     await rebaseKnownFileUris(restoredDb);
     const verification = await verifyDatabaseIntegrity(restoredDb);
-    if (!verification.integrityOk || !verification.foreignKeysOk) {
-      throw new Error('La base restaurée n’a pas passé la vérification SQLite.');
-    }
-    await assertPhotoIntegrity(restoredDb, policy);
+    if (!verification.integrityOk || !verification.foreignKeysOk) throw new Error('La base restaurée n’a pas passé la vérification SQLite.');
+    await assertCounts(restoredDb,policy);
+    const finalReport=await mediaReport(restoredDb,policy);
+    if(finalReport.missingMedia!==stagedReport.missingMedia || finalReport.missingVisitPhotos!==stagedReport.missingVisitPhotos || finalReport.unarchivedMedia!==stagedReport.unarchivedMedia)throw new Error('Les fichiers restaurés ne correspondent pas à la vérification initiale.');
+    assertMediaConsent(finalReport,autoriserRestaurationPartielle);
     await checkpoint(restoredDb);
-    await closeAppDatabase();
+    await closeAppDatabase({strict:true});
     await cleanJournals(currentDb);
-    await safeRemove(safety);
-    copiedSafety = false;
-    return { manifeste, controle: verification, restartRequired: true, encryption: scan.encrypted ? BACKUP_ENCRYPTION : 'legacy' };
+    await journal.complete(id);
+    committed=true;
+    return { manifeste, controle: verification, restartRequired:true, encryption:scan.encrypted?BACKUP_ENCRYPTION:'legacy',
+      mediaReport:finalReport, partial:finalReport.missingMedia>0, legacyLimited:policy.formatVersion===1 };
   } catch (error) {
-    if (replaced && copiedSafety) {
+    if(armed && !committed) {
       try {
-        await closeAppDatabase();
-        const currentDb = dbUri();
-        await cleanJournals(currentDb);
-        await FileSystem.copyAsync({ from: safety + 'database/' + DATABASE_NAME, to: currentDb });
-        for (const name of ROOTS) {
-          await safeRemove(root() + name);
-          await FileSystem.copyAsync({ from: safety + name, to: root() + name });
-        }
+        await closeAppDatabase({strict:true});
+        await journal.recover();
         rollbackSucceeded = true;
-        await safeRemove(safety);
-      } catch (rollbackError) {
-        console.error('[METRA backup] Restauration de sécurité impossible, copie privée conservée.', rollbackError?.message);
+      } catch {
+        const failure=new Error('Restauration interrompue. La copie de sécurité est conservée. Relance METRA pour tenter la récupération automatique. Ne désinstalle pas l’application.');
+        failure.restoreTouchedDatabase=true;
+        throw failure;
       }
-      error.restoreTouchedDatabase = true;
-      if (!rollbackSucceeded) {
-        throw new Error('Échec de la restauration et de son retour arrière. N’efface pas METRA : une copie de sécurité est conservée dans le stockage privé de l’application. Contacte le support avant toute manipulation.');
-      }
+      error.restoreTouchedDatabase=true;
     }
     throw error;
   } finally {
     await safeRemove(extracted);
-    if (!copiedSafety || rollbackSucceeded) await safeRemove(safety);
-    backupBusy = false;
+    // Never remove an armed or uncertain snapshot; recovery owns its cleanup.
+    if(!armed && !(await journal.hasPending().catch(()=>true)))await safeRemove(safety);
+    if(session)endRestoreSession();
+    backupBusy=false;
   }
 }

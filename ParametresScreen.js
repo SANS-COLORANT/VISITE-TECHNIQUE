@@ -45,7 +45,7 @@ const reloadAppAsync = (...args) => require('expo').reloadAppAsync(...args);
 const CATEGORIES_EQUIPEMENT=['Adoucisseur','Armoire électrique','Ballon ECS','Chaudière','Circulateur','Coffret gaz','Compteur','Désemboueur','Détendeur','Échangeur','Extincteur','Filtre','Manomètre','Pompe','Robinetterie','Soupape','Vanne',"Vase d'expansion"];
 const MARQUES_EQUIPEMENT=['De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Atlantic','Frisquet','Chappée','Chaffoteaux','Elm Leblanc','Bosch','Vaillant','Fernox','Alfa Laval'];
 
-function ParametresScreen(){
+function ParametresScreen({topContent=null}={}){
   const[onglet,setOnglet]=useState('reserves');
   const[cataloguePret,setCataloguePret]=useState(false);
   const[catalogueErreur,setCatalogueErreur]=useState(null);
@@ -60,8 +60,15 @@ function ParametresScreen(){
     return()=>{actif=false;};
   },[onglet,cataloguePret]);
 
+  const tabs=<View style={styles.paramTabs}>
+      <TouchableOpacity style={[styles.paramTab,onglet==='reserves'&&styles.paramTabActive]} onPress={()=>setOnglet('reserves')}><Text style={[styles.paramTabText,onglet==='reserves'&&styles.paramTabTextActive]}>Réserves</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.paramTab,onglet==='equipements'&&styles.paramTabActive]} onPress={()=>setOnglet('equipements')}><Text style={[styles.paramTabText,onglet==='equipements'&&styles.paramTabTextActive]}>Équipements</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.paramTab,onglet==='trames'&&styles.paramTabActive]} onPress={()=>setOnglet('trames')}><Text style={[styles.paramTabText,onglet==='trames'&&styles.paramTabTextActive]}>Trames</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.paramTab,onglet==='donnees'&&styles.paramTabActive]} onPress={()=>setOnglet('donnees')}><Text style={[styles.paramTabText,onglet==='donnees'&&styles.paramTabTextActive]}>Données</Text></TouchableOpacity>
+  </View>;
+  const equipmentHeader=<>{topContent}{tabs}</>;
   const contenuEquipements=cataloguePret
-    ?<EquipmentCatalogueBrowser/>
+    ?<EquipmentCatalogueBrowser header={equipmentHeader}/>
     :<View style={{flex:1,alignItems:'center',justifyContent:'center',padding:28}}>
       {catalogueErreur?
         <>
@@ -76,13 +83,8 @@ function ParametresScreen(){
         </>}
     </View>;
 
-  return <View style={{flex:1,backgroundColor:'transparent'}}>
-    <View style={styles.paramTabs}>
-      <TouchableOpacity style={[styles.paramTab,onglet==='reserves'&&styles.paramTabActive]} onPress={()=>setOnglet('reserves')}><Text style={[styles.paramTabText,onglet==='reserves'&&styles.paramTabTextActive]}>Réserves</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.paramTab,onglet==='equipements'&&styles.paramTabActive]} onPress={()=>setOnglet('equipements')}><Text style={[styles.paramTabText,onglet==='equipements'&&styles.paramTabTextActive]}>Équipements</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.paramTab,onglet==='trames'&&styles.paramTabActive]} onPress={()=>setOnglet('trames')}><Text style={[styles.paramTabText,onglet==='trames'&&styles.paramTabTextActive]}>Trames</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.paramTab,onglet==='donnees'&&styles.paramTabActive]} onPress={()=>setOnglet('donnees')}><Text style={[styles.paramTabText,onglet==='donnees'&&styles.paramTabTextActive]}>Données</Text></TouchableOpacity>
-    </View>
+  return <View style={{flex:1,minHeight:0,backgroundColor:'transparent'}}>
+    {onglet!=='equipements'||!cataloguePret?<>{topContent}{tabs}</>:null}
     {onglet==='trames'?<TrameLibraryPanel/>:onglet==='reserves'?<BibliothequeReserves/>:onglet==='equipements'?contenuEquipements:<GestionDonnees/>}
   </View>;
 }
@@ -123,12 +125,13 @@ function GestionDonnees(){
   const [backupPassword, setBackupPassword] = useState('');
   const [backupPasswordConfirm, setBackupPasswordConfirm] = useState('');
   const [backupLegacy, setBackupLegacy] = useState(false);
+  const [backupPartial, setBackupPartial] = useState(false);
   const ouvrirSauvegarde = (mode) => {
-    setBackupPassword(''); setBackupPasswordConfirm(''); setBackupLegacy(false); setBackupMode(mode);
+    setBackupPassword(''); setBackupPasswordConfirm(''); setBackupLegacy(false); setBackupPartial(false); setBackupMode(mode);
   };
   const fermerSauvegarde = () => {
     if (action) return;
-    setBackupMode(null); setBackupPassword(''); setBackupPasswordConfirm(''); setBackupLegacy(false);
+    setBackupMode(null); setBackupPassword(''); setBackupPasswordConfirm(''); setBackupLegacy(false); setBackupPartial(false);
   };
   const[pleinSoleil,setPleinSoleil]=useState(()=>getPrefSync(PREFS.pleinSoleil,'0')==='1');
   const[ongletsEnBas,setOngletsEnBas]=useState(()=>getPrefSync(PREFS.ongletsEnBas,'0')==='1');
@@ -171,8 +174,11 @@ function GestionDonnees(){
       const resultat=await choisirEtRestaurerSauvegardeComplete(options);
       if(!resultat)return;
       Alert.alert(
-        'Restauration terminée',
-        `La sauvegarde a été restaurée et contrôlée. L’application va se fermer pour recharger proprement les données au prochain lancement.`,
+        resultat.partial?'Restauration partielle terminée':'Restauration terminée',
+        `Visites : ${resultat.manifeste?.counts?.visites??'?'}. Photos référencées : ${resultat.manifeste?.counts?.photos??'?'}.` +
+        (resultat.partial?`\n${resultat.mediaReport.missingMedia} référence(s) média manquante(s), dont ${resultat.mediaReport.missingVisitPhotos} photo(s) de visite. Les lignes sont conservées; les fichiers absents ne peuvent pas être recréés.`:'\nLa sauvegarde a été restaurée et contrôlée.') +
+        (resultat.legacyLimited?`\nAncien ZIP : les médias historiques Intranet/Missions hors des photos de visite ne sont pas garantis (${resultat.mediaReport?.unarchivedMedia??0} référence(s)).`:'') +
+        '\nL’application va se fermer pour recharger les données.',
         [{text:'Fermer l’application',onPress:()=>BackHandler.exitApp()}],
         {cancelable:false}
       );
@@ -195,7 +201,7 @@ function GestionDonnees(){
 
   const demanderRestauration=(options={})=>Alert.alert(
     'Restaurer une sauvegarde complète ?',
-    'Les données actuellement présentes sur cette tablette seront remplacées par le contenu de l’archive sélectionnée. Une copie de sécurité temporaire est créée automatiquement pendant l’opération.',
+    'Les données actuellement présentes sur cette tablette seront remplacées par le contenu de l’archive sélectionnée. Une copie de sécurité privée, vérifiée et récupérable au redémarrage est créée automatiquement pendant l’opération.',
     [
       {text:'Annuler',style:'cancel'},
       {text:'Choisir une sauvegarde',style:'destructive',onPress:()=>lancerRestauration(options)},
@@ -301,6 +307,12 @@ function GestionDonnees(){
                 <Text style={{fontSize:20,color:COLORS.orange}}>{backupLegacy?'☑':'☐'}</Text>
                 <Text style={[styles.cardSub,{flex:1,lineHeight:19}]}>Importer une ancienne sauvegarde ZIP non chiffrée (ancien APK METRA). À utiliser uniquement avec un fichier de confiance.</Text>
               </TouchableOpacity>:null}
+              {backupMode==='restore'?<TouchableOpacity accessibilityRole="checkbox"
+                accessibilityState={{checked:backupPartial}} onPress={()=>setBackupPartial(v=>!v)}
+                style={{flexDirection:'row',alignItems:'center',gap:12,paddingVertical:10}}>
+                <Text style={{fontSize:20,color:COLORS.orange}}>{backupPartial?'☑':'☐'}</Text>
+                <Text style={[styles.cardSub,{flex:1,lineHeight:19}]}>Autoriser la restauration partielle si des médias sont absents (les visites et références sont conservées). Laisser décoché pour une restauration stricte.</Text>
+              </TouchableOpacity>:null}
               <View style={[styles.modalActions,{marginTop:15}]}>
                 <TouchableOpacity style={styles.btnSecondary} disabled={occupe} onPress={fermerSauvegarde}>
                   <Text style={styles.btnSecondaryText}>Annuler</Text>
@@ -311,10 +323,10 @@ function GestionDonnees(){
                   disabled={occupe || (backupMode==='export' && (backupPassword.length<16 || backupPassword!==backupPasswordConfirm))
                     || (backupMode==='restore' && !backupLegacy && backupPassword.length<16)}
                   onPress={()=>{
-                    const password=backupPassword, legacy=backupLegacy, mode=backupMode;
-                    setBackupMode(null);setBackupPassword('');setBackupPasswordConfirm('');setBackupLegacy(false);
+                    const password=backupPassword, legacy=backupLegacy, partial=backupPartial, mode=backupMode;
+                    setBackupMode(null);setBackupPassword('');setBackupPasswordConfirm('');setBackupLegacy(false); setBackupPartial(false);
                     if(mode==='export') sauvegarderComplet({motDePasse:password});
-                    else demanderRestauration({motDePasse:password,autoriserArchiveAncienne:legacy});
+                    else demanderRestauration({motDePasse:password,autoriserArchiveAncienne:legacy,autoriserRestaurationPartielle:partial});
                   }}>
                   <Text style={styles.btnPrimaryText}>{backupMode==='export'?'Créer le ZIP chiffré':'Choisir le ZIP'}</Text>
                 </TouchableOpacity>

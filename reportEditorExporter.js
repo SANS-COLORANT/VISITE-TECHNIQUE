@@ -1,12 +1,17 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { File } from 'expo-file-system';
+import { NativeModules } from 'react-native';
+import { beginReportPhotoExport, endReportPhotoExport, reportPhotoCacheStats } from './reportPhotoCache.js';
 import * as Print from 'expo-print';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Asset } from 'expo-asset';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { construireHtmlRapport } from './reportBuilder.js';
-import { decouperRapportPdf, extraireEnteteRapport, composerHtmlFragment } from './reportPdfFragments.js';
+import { A4_REPORT_POINTS, ensureReportA4, assertReportPhotoIds } from './reportFidelity.js';
+import { installReportNavigation } from './reportPdfNavigation.js';
+import { planifierLotsPdf, extraireEnteteRapport, composerHtmlLot, choisirBudgetPdf, pagesPhotosRapport } from './reportPdfFragments.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
-import { dossierRapportsClientMetra, dossierRapportsSiteMetra, dossierRapportsLocalMetra, creerFichierSaf } from './metraStorage.js';
+import { dossierRapportsClientMetra, dossierRapportsSiteMetra, dossierRapportsLocalMetra, creerFichierSaf, creerFichierSafDepuisFichier } from './metraStorage.js';
 
 const MIME_PDF = 'application/pdf';
 const MIME_WORD = 'application/msword';
@@ -86,34 +91,7 @@ async function imageDataUri(uri, width = 1400, compress = 0.78) {
   }
 }
 
-function poidsPhoto(size) {
-  if (size === 'small') return 2;
-  if (size === 'large') return 6;
-  if (size === 'full') return 12;
-  return 3;
-}
-
-function grouperCartes(cartes) {
-  const pages = [];
-  let page = [], charge = 0;
-  for (const carte of cartes) {
-    const poids = poidsPhoto(carte.photo?.size || 'medium');
-    if (page.length && charge + poids > 12) {
-      pages.push(page);
-      page = [];
-      charge = 0;
-    }
-    page.push(carte);
-    charge += poids;
-    if (charge >= 12) {
-      pages.push(page);
-      page = [];
-      charge = 0;
-    }
-  }
-  if (page.length) pages.push(page);
-  return pages;
-}
+function grouperCartes(cartes) { return pagesPhotosRapport(cartes); }
 
 function classesCartePhoto(photo) {
   const size = ['small', 'medium', 'large', 'full'].includes(photo?.size) ? photo.size : 'medium';
@@ -174,7 +152,7 @@ function cssEditeur(layout = {}) {
     .photoGrid{display:grid!important;grid-template-columns:repeat(6,1fr)!important;gap:5mm 4mm!important;align-items:start}
     .photoCard{width:auto!important;min-height:0!important}
     .photoSize-small{grid-column:span 2}.photoSize-medium{grid-column:span 3}.photoSize-large,.photoSize-full{grid-column:1/-1}
-    .photoSize-small .photoImageWrap{height:38mm!important}.photoSize-medium .photoImageWrap{height:50mm!important}.photoSize-large .photoImageWrap{height:82mm!important}.photoSize-full .photoImageWrap{height:142mm!important}
+    .photoSize-small .photoImageWrap{height:38mm!important}.photoSize-medium .photoImageWrap{height:48mm!important}.photoSize-large .photoImageWrap{height:82mm!important}.photoSize-full .photoImageWrap{height:142mm!important}
     .captionSize-small .photoCaption{font-size:7.4pt!important}.captionSize-normal .photoCaption{font-size:9pt!important}.captionSize-large .photoCaption{font-size:11pt!important}
     .sectionBanner.titleSize-small{font-size:11pt!important}.sectionBanner.titleSize-large{font-size:17pt!important}
   `;
@@ -189,11 +167,16 @@ function appliquerTitresMarques(html) {
 async function construireHtmlEdite(datas, config, photosConfig, output) {
   const layout = config.layout || {};
   const preparedDatas = preparerDatasMiseEnPage(datas, layout);
-  const coverDataUri = config.coverUri ? await imageDataUri(config.coverUri) : null;
+  const coverDataUri = config.__fragmentRapport ? null : (config.coverUri ? await imageDataUri(config.coverUri) : null);
   let html = await construireHtmlRapport(preparedDatas, config, photosConfig, output);
   html = appliquerTitresMarques(html);
   html = html.replace('</style>', `${cssEditeur(layout)}</style>`);
   html = personnaliserPhotosHtml(html, preparedDatas, photosConfig);
+  if(config.coverUri&&!config.__fragmentRapport&&!coverDataUri)throw Error('La photo de couverture sélectionnée est illisible. Choisir une autre image.');
+  if(config.photos&&!config.__enteteSeulement){
+    const expected=preparedDatas.flatMap(d=>photosConfig.filter(p=>String(p.visiteId)===String(d.visite.id)&&p.include&&p.exportAllowed!==false).sort((a,b)=>a.ordre-b.ordre).map(p=>p.id));
+    assertReportPhotoIds(html,expected);
+  }
   if (coverDataUri) {
     html = html.replace(/<div class="coverVisual"><img src="[^"]+" alt="Energie & Service"\/><\/div>/, `<div class="coverVisual"><img src="${coverDataUri}" alt="Couverture du rapport"/></div>`);
     html = html.replace(/<img src="[^"]+" alt="Couverture du rapport"([^>]*)\/>/, `<img src="${coverDataUri}" alt="Couverture du rapport"$1/>`);
@@ -211,9 +194,36 @@ async function choisirDossier() {
 }
 
 async function copierPdfVersDossier(uriSource, dossier, nom) {
-  const SAF = FileSystem.StorageAccessFramework;
+  const nativeCopy=NativeModules.MetraPdf?.copyReportToDocument;
+  if(typeof nativeCopy==='function'){
+    return creerFichierSafDepuisFichier(dossier,nom,MIME_PDF,uriSource,(source,dest)=>NativeModules.MetraPdf.copyReportToDocument(source,dest));
+  }
+  // Compatibility for a runtime without the bundled Android module.
   const b64 = await FileSystem.readAsStringAsync(uriSource, { encoding: FileSystem.EncodingType.Base64 });
   return creerFichierSaf(dossier, nom, MIME_PDF, b64);
+}
+function checkReportCancelled(config){
+  if(config.shouldCancel?.())throw Object.assign(new Error('Génération annulée. Aucun PDF incomplet enregistré.'),{code:'METRA_REPORT_CANCELLED'});
+}
+async function lirePdfBinaire(uri){
+  if(typeof File?.prototype?.bytes==='function')return new File(uri).bytes();
+  return FileSystem.readAsStringAsync(uri,{encoding:FileSystem.EncodingType.Base64});
+}
+async function sauvegarderPdfBinaire(pdf,prefix='rapport_edite'){
+  const uri=FileSystem.cacheDirectory+prefix+'_'+Date.now()+'_'+Math.random().toString(36).slice(2)+'.pdf';
+  try{
+    if(typeof File?.prototype?.write==='function'){
+      const bytes=await pdf.save();
+      const file=new File(uri);
+      file.create({overwrite:false});
+      file.write(bytes);
+    }else{
+      await FileSystem.writeAsStringAsync(uri,await pdf.saveAsBase64({dataUri:false}),{encoding:FileSystem.EncodingType.Base64});
+    }
+    const info=await FileSystem.getInfoAsync(uri,{size:true});
+    if(!info.exists||!info.size)throw Error('PDF temporaire vide.');
+    return uri;
+  }catch(error){await FileSystem.deleteAsync(uri,{idempotent:true}).catch(()=>{});throw error;}
 }
 
 async function ecrireWordHtml(dossier, nom, html) {
@@ -257,10 +267,11 @@ async function lireAssetBinaire(moduleId) {
   throw new Error('Asset PDF illisible');
 }
 
-async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, coverDataUri) {
-  const sourceBase64 = await FileSystem.readAsStringAsync(uriSource, { encoding: FileSystem.EncodingType.Base64 });
-  const pdf = await PDFDocument.load(sourceBase64);
+async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, coverDataUri, pdfSource=null,navigationBatches=[]) {
+  // Reuse the merged document rather than serializing and parsing it again.
+  const pdf = pdfSource || await PDFDocument.load(await lirePdfBinaire(uriSource));
   const pages = pdf.getPages();
+  pages.forEach(ensureReportA4);
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   // Standard WinAnsi PDF fonts cannot encode arbitrary Unicode. Keep the
@@ -270,7 +281,9 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
       bold.widthOfTextAtSize(String(v || ''), 9);
   } catch (error) {
     console.warn('Habillage PDF Unicode non pris en charge ; PDF imprimé complet conservé.', error);
-    return uriSource;
+    installReportNavigation(pdf,navigationBatches);
+    if(uriSource&&navigationBatches.length===0)return uriSource;
+    return sauvegarderPdfBinaire(pdf);
   }
   const mm = (value) => value * 72 / 25.4;
   const embedJpgSafe = async (base64) => { try { return base64 ? await pdf.embedJpg(base64) : null; } catch { return null; } };
@@ -282,19 +295,21 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
   };
 
   const [coverExact, logoExact, certExact, pageMarkImage, ...businessSpiralImages] = await Promise.all([
-    embedBundledSafe(REPORT_ASSETS.cover, 'png'),
-    embedBundledSafe(REPORT_ASSETS.logo, 'png'),
-    embedBundledSafe(REPORT_ASSETS.cert, 'png'),
+    pdf.embedPng(dataUriBase64(REPORT_COVER)),
+    pdf.embedPng(dataUriBase64(REPORT_LOGO)),
+    pdf.embedPng(dataUriBase64(REPORT_OPQIBI)),
     embedBundledSafe(REPORT_ASSETS.pageMark, 'png'),
     ...REPORT_ASSETS.businessSpirals.map((moduleId) => embedBundledSafe(moduleId, 'jpg')),
   ]);
   const customCover = coverDataUri ? await embedJpgSafe(dataUriBase64(coverDataUri)) : null;
-  const coverFallback = !coverExact && !customCover ? await embedJpgSafe(dataUriBase64(REPORT_COVER)) : null;
-  const logoFallback = !logoExact ? await embedJpgSafe(dataUriBase64(REPORT_LOGO)) : null;
-  const certFallback = !certExact ? await embedJpgSafe(dataUriBase64(REPORT_OPQIBI)) : null;
-  const coverVisualImage = customCover || coverExact || coverFallback;
-  const coverLogoImage = logoExact || logoFallback;
-  const coverOpqibiImage = certExact || certFallback;
+  if(coverDataUri&&!customCover)throw Error('Couverture sélectionnée illisible.');
+  const coverVisualImage=customCover||coverExact,coverLogoImage=logoExact,coverOpqibiImage=certExact;
+  // Replace the printed cover itself: no second logo, text or obsolete legal
+  // address remains underneath an opaque white rectangle.
+  pdf.removePage(0);
+  pdf.insertPage(0,[A4_REPORT_POINTS.width,A4_REPORT_POINTS.height]);
+  const coverPage=pdf.getPage(0);
+  pages[0]=coverPage;
 
   const fit = (image, maxWidth, maxHeight) => {
     if (!image) return { width: 0, height: 0 };
@@ -404,95 +419,167 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
     page.drawText(pageText, { x: x + arrowW + (numW - tW) / 2, y: footerY + 4, size: 6.6, font: bold, color: rgb(1, 1, 1) });
   });
 
-  const outBase64 = await pdf.saveAsBase64({ dataUri: false });
-  const outUri = `${FileSystem.cacheDirectory}rapport_edite_${Date.now()}.pdf`;
-  await FileSystem.writeAsStringAsync(outUri, outBase64, { encoding: FileSystem.EncodingType.Base64 });
-  return outUri;
+  installReportNavigation(pdf,navigationBatches);
+  checkReportCancelled(config);
+  return sauvegarderPdfBinaire(pdf);
 }
 
 
-async function imprimerPdfParFragments({ datas, config, photosConfig, onProgress }) {
-  const fragments = decouperRapportPdf(datas, photosConfig, config.photos !== false);
-  const sansPhotos = await construireHtmlEdite(datas, { ...config, photos: false }, [], 'pdf');
-  const entete = extraireEnteteRapport(sansPhotos.html);
-  const final = await PDFDocument.create();
-  let count = 0;
-  try {
-    for (const fragment of fragments) {
-      const rendered = await construireHtmlEdite(
-        [fragment.data],
-        { ...config, patrimoine: false },
-        fragment.photosConfig,
-        'pdf'
-      );
-      // Every Android print job contains at most 8 photos; keep only one cover.
-      const html = composerHtmlFragment(rendered.html, entete, fragment);
-      let printed = null;
-      try {
-        printed = await Print.printToFileAsync({ html, base64: false });
-        const content = await FileSystem.readAsStringAsync(printed.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        const chunk = await PDFDocument.load(content);
-        const pages = await final.copyPages(chunk, chunk.getPageIndices());
-        for (const page of pages) final.addPage(page);
-      } finally {
-        if (printed?.uri) await FileSystem.deleteAsync(printed.uri, { idempotent: true }).catch(() => {});
-      }
-      count += 1;
-      onProgress?.(count, fragments.length);
+async function imprimerPdfParFragments({datas,config,photosConfig,onProgress}) {
+  const started=Date.now(),cacheBefore=reportPhotoCacheStats();
+  const metrics={visits:datas.length,photos:0,budget:8,plannedLots:0,printJobs:0,retriedLots:0,headerMs:0,htmlMs:0,printMs:0,mergeMs:0};
+  const progress=(phase,done,total)=>config.onReportProgress?.({phase,done,total});
+  checkReportCancelled(config);
+  let profile={};
+  try{profile=await NativeModules.MetraPdf?.reportMemoryProfile?.()||{};}catch{}
+  const budget=choisirBudgetPdf(profile);
+  metrics.budget=budget;
+  const lots=planifierLotsPdf(datas,photosConfig,config.photos!==false,budget);
+  metrics.plannedLots=lots.length;
+  metrics.photos=lots.reduce((n,lot)=>n+lot.reduce((a,f)=>a+f.photosConfig.length,0),0);
+  if(!lots.length)throw Error('Aucune visite à exporter.');
+  let photoDone=0,count=0;
+  progress('Données',0,datas.length);
+  const headerStarted=Date.now();
+  const header=await construireHtmlEdite(datas,{...config,photos:false,__enteteSeulement:true},[],'pdf');
+  const entete=extraireEnteteRapport(header.html);
+  metrics.headerMs=Date.now()-headerStarted;
+  progress('Données',datas.length,datas.length);
+  const final=await PDFDocument.create(), navigationBatches=[];
+  // A single, independently printed cover/TOC/intro ensures the first
+  // technical lot also has an exact starting-page bookmark.
+  async function appendPrinted(html){
+    checkReportCancelled(config);
+    const printed=await Print.printToFileAsync({html,...A4_REPORT_POINTS,base64:false});
+    try{
+      checkReportCancelled(config);
+      const chunk=await PDFDocument.load(await lirePdfBinaire(printed.uri));
+      if(!chunk.getPageCount())throw Error('Impression PDF vide.');
+      chunk.getPages().forEach(ensureReportA4);
+      const pages=await final.copyPages(chunk,chunk.getPageIndices());
+      for(const page of pages)final.addPage(page);
+    }finally{if(printed?.uri)await FileSystem.deleteAsync(printed.uri,{idempotent:true}).catch(()=>{});}
+  }
+  const bodyStart=header.html.indexOf('<body>')+'<body>'.length;
+  if(bodyStart<6)throw Error('Structure de couverture invalide.');
+  await appendPrinted(header.html.slice(0,bodyStart)+entete.replace('<div class="intro">','<div class="intro" style="page-break-after:auto">')+'</body></html>');
+  async function imprimerLot(lot){
+    checkReportCancelled(config);
+    const htmlStart=Date.now();
+    const rendered=[];
+    for(const fragment of lot){
+      checkReportCancelled(config);
+      const page=await construireHtmlEdite([fragment.data],{
+        ...config,patrimoine:false,coverUri:null,__fragmentRapport:fragment,
+        onPhotoPrepared:()=>{
+          photoDone++;
+          if(photoDone%10===0||photoDone===metrics.photos)progress('Photos',Math.min(photoDone,metrics.photos),metrics.photos);
+        }
+      },fragment.photosConfig,'pdf');
+      rendered.push({html:page.html,fragment});
     }
-    const destination = FileSystem.cacheDirectory + 'rapport_fragments_' + Date.now() + '.pdf';
-    const encoded = await final.saveAsBase64({ dataUri: false });
-    await FileSystem.writeAsStringAsync(destination, encoded, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    return destination;
-  } catch (error) {
-    throw new Error('Génération PDF par lots interrompue (' + count + '/' + fragments.length + ') : ' + String(error?.message || error));
+    const html=composerHtmlLot(rendered,'',false);
+    assertReportPhotoIds(html,lot.flatMap(f=>f.photosConfig.map(p=>p.id)));
+    metrics.htmlMs+=Date.now()-htmlStart;
+    checkReportCancelled(config);
+    progress('Impression',count,lots.length);
+    let printed;
+    const printStart=Date.now();
+    try{
+      printed=await Print.printToFileAsync({html,...A4_REPORT_POINTS,base64:false});
+    }catch(error){
+      metrics.printMs+=Date.now()-printStart;
+      // Retain all previously copied pages. Retry only a rejected print,
+      // never a partially appended PDF or a missing-photo error.
+      if(lot.length>1){
+        metrics.retriedLots++;
+        for(const fragment of lot)await imprimerLot([fragment]);
+        return;
+      }
+      throw error;
+    }
+    metrics.printMs+=Date.now()-printStart;
+    try{
+      checkReportCancelled(config);
+      const mergeStart=Date.now();
+      const chunk=await PDFDocument.load(await lirePdfBinaire(printed.uri));
+      if(!chunk.getPageCount())throw Error('Impression PDF vide.');
+      chunk.getPages().forEach(ensureReportA4);
+      navigationBatches.push({index:final.getPageCount(),locals:lot.filter(f=>f.premierLocal).map(f=>({id:f.data.visite.id,label:f.data.visite.nom_local||f.data.visite.nom_site||'Installation'}))});
+      const pages=await final.copyPages(chunk,chunk.getPageIndices());
+      for(const page of pages)final.addPage(page);
+      metrics.mergeMs+=Date.now()-mergeStart;metrics.printJobs++;
+    }finally{if(printed?.uri)await FileSystem.deleteAsync(printed.uri,{idempotent:true}).catch(()=>{});}
+  }
+  try{
+    for(const lot of lots){
+      await imprimerLot(lot);
+      count++;onProgress?.(count,lots.length);
+      progress('Impression',count,lots.length);
+      await new Promise(resolve=>setTimeout(resolve,0));
+    }
+    metrics.headerPrintJobs=1;
+    const after=reportPhotoCacheStats();
+    Object.assign(metrics,{photoCacheHits:after.hits-cacheBefore.hits,photoEncodes:after.encoded-cacheBefore.encoded,assembleMs:Date.now()-started,pages:final.getPageCount()});
+    return {pdf:final,coverDataUri:header.coverDataUri,metrics,navigationBatches};
+  }catch(error){
+    if(error?.code==='METRA_REPORT_CANCELLED')throw error;
+    throw Error('Génération PDF interrompue ('+count+'/'+lots.length+' lots) : '+String(error?.message||error));
   }
 }
 
-// Reuse the same bounded eight-photo print jobs for heavy previews;
- // this returns a TEMPORARY file that callers must clean up after sharing.
-export async function preparerApercuPdfFragmente({ datas, config, photosConfig }) {
-  return imprimerPdfParFragments({ datas, config, photosConfig });
+// Heavy previews are complete temporary files; no change to the Word path.
+export async function preparerApercuPdfFragmente({datas,config,photosConfig}){
+  beginReportPhotoExport();
+  try{
+    const result=await imprimerPdfParFragments({datas,config,photosConfig});
+    installReportNavigation(result.pdf,result.navigationBatches);
+    return await sauvegarderPdfBinaire(result.pdf,'rapport_apercu');
+  }finally{endReportPhotoExport();}
 }
 
-async function exporterUnFormatEdite({ datas, config, photosConfig, format, dossier }) {
-  const clientNom = datas[0]?.visite?.nom_client || 'Rapport';
-  const localNom = datas[0]?.visite?.nom_local || datas[0]?.visite?.type_local || null;
-  const base = propre(datas.length > 1
-    ? `${clientNom}_${config.chrono || 'Rapport'}_${config.objet || 'CRV'}`
-    : `${config.chrono || 'Rapport'}_${datas[0]?.visite?.nom_site || clientNom}${localNom ? `_${localNom}` : ''}_${config.objet || 'CRV'}`);
-  const sites = [...new Set(datas.map((d) => d.visite.nom_site).filter(Boolean))];
-  const siteFooter = sites.length === 1 ? [sites[0], datas.length === 1 ? localNom : null].filter(Boolean).join(' · ') : `${sites.length} sites sélectionnés`;
-  const clientCover = datas[0]?.visite?.nom_client || 'Rapport';
-  const nombreusesPhotos = format !== 'word' && config.photos !== false && (photosConfig || []).filter(p => p.include && datas.some(d => String(d.visite.id) === String(p.visiteId))).length > 8;
-  const rendered = nombreusesPhotos
-    ? { coverDataUri: config.coverUri ? await imageDataUri(config.coverUri) : null }
-    : await construireHtmlEdite(datas, config, photosConfig, format === 'word' ? 'word' : 'pdf');
-
-  if (format === 'word') {
-    const nom = `${base}.doc`;
-    return { format, uri: await ecrireWordHtml(dossier, nom, rendered.html), nom };
+async function exporterUnFormatEdite({datas,config,photosConfig,format,dossier}){
+  const clientNom=datas[0]?.visite?.nom_client||'Rapport';
+  const localNom=datas[0]?.visite?.nom_local||datas[0]?.visite?.type_local||null;
+  const base=propre(datas.length>1
+    ? clientNom+'_'+(config.chrono||'Rapport')+'_'+(config.objet||'CRV')
+    : (config.chrono||'Rapport')+'_'+(datas[0]?.visite?.nom_site||clientNom)+(localNom?'_'+localNom:'')+'_'+(config.objet||'CRV'));
+  const sites=[...new Set(datas.map(d=>d.visite.nom_site).filter(Boolean))];
+  const siteFooter=sites.length===1?[sites[0],datas.length===1?localNom:null].filter(Boolean).join(' · '):sites.length+' sites sélectionnés';
+  const clientCover=datas[0]?.visite?.nom_client||'Rapport';
+  checkReportCancelled(config);
+  if(format==='word'){
+    const rendered=await construireHtmlEdite(datas,config,photosConfig,'word');
+    const nom=base+'.doc';
+    return {format,uri:await ecrireWordHtml(dossier,nom,rendered.html),nom};
   }
-
-  const printed = nombreusesPhotos
-    ? { uri: await imprimerPdfParFragments({ datas, config, photosConfig, onProgress: config.onPdfProgress }) }
-    : await Print.printToFileAsync({ html: rendered.html, base64: false });
-  let habille = null;
-  const nom = `${base}.pdf`;
-  try {
-    habille = await habillerPdfEdite(printed.uri, config, siteFooter, clientCover, rendered.coverDataUri);
-    return { format: 'pdf', uri: await copierPdfVersDossier(habille, dossier, nom), nom };
-  } finally {
-    await FileSystem.deleteAsync(printed.uri, { idempotent: true }).catch(() => {});
-    if (habille) await FileSystem.deleteAsync(habille, { idempotent: true }).catch(() => {});
+  let habille=null;
+  const started=Date.now(),nom=base+'.pdf';
+  beginReportPhotoExport();
+  try{
+    const result=await imprimerPdfParFragments({datas,config,photosConfig,onProgress:config.onPdfProgress});
+    checkReportCancelled(config);
+    config.onReportProgress?.({phase:'Pagination et assemblage',done:0,total:1});
+    const finishStart=Date.now();
+    habille=await habillerPdfEdite(null,config,siteFooter,clientCover,result.coverDataUri,result.pdf,result.navigationBatches);
+    result.metrics.finishMs=Date.now()-finishStart;
+    checkReportCancelled(config);
+    config.onReportProgress?.({phase:'Enregistrement',done:0,total:1});
+    const writeStart=Date.now();
+    const uri=await copierPdfVersDossier(habille,dossier,nom);
+    result.metrics.writeMs=Date.now()-writeStart;result.metrics.totalMs=Date.now()-started;
+    // Counts and timings only: never names, paths, photo labels or client data.
+    console.info('METRA_REPORT_METRICS '+JSON.stringify(result.metrics));
+    config.onReportProgress?.({phase:'Terminé',done:1,total:1});
+    return {format:'pdf',uri,nom,metrics:result.metrics};
+  }finally{
+    if(habille)await FileSystem.deleteAsync(habille,{idempotent:true}).catch(()=>{});
+    endReportPhotoExport();
   }
 }
 
 export async function exporterRapportEdite({ datas, config, photosConfig, format = 'pdf', dossierUri = null }) {
+  checkReportCancelled(config);
   const clientNom = datas?.[0]?.visite?.nom_client || null;
   const clientId = datas?.[0]?.visite?.client_id || null;
   const dossier = dossierUri || (clientNom ? await dossierRapportsClientMetra(clientNom, clientId) : await choisirDossier());
@@ -514,6 +601,7 @@ export async function exporterRapportsParSiteEdites({ datas, config, photosConfi
   const resultats = [];
   const erreurs = [];
   for (const siteDatas of groupes.values()) {
+    if(config.shouldCancel?.())break;
     const visiteId = siteDatas[0]?.visite?.id;
     const siteConfig = config.coverVisiteId && !siteDatas.some((data) => data.visite.id === config.coverVisiteId)
       ? { ...config, coverUri: null, coverLabel: 'Image standard METRA', coverVisiteId: null }
@@ -525,10 +613,11 @@ export async function exporterRapportsParSiteEdites({ datas, config, photosConfi
         : await dossierRapportsSiteMetra({ clientNom, siteNom, clientId, siteId: siteDatas[0]?.visite?.site_id });
       resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossierSite }));
     } catch (error) {
+      if(error?.code==='METRA_REPORT_CANCELLED')break;
       erreurs.push({ siteId: siteDatas[0]?.visite?.site_id, siteNom, visiteIds: siteDatas.map((d) => d.visite.id), message: String(error?.message || error) });
     }
   }
-  return { annule: false, resultats, erreurs };
+  return { annule: false, interrompu:Boolean(config.shouldCancel?.()), resultats, erreurs };
 }
 
 
@@ -548,6 +637,7 @@ export async function exporterRapportsParLocalEdites({ datas, config, photosConf
   const resultats = [];
   const erreurs = [];
   for (const localDatas of groupes.values()) {
+    if(config.shouldCancel?.())break;
     const visiteId = localDatas[0]?.visite?.id;
     const localConfig = config.coverVisiteId && config.coverVisiteId !== visiteId
       ? { ...config, coverUri: null, coverLabel: 'Image standard METRA', coverVisiteId: null }
@@ -564,12 +654,13 @@ export async function exporterRapportsParLocalEdites({ datas, config, photosConf
       }
       resultats.push(await exporterRapportEdite({ datas: localDatas, config: localConfig, photosConfig, format, dossierUri: dossier }));
     } catch (error) {
+      if(error?.code==='METRA_REPORT_CANCELLED')break;
       erreurs.push({ localId: localDatas[0]?.visite?.installation_id,
         visiteIds: localDatas.map((d) => d.visite.id), localNom, siteNom,
         message: String(error?.message || error) });
     }
   }
-  return { annule: false, resultats, erreurs };
+  return { annule: false, interrompu:Boolean(config.shouldCancel?.()), resultats, erreurs };
 }
 
 // METRA storage compatibility: dossierUri || await choisirDossier(datas);

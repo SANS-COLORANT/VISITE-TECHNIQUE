@@ -13,28 +13,22 @@ import { ROOT_TAB_KEYS } from './rootTabSwipe.js';
 function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, accentDark = COLORS.orangeDark, dense = false }) {
   const { width } = useWindowDimensions();
   const [measuredWidth, setMeasuredWidth] = useState(0);
-  const idleProgress = useRef(new Animated.Value(0)).current;
-  const progress = swipeProgress || idleProgress;
-  const compact = width / Math.max(1, tabs.length) < 112;
-  const slotWidth = Math.max(1, (measuredWidth - 20) / Math.max(1, tabs.length));
-  const activeIndex = tabs.findIndex((tab) => tab.key === activeKey && ROOT_TAB_KEYS.includes(tab.key));
-  const currentOrderIndex = ROOT_TAB_KEYS.indexOf(activeKey);
-  const prevKey = ROOT_TAB_KEYS[currentOrderIndex - 1];
-  const nextKey = ROOT_TAB_KEYS[currentOrderIndex + 1];
-  const prevIndex = tabs.findIndex((tab) => tab.key === prevKey);
-  const nextIndex = tabs.findIndex((tab) => tab.key === nextKey);
-  const centerFor = (idx) => 10 + (idx + 0.5) * slotWidth;
-  const bubbleWidth = dense ? 44 : (compact ? 48 : Math.min(118, Math.max(76, slotWidth - 12)));
-  const baseCenter = centerFor(activeIndex);
-  const bubbleLeft = baseCenter - bubbleWidth / 2;
-  const deltaToPrevious = prevIndex >= 0 ? centerFor(prevIndex) - baseCenter : 0;
-  const deltaToNext = nextIndex >= 0 ? centerFor(nextIndex) - baseCenter : 0;
-  const bubbleTranslate = progress.interpolate({
-    inputRange: [-1, 0, 1],
-    outputRange: [deltaToPrevious, 0, deltaToNext],
-    extrapolate: 'clamp',
-  });
-
+  const orderIndex=Math.max(0,ROOT_TAB_KEYS.indexOf(activeKey));
+  const idleProgress=useRef(new Animated.Value(orderIndex)).current;
+  const progress=swipeProgress||idleProgress;
+  const compact=width/Math.max(1,tabs.length)<112 || dense;
+  const horizontalPadding=dense?8:10;
+  const slotWidth=Math.max(1,(measuredWidth-horizontalPadding*2)/Math.max(1,tabs.length));
+  const activeIndex=tabs.findIndex(tab=>tab.key===activeKey&&ROOT_TAB_KEYS.includes(tab.key));
+  const centerFor=idx=>horizontalPadding+(idx+.5)*slotWidth;
+  const bubbleWidth=Math.min(Math.max(1,slotWidth-6),dense?44:compact?48:118);
+  const bubbleHeight=dense?28:compact?32:40;
+  const slotHeight=dense?48:56;
+  const labelHeight=compact?14:0;
+  const gap=compact?3:0;
+  const pillTop=(dense?3:8)+(slotHeight-bubbleHeight-labelHeight-gap)/2;
+  // Absolute page index, not a relative delta whose base changes on navigation.
+  const bubbleTranslate=progress.interpolate({inputRange:[0,1,2],outputRange:ROOT_TAB_KEYS.map(key=>centerFor(tabs.findIndex(tab=>tab.key===key))-bubbleWidth/2),extrapolate:'clamp'});
   return <View style={[styles.bar, dense && { paddingTop: 3, paddingBottom: 5, paddingHorizontal: 8 }]} onLayout={(e) => {
     const next = Math.round(e.nativeEvent.layout.width);
     setMeasuredWidth((prev) => prev === next ? prev : next);
@@ -42,8 +36,8 @@ function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, 
     {measuredWidth > 0 && activeIndex >= 0 ? <Animated.View
       pointerEvents="none"
       style={[styles.movingBubble, {
-        width: bubbleWidth, height: dense ? 30 : (compact ? 32 : 40),
-        top: dense ? 8 : (compact ? 10 : 14), left: bubbleLeft,
+        width: bubbleWidth, height: bubbleHeight,
+        top: pillTop, left: 0,
         transform: [{ translateX: bubbleTranslate }],
         shadowColor: accent,
       }]}
@@ -52,24 +46,32 @@ function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, 
     </Animated.View> : null}
     {tabs.map((tab) => {
       const active = tab.key === activeKey;
-      if (tab.center) return <View key={tab.key} style={[styles.slot, dense && { minHeight: 46, gap: 2 }]}>
+      if (tab.center) return <View key={tab.key} style={[styles.slot,{height:slotHeight,gap}]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={tab.label} onPress={tab.onPress} activeOpacity={0.85} style={[styles.centerShadow, { shadowColor: accent }, dense && { marginTop: -10, borderRadius: 14 }]}>
           <LinearGradient colors={[accent, accentDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={[styles.centerButton, dense && { width: 44, height: 44, borderRadius: 14 }]}>
             <CvcIcon name={tab.icon} size={dense ? 24 : 30} color={COLORS.white} strokeWidth={2.6} />
           </LinearGradient>
         </TouchableOpacity>
       </View>;
-      const root = ROOT_TAB_KEYS.includes(tab.key);
-      const color = active && root ? COLORS.white : COLORS.inkSoft;
-      return <TouchableOpacity key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={tab.label}
-        onPress={tab.onPress} activeOpacity={0.8} style={[styles.slot, dense && { minHeight: 46, gap: 2 }]}>
-        {root && !compact ? <View style={styles.wideContent}>
-          <CvcIcon name={tab.icon} size={18} color={color} strokeWidth={2.1} />
-          <Text numberOfLines={1} style={[styles.wideLabel, { color: active ? COLORS.white : COLORS.inkSoft }]}>{tab.label}</Text>
-        </View> : <>
-          {active && !root ? <LinearGradient colors={[accent, accentDark]} style={styles.activeIconPill}><CvcIcon name={tab.icon} size={18} color={COLORS.white} /></LinearGradient>
-            : <CvcIcon name={tab.icon} size={root ? 20 : 21} color={color} strokeWidth={active ? 2.2 : 2} />}
-          <Text numberOfLines={1} style={[styles.label, active && root && { color: accentDark, fontFamily: FONTS.bodyBold }]}>{tab.label}</Text>
+      const root=ROOT_TAB_KEYS.includes(tab.key);
+      const index=ROOT_TAB_KEYS.indexOf(tab.key);
+      const whiteOpacity=root?progress.interpolate({inputRange:[index-1,index-.25,index,index+.25,index+1],outputRange:[0,0,1,0,0],extrapolate:'clamp'}):null;
+      return <TouchableOpacity key={tab.key} accessibilityRole="tab" accessibilityState={{selected:active}} accessibilityLabel={tab.label}
+        onPress={tab.onPress} activeOpacity={0.8} style={[styles.slot,{height:slotHeight,gap}]}>
+        {root?<><View style={{height:bubbleHeight,width:bubbleWidth,alignItems:'center',justifyContent:'center'}}>
+          <View style={{flexDirection:'row',alignItems:'center',gap:5}}>
+            <CvcIcon name={tab.icon} size={compact?20:18} color={COLORS.inkSoft} strokeWidth={2.1}/>
+            {!compact?<Text numberOfLines={1} style={styles.wideLabel}>{tab.label}</Text>:null}
+          </View>
+          <Animated.View pointerEvents="none" style={{position:'absolute',top:0,bottom:0,left:0,right:0,alignItems:'center',justifyContent:'center',opacity:whiteOpacity}}>
+            <View style={{flexDirection:'row',alignItems:'center',gap:5}}>
+              <CvcIcon name={tab.icon} size={compact?20:18} color={COLORS.white} strokeWidth={2.1}/>
+              {!compact?<Text numberOfLines={1} style={[styles.wideLabel,{color:COLORS.white}]}>{tab.label}</Text>:null}
+            </View>
+          </Animated.View>
+        </View>{compact?<Text numberOfLines={1} style={[styles.label,{height:labelHeight},active&&{color:accentDark,fontFamily:FONTS.bodyBold}]}>{tab.label}</Text>:null}</>:<>
+          {active?<LinearGradient colors={[accent,accentDark]} style={styles.activeIconPill}><CvcIcon name={tab.icon} size={18} color={COLORS.white}/></LinearGradient>:<CvcIcon name={tab.icon} size={21} color={COLORS.inkSoft}/>}
+          <Text numberOfLines={1} style={styles.label}>{tab.label}</Text>
         </>}
       </TouchableOpacity>;
     })}
@@ -79,7 +81,7 @@ const styles = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingTop: 8, paddingBottom: 10,
     backgroundColor: '#FDFCFA', borderTopWidth: 1, borderTopColor: 'rgba(22,21,15,0.08)',
     shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: -6 }, elevation: 10 },
-  slot: { flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center', gap: 3, zIndex: 1 },
+  slot: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 3, zIndex: 1 },
   label: { fontSize: 10.5, fontFamily: FONTS.bodySemi, color: COLORS.inkSoft },
   wideContent: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 40 },
   wideLabel: { fontSize: 12, fontFamily: FONTS.bodyBold },

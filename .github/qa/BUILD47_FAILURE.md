@@ -1,0 +1,3 @@
+# Candidate 47 — correction des contrats avant compilation
+
+Run 45371347111, job 138366112710 : npm ci a exécuté verify:metra (postinstall) puis le contrôle large-client a refusé `maxToRenderPerBatch={10}`. Aucun AAB 47 généré. Retour à 8 lignes initiales et par lot, sans réintroduire les deux listes imbriquées. Vérification également du contrat existant d'isolation LAB (`<LabMetraPanel />`), conservé. Les tests mobile sont exécutés dès verify:metra, avant Gradle. Aucun contrôle supprimé, aucune modification de données, aucune publication Play. Les quatre recettes Android sur le binaire final restent obligatoires.

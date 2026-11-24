@@ -22,14 +22,17 @@ assert.equal(rootSwipeTarget('clients', -42, 0), 'settings');
 assert.equal(rootSwipeTarget('settings', +42, 0), 'clients');
 assert.equal(rootSwipeTarget('clients', +42, 0), 'home');
 assert.equal(rootSwipeTarget('clients', +25, 0), null, 'gesture must exceed short threshold');
-assert.equal(rootSwipeProgress(-56), 1, 'indicator follows small movement');
-assert.equal(rootSwipeProgress(56), -1, 'indicator follows back movement');
+assert.equal(rootSwipeProgress(-180,360), .5, 'indicator and screen follow half a page');
+assert.equal(rootSwipeProgress(180,360), -.5, 'reverse page displacement');
+assert.equal(rootSwipeProgress(-720,360), 1, 'clamp to one page');
+assert.equal(rootSwipeTarget('clients',-80,.8),null,'reverse flick cancels');
 
 const app = read('App.js'), nav = read('BottomTabBar.js');
 assert.ok(app.includes('gesture.dx > 18') && app.includes('gesture.dx > 82'), 'back swipe needs left-to-right direction');
 assert.ok(app.includes('canStartRootSwipe(') && app.includes('rootSwipeProgress('), 'app uses tab swipe');
 assert.ok(nav.includes('translateX: bubbleTranslate') && nav.includes('pointerEvents="none"'), 'animated bubble does not steal touches');
 assert.ok(app.includes('swipeProgress={tabSwipeProgress}'), 'root responder drives bubble');
+assert.ok(app.includes('translateX:rootPagerTranslate')&&app.includes('rootSwipeProgress(gesture.dx,rootPageWidth)'), 'same fractional position drives actual root pages');
 
 const dbSource = read('symfonyApiCacheDb.js');
 const start = dbSource.indexOf('export async function listImportedApiClients()');

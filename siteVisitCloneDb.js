@@ -6,7 +6,7 @@
  * visit evidence, and reusing file URIs can cause cross-site data loss.
  */
 export async function cloneLatestVisitsForSite(db,sourceSiteId,targetSiteId,maps,clone,cloneAttributes,makeId) {
-  const {installationMap,equipmentMap,networkMap,meterMap,itemMap}=maps;
+  const {installationMap,equipmentMap,networkMap,meterMap,itemMap,remoteInstallationMap=new Map()}=maps;
   const mapped=(map,id,field)=>{
     if(!id)return null;
     const result=map.get(id);
@@ -23,9 +23,15 @@ export async function cloneLatestVisitsForSite(db,sourceSiteId,targetSiteId,maps
   const visits=await db.getAllAsync(
     `SELECT * FROM visites WHERE site_id=? ORDER BY COALESCE(date_visite,'') DESC,cree_le DESC,id DESC`,
     [sourceSiteId]);
+  const targetInstallation=v=>{
+    const byLocal=v.installation_id?mapped(installationMap,v.installation_id,'installation'):null;
+    const byRemote=v.api_remote_local_id?remoteInstallationMap.get(String(v.api_remote_local_id)):null;
+    if(byLocal&&byRemote&&byLocal!==byRemote)throw Error('Duplication annulée : visite source et local Intranet incohérents.');
+    return byLocal||byRemote||null;
+  };
   const latest=[],seen=new Set();
   for(const v of visits){
-    const key=[v.installation_id||'',v.trame_id||''].join('||');
+    const key=[targetInstallation(v)||v.api_remote_local_id||'non_rattache',v.trame_id||''].join('||');
     if(seen.has(key))continue;
     seen.add(key);latest.push(v);
   }
@@ -34,12 +40,13 @@ export async function cloneLatestVisitsForSite(db,sourceSiteId,targetSiteId,maps
     const id=makeId();
     const visitOverrides={
       id,site_id:targetSiteId,
-      installation_id:mapped(installationMap,visit.installation_id,'installation'),
+      installation_id:targetInstallation(visit),
       statut:'a_completer',progression_pct:visit.progression_pct||0,
     };
     for(const key of Object.keys(visit))
       if(/^api_|^signature|^synchro|^intranet_/.test(key))
         visitOverrides[key]=null;
+    if(Object.prototype.hasOwnProperty.call(visit,'api_is_historical'))visitOverrides.api_is_historical=0;
     await clone(db,'visites',visit,visitOverrides,['cree_le','modifie_le']);
     visitMap.set(visit.id,id);
     await cloneAttributes(db,'visite',visit.id,id);
@@ -119,8 +126,13 @@ export async function cloneLatestVisitsForSite(db,sourceSiteId,targetSiteId,maps
         referenceId=mapped(equipmentMap,referenceId,'réserve équipement');
       else if(row.reference_type==='reseau'&&referenceId)
         referenceId=mapped(networkMap,referenceId,'réserve réseau');
+      // An imported reservation must never retain a reference to the
+      // original server reservation. Keep the descriptive content only.
+      const remoteReference=row.reference_type==='api_symfony'||row.origine==='Intranet';
       return {id,controle_key:rewriteKey(row.controle_key),
-        reference_id:referenceId,
+        reference_type:remoteReference?null:row.reference_type,
+        reference_id:remoteReference?null:referenceId,
+        origine:remoteReference?'Copie locale':row.origine,
         intranet_etat_avancement:null};
     });
     await copyRows('remar_values',visit.id,target,row=>({

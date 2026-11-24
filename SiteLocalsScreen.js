@@ -7,6 +7,8 @@ import { getDb, uuidv4 } from './db.js';
 import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollOffset } from './navigationMemory.js';
 import { peekSiteLocals, prewarmLocalVisits, prewarmSiteLocals, invalidateSiteLocals, needsPrewarmRefresh } from './navigationPrewarm.js';
 import { materializeCachedLocalForSite } from './apiLatestVisitImportDb.js';
+import { synchroniserHierarchieIntranet, hierarchySyncMessage } from './IntranetVisitSync.js';
+import { IntranetSiteCreationModal } from './IntranetStructureUi.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { EmptyIcon } from './EmptyState.js';
@@ -28,6 +30,7 @@ function SiteLocalsScreen({ route, navigation }) {
   const [nouveauNom, setNouveauNom] = useState('');
   const [creationEnCours, setCreationEnCours] = useState(false);
   const [cibles, setCibles] = useState([]);
+  const [syncLocalId,setSyncLocalId]=useState(null),[publishParent,setPublishParent]=useState(null);
 
   const charger = useCallback(async ({ reusePrewarm = false } = {}) => {
     if (!siteId) return;
@@ -88,6 +91,21 @@ function SiteLocalsScreen({ route, navigation }) {
     return () => clearTimeout(timer);
   }, [scrollKey, locauxFiltres.length]);
 
+  const synchroniserLocal=async local=>{
+    if(syncLocalId||!local?.installation_id||local.pendingMaterialization)return;
+    setSyncLocalId(local.installation_id);
+    try{
+      const result=await synchroniserHierarchieIntranet({siteId,installationId:local.installation_id});
+      invalidateSiteLocals(siteId);await charger();
+      Alert.alert(result.parentConfirmed?'Synchronisation du local':'Synchronisation à compléter',hierarchySyncMessage(result),
+        result.structure.blocked.length?[{text:'Fermer',style:'cancel'},{text:'Renseigner ce local',onPress:()=>navigation.navigate('IntranetStructure',{siteId,nomSite,clientId,nomClient,publishInstallationId:local.installation_id})}]:[{text:'OK'}]);
+    }catch(e){
+      if(e?.code==='structure_site_form_required'){
+        const db=await getDb(),site=await db.getFirstAsync('SELECT * FROM sites WHERE id=?',[siteId]);
+        if(site)setPublishParent({site,local});else Alert.alert('Site introuvable');
+      }else Alert.alert('Synchronisation impossible',String(e?.message||e));
+    }finally{setSyncLocalId(null);}
+  };
   const ouvrirLocal = (local) => {
     navigation.navigate('SiteVisites', {
       siteId,
@@ -244,6 +262,7 @@ function SiteLocalsScreen({ route, navigation }) {
                 <Text style={{ fontSize: 11.5, fontFamily: FONTS.bodyBold, color: fait ? COLORS.green : COLORS.orangeDark }}>{fait ? 'Fait' : cible ? 'À faire' : '+ À faire'}</Text>
               </TouchableOpacity>;
             })() : null}
+            {!item.pendingMaterialization?<TouchableOpacity accessibilityRole="button" accessibilityLabel={'Synchroniser le local '+label} disabled={Boolean(syncLocalId)} onPress={e=>{e?.stopPropagation?.();Alert.alert('Synchroniser ce local ?', 'METRA synchronise son site parent, ce local et ses dernières visites terminées non envoyées.',[{text:'Annuler',style:'cancel'},{text:'Synchroniser',onPress:()=>synchroniserLocal(item)}]);}} style={{minHeight:36,paddingHorizontal:10,justifyContent:'center',borderRadius:14,backgroundColor:COLORS.orangeLight}}><Text style={{color:COLORS.orangeDark,fontFamily:FONTS.bodyBold,fontSize:11}}>{syncLocalId===item.installation_id?'Synchronisation…':'Synchroniser'}</Text></TouchableOpacity>:null}
             {item.remote_local_id ? <View style={[styles.badge, styles.badgeActif, { minHeight: 36, justifyContent: 'center' }]}><Text style={[styles.badgeText, styles.badgeTextActif]}>Intranet</Text></View> : null}
           </View> : null}
         </TouchableOpacity>;
@@ -259,6 +278,7 @@ function SiteLocalsScreen({ route, navigation }) {
       </TouchableOpacity>
     </View>
 
+    <IntranetSiteCreationModal visible={Boolean(publishParent)} clientId={publishParent?.site?.client_id||clientId} existingSite={publishParent?.site} onClose={()=>setPublishParent(null)} onCreated={()=>publishParent?.local?synchroniserLocal(publishParent.local):undefined}/>
     <Modal visible={creationVisible} transparent animationType="fade" onRequestClose={() => !creationEnCours && setCreationVisible(false)}>
       <View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Nouveau local METRA</Text>

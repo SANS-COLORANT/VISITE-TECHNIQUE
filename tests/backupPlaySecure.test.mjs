@@ -98,10 +98,13 @@ test('Play backup always uses native AES-256 and never a plain outgoing ZIP',()=
 test('import gates legacy plaintext and validates before replacing the database',()=>{
   assert.match(backend,/!autoriserArchiveAncienne/);
   assert.match(backend,/validerManifesteSauvegarde\(manifeste, DATABASE_NAME, DATABASE_SCHEMA_VERSION\)/);
-  assert.ok(backend.indexOf('await validateRestoredContent(extracted')<backend.indexOf('await closeAppDatabase();'));
+  assert.ok(backend.indexOf('await validateRestoredContent(extracted')<backend.indexOf('await closeAppDatabase({strict:true});'));
   assert.match(backend,/await snapshotDatabase\(db, safety \+ 'database\/' \+ DATABASE_NAME\)/);
   assert.match(backend,/await db\.runAsync\('VACUUM INTO \?', \[native\(destination\)\]\)/);
   assert.match(backend,/rollbackSucceeded = true/);
+  assert.ok(backend.indexOf('await validateStagedDatabase(extracted')<backend.indexOf('await journal.arm(id)'));
+  assert.ok(backend.indexOf('await journal.arm(id)')<backend.indexOf('await FileSystem.deleteAsync(currentDb'));
+  assert.match(backend,/await journal\.recover\(\)/);
 });
 test('plaintext .db exports and automatic copies remain blocked on Play',()=>{
   assert.match(wrapper,/export async function exporterSauvegardeBase\(\) \{\s*refuserExportNonChiffre/);

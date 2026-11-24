@@ -1,5 +1,6 @@
 import { getDb, uuidv4 } from './db.js';
 import { cloneLatestVisitsForSite } from './siteVisitCloneDb.js';
+import { COPY_TEMPLATE_KEY, COPY_ORIGIN_KEY, siteCreationTemplate, localCreationTemplate, parseCopyJson } from './siteHierarchyDb.js';
 
 function texte(v = '') { return String(v ?? '').trim().replace(/\s+/g, ' '); }
 
@@ -22,9 +23,32 @@ async function insererClone(db, table, source, overrides = {}, exclusions = []) 
 async function clonerAttributs(db, type, sourceId, cibleId) {
   const rows = await db.getAllAsync(`SELECT * FROM attributs_libres WHERE entite_type=? AND entite_id=?`, [type, sourceId]);
   for (const row of rows) {
-    if (/^(api_symfony|intranet\.|remote\.)/i.test(String(row.cle||''))) continue;
+    if (/^(api_symfony|intranet\.|remote\.|metra\.copy\.)/i.test(String(row.cle||''))) continue;
     await insererClone(db, 'attributs_libres', row, { id: uuidv4(), entite_id: cibleId }, ['cree_le', 'modifie_le']);
   }
+}
+
+async function recordCopy(db,type,sourceId,targetId,template) {
+  // Copy only creation metadata (lot, trame, technical attributes), never a
+  // server resource ID, acknowledgement, creationId or upload payload.
+  for(const [cle,valeur] of [[COPY_ORIGIN_KEY,String(sourceId)],[COPY_TEMPLATE_KEY,JSON.stringify(template||{})]]){
+    await db.runAsync("INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur,type_valeur) VALUES(?,?,?,?,?,'texte')",[uuidv4(),type,targetId,cle,valeur]);
+  }
+}
+async function siteTemplate(db,sourceId){
+  const oldCopy=await db.getFirstAsync("SELECT valeur FROM attributs_libres WHERE entite_type='site' AND entite_id=? AND cle=?",[sourceId,COPY_TEMPLATE_KEY]);
+  const ack=await db.getAllAsync("SELECT payload_json FROM api_structure_outbox WHERE resource_type='site' AND local_site_id=? AND status='synced'",[sourceId]);
+  const links=await db.getAllAsync("SELECT payload_json FROM api_site_links WHERE local_site_id=? AND remote_present=1",[sourceId]);
+  const remote=ack.length===1?parseCopyJson(ack[0].payload_json):links.length===1?parseCopyJson(links[0].payload_json):parseCopyJson(oldCopy?.valeur);
+  return siteCreationTemplate(remote||{});
+}
+async function localTemplate(db,sourceSiteId,installationId){
+  const oldCopy=await db.getFirstAsync("SELECT valeur FROM attributs_libres WHERE entite_type='installation' AND entite_id=? AND cle=?",[installationId,COPY_TEMPLATE_KEY]);
+  const ack=await db.getAllAsync("SELECT payload_json FROM api_structure_outbox WHERE resource_type='local' AND local_site_id=? AND local_installation_id=? AND status='synced'",[sourceSiteId,installationId]);
+  const links=await db.getAllAsync("SELECT l.reference_json,l.remote_trame_id FROM api_local_links l JOIN api_site_links s ON s.remote_site_id=l.remote_site_id WHERE l.local_installation_id=? AND s.local_site_id=? AND l.remote_present=1",[installationId,sourceSiteId]);
+  if(ack.length===1)return localCreationTemplate(parseCopyJson(ack[0].payload_json)||{});
+  if(links.length===1){const ref=parseCopyJson(links[0].reference_json)||{};return localCreationTemplate(ref.local||{},links[0].remote_trame_id||ref.trame?.id);}
+  return localCreationTemplate(parseCopyJson(oldCopy?.valeur)||{});
 }
 
 export async function listerGroupesClient(clientId) {
@@ -95,8 +119,9 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
     const memberships = await db.getAllAsync(`SELECT groupe_id FROM site_groupe_membres WHERE site_id=?`, [sourceSiteId]);
     for (const membre of memberships) await db.runAsync(`INSERT OR IGNORE INTO site_groupe_membres(groupe_id,site_id) VALUES(?,?)`, [membre.groupe_id, cibleId]);
     await clonerAttributs(db, 'site', sourceSiteId, cibleId);
+    await recordCopy(db,'site',sourceSiteId,cibleId,await siteTemplate(db,sourceSiteId));
 
-    const equipmentMap = new Map(),installationMap=new Map();
+    const equipmentMap = new Map(),installationMap=new Map(),remoteInstallationMap=new Map();
     const networkMap=new Map(),meterMap=new Map(),itemMap=new Map();
     if (copierPatrimoine) {
       const installations = await db.getAllAsync(`SELECT * FROM installations WHERE site_id=? ORDER BY cree_le,id`, [sourceSiteId]);
@@ -105,6 +130,7 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
         installationMap.set(installation.id,newInstallationId);
         await insererClone(db, 'installations', installation, { id: newInstallationId, site_id: cibleId }, ['cree_le', 'modifie_le']);
         await clonerAttributs(db, 'installation', installation.id, newInstallationId);
+        await recordCopy(db,'installation',installation.id,newInstallationId,await localTemplate(db,sourceSiteId,installation.id));
 
         const equipements = await db.getAllAsync(`SELECT * FROM equipements WHERE installation_id=? ORDER BY cree_le,id`, [installation.id]);
         for (const equipement of equipements) {
@@ -134,9 +160,27 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
       }
     }
 
+    if(copierPatrimoine){
+      // Include cached remote-only locals that have never been opened on the
+      // tablet. Do not materialize or move the original remote identities.
+      const remoteLocals=await db.getAllAsync("SELECT l.remote_local_id,l.local_installation_id,l.designation,l.reference_json,l.remote_trame_id FROM api_local_links l JOIN api_site_links s ON s.remote_site_id=l.remote_site_id WHERE s.local_site_id=? AND l.remote_present=1 AND s.remote_present=1 ORDER BY l.remote_local_id",[sourceSiteId]);
+      for(const remote of remoteLocals){
+        if(remote.local_installation_id){
+          const existing=installationMap.get(remote.local_installation_id);
+          if(!existing)throw Error('Duplication annulée : le local Intranet source est rattaché à un autre site.');
+          if([...remoteInstallationMap.values()].includes(existing))throw Error('Duplication annulée : plusieurs locaux Intranet partagent la même installation source.');
+          remoteInstallationMap.set(String(remote.remote_local_id),existing);
+          continue;
+        }
+        const ref=parseCopyJson(remote.reference_json)||{},id=uuidv4();
+        await db.runAsync("INSERT INTO installations(id,site_id,type_code,nom,description,actif) VALUES(?,?,?,?,?,1)",[id,cibleId,'installation_technique',remote.designation||ref.local?.designation||'Local technique',ref.local?.situation||null]);
+        remoteInstallationMap.set(String(remote.remote_local_id),id);
+        await recordCopy(db,'installation','remote-local:'+remote.remote_local_id,id,localCreationTemplate(ref.local||{},remote.remote_trame_id||ref.trame?.id));
+      }
+    }
     const copyResult=copierPatrimoine&&copierVisites
       ?await cloneLatestVisitsForSite(db,sourceSiteId,cibleId,
-        {installationMap,equipmentMap,networkMap,meterMap,itemMap},
+        {installationMap,equipmentMap,networkMap,meterMap,itemMap,remoteInstallationMap},
         insererClone,clonerAttributs,uuidv4)
       :{visites:0};
 
@@ -165,8 +209,17 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
       }
     }
 
+    // SQLite FK checks alone do not prove that two valid parent IDs refer to
+    // the SAME site. Check the newly copied tree before committing.
+    const wrong=await db.getFirstAsync(
+      'SELECT v.id FROM visites v LEFT JOIN installations i ON i.id=v.installation_id WHERE v.site_id=? AND v.installation_id IS NOT NULL AND (i.id IS NULL OR i.site_id<>v.site_id) LIMIT 1',[cibleId]);
+    if(wrong)throw Error('Duplication annulée : une visite copiée pointe vers un autre site.');
+    for(const [oldId,newId] of installationMap){
+      const row=await db.getFirstAsync('SELECT site_id FROM installations WHERE id=?',[newId]);
+      if(newId===oldId||row?.site_id!==cibleId)throw Error('Duplication annulée : local non indépendant.');
+    }
     await db.runAsync('COMMIT');
-    return { siteId: cibleId, nomSite: nomCible, visitesCopiees:copyResult.visites };
+    return { siteId: cibleId, nomSite: nomCible, locauxCopies:new Set([...installationMap.values(),...remoteInstallationMap.values()]).size, visitesCopiees:copyResult.visites };
   } catch (error) {
     await db.runAsync('ROLLBACK').catch(() => {});
     throw error;

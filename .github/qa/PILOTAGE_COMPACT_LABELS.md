@@ -1,0 +1,3 @@
+# Pilotage — priorité aux données
+
+Colonne des sites/locaux limitée par défaut à 23 % de la largeur intérieure du tableau, mode élargi explicite à 36 %. Libellés limités visuellement à deux lignes en mode compact, nom complet et détails sur appui long. Adresse masquée uniquement dans les cellules compactes, accessible dans le détail. Catégories plus étroites en portrait, zoom et défilement existants conservés. Le bouton Adapter utilise la géométrie réelle. Tests géométriques multi-écrans et recette Android de largeur de colonne; validation physique du confort visuel encore nécessaire. Aucune modification des données, du schéma ou des exports.

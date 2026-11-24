@@ -4,10 +4,8 @@ const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '../../apiLatestVisitImportDb.js'), 'utf8');
 const reconcileSource = fs.readFileSync(path.join(__dirname, '../../intranetMaterialImportReconcile.js'), 'utf8')
-  .replace(/export async function /g, 'async function ');
-const reconcileImportedEquipmentInventory = new Function(
-  reconcileSource + '\nreturn reconcileImportedEquipmentInventory;'
-)();
+  .replace(/export async function /g, 'async function ').replace(/export function /g,'function ');
+const {reconcileImportedEquipmentInventory,uniqueImportedMaterialRows} = new Function(reconcileSource + '\nreturn {reconcileImportedEquipmentInventory,uniqueImportedMaterialRows};')();
 const start = source.indexOf('function materialFallbackReference');
 const end = source.indexOf('async function findImportedVisit', start);
 assert.ok(start >= 0 && end > start, 'equipment import helper source is available');
@@ -152,9 +150,9 @@ async function main() {
 
   const importer = new Function(
     'clean', 'normalize', 'text', 'remoteId', 'createId', 'upsertProvenance',
-    'reconcileImportedEquipmentInventory',
+    'reconcileImportedEquipmentInventory','uniqueImportedMaterialRows',
     `${source.slice(start, end)}\nreturn importCurrentMaterialsForLocal;`
-  )(clean, normalize, text, remoteId, createId, upsertProvenance, reconcileImportedEquipmentInventory);
+  )(clean, normalize, text, remoteId, createId, upsertProvenance, reconcileImportedEquipmentInventory,uniqueImportedMaterialRows);
 
   const ref = {
     derniereVisite: { id: 'visit-remote-9' },
@@ -225,9 +223,9 @@ async function main() {
   };
   const importNoVisit = new Function(
     'clean', 'normalize', 'text', 'remoteId', 'createId', 'upsertProvenance',
-    'reconcileImportedEquipmentInventory',
+    'reconcileImportedEquipmentInventory','uniqueImportedMaterialRows',
     `${source.slice(start, end)}\nreturn importCurrentMaterialsForLocal;`
-  )(clean, normalize, text, remoteId, createId, noVisitProvenance, reconcileImportedEquipmentInventory);
+  )(clean, normalize, text, remoteId, createId, noVisitProvenance, reconcileImportedEquipmentInventory,uniqueImportedMaterialRows);
   await importNoVisit(noVisitDb, { ref, remoteLocalId: 'local-33', installationId: 'inst-1', visiteId: null, trameId: 'icpe_v1' });
   assert.equal(noVisitDb.state.equipments.length, 1, 'equipment is permanent even without visit history');
   assert.equal(noVisitDb.state.materialRows.length, 0, 'no fake visit material row is created without a visit');

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, BackHandler, FlatList, Modal, PanResponder, Platform, requireNativeComponent, ScrollView, Text, TextInput, TouchableOpacity, UIManager, View, useWindowDimensions } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { buildMatrixCells, getClientTechnicalMatrix, getMatrixCellPhotos, normAvis } from './clientTechnicalMatrix.js';
@@ -11,6 +11,8 @@ import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { prewarmSiteLocals } from './navigationPrewarm.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { SkeletonList } from './Skeleton.js';
+import { buildPilotageCanvasModel } from './pilotageCanvasModel.js';
+import { clampPilotageZoom, clampPilotageOffset, getPilotagePanGeometry, visiblePilotageColumns, rescalePilotageOffset, fitPilotageZoom, PILOTAGE_ZOOM_MIN, PILOTAGE_ZOOM_MAX } from './pilotageDensity.js';
 
 const STATE = {
   green: { bg: '#E8F5E9', border: '#2E7D32', text: '#1B5E20', symbol: '✓' },
@@ -39,10 +41,14 @@ async function mapAvecConcurrence(items, limite, worker) {
   await Promise.all(workers); return resultats;
 }
 
-function Cell({ cell, onPress }) {
+function Cell({ cell, onPress, width = 98, zoom=1, label='' }) {
   const p = STATE[cell.state] || STATE.none;
-  const count = cell.ns || cell.nr || cell.nv || cell.so || cell.s || 0;
-  return <TouchableOpacity disabled={!cell.total} onPress={onPress} style={{ width: 92, minHeight: 58, margin: 3, borderRadius: 10, borderWidth: 1.5, borderColor: p.border, backgroundColor: p.bg, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 18, fontFamily: FONTS.black, color: p.text }}>{p.symbol} {count || ''}</Text><Text style={{ fontSize: 8.5, color: p.text, marginTop: 2 }}>{cell.total ? `${cell.s} S · ${cell.ns} N.S` : 'Non concerné'}</Text></TouchableOpacity>;
+  const count = cell.state === 'red' || cell.state === 'orange' ? (cell.ns || 0) : cell.state === 'unknown' ? ((cell.nr || 0)+(cell.nv || 0)) : cell.state === 'green' ? (cell.s || 0) : (cell.so || 0);
+  const inset=Math.max(1,Math.round(3*zoom));
+  return <TouchableOpacity accessibilityRole="button" accessibilityLabel={label+' : '+cell.s+' satisfaisant(s), '+cell.ns+' non satisfaisant(s)'} disabled={!cell.total} onPress={onPress} style={{width:Math.max(1,width-2*inset),minHeight:Math.max(21,50*zoom),margin:inset,paddingVertical:Math.max(1,4*zoom),borderRadius:Math.max(3,10*zoom),borderWidth:Math.max(.75,1.5*zoom),borderColor:p.border,backgroundColor:p.bg,alignItems:'center',justifyContent:'center'}}>
+    <Text numberOfLines={1} allowFontScaling={false} style={{fontSize:Math.max(9,16*zoom),fontFamily:FONTS.black,color:p.text}}>{p.symbol} {count||''}</Text>
+    {zoom>=.65?<Text allowFontScaling={false} style={{fontSize:Math.max(6.5,8.5*zoom),color:p.text,marginTop:1,textAlign:'center',paddingHorizontal:1}}>{cell.total?`${cell.s} S · ${cell.ns} N.S`:'Non concerné'}</Text>:null}
+  </TouchableOpacity>;
 }
 
 function Stat({ value, label, sub }) {
@@ -54,116 +60,222 @@ function Chip({ label, active, onPress, danger = false }) {
 }
 
 /**
- * Première colonne non défilante. Les cellules de droite ont une seule zone
- * de défilement horizontal ; la vue parente scrolle verticalement les deux
- * colonnes ensemble (pas de FlatList verticale imbriquée, ni de désalignement).
+ * A single vertical virtualized list, shared horizontal offset and continuous
+ * pinch zoom. No nested vertical scrollers or per-row scroll synchronization.
  */
-/**
- * Deux listes verticales virtualisées synchronisées pour les grands clients :
- * la colonne sites/locaux reste fixe et toutes les catégories défilent ensemble.
- * Hauteurs fixes + getItemLayout évitent tout décalage pendant les gestes.
- */
-function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, nomClient, openCell }) {
-  const [collapsed, setCollapsed] = useState({});
-  const leftRef = useRef(null);
-  const rightRef = useRef(null);
-  const scrollOffset = useRef(0);
-  const rowHeight = 72;
-  const leftWidth = 210;
-  const cellWidth = 98;
-  const lignes = [];
-  for (const site of sites) {
-    lignes.push({ key: `s:${site.id}`, kind: 'site', site });
-    if (!collapsed[site.id]) for (const local of site.locals || []) {
-      lignes.push({ key: `l:${site.id}:${local.id}`, kind: 'local', site, local });
+function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, nomClient, openCell, header:headerContent, footer:footerContent }) {
+  const {width,fontScale}=useWindowDimensions();
+  const [collapsed,setCollapsed]=useState({});
+  const [zoom,setZoom]=useState(1),[viewport,setViewport]=useState(0);
+  const [labelMode,setLabelMode]=useState('compact');
+  const [gesturing,setGesturing]=useState(false);
+  const [range,setRange]=useState({start:0,end:0});
+  const animatedX=useRef(new Animated.Value(0)).current;
+  const offset=useRef(0),inMatrix=useRef(false),gestureState=useRef(null);
+  const params=useRef({});
+  params.current={width:Math.max(1,(viewport||width)-28),count:categories.length,fontScale,labelMode};
+  const geometry=getPilotagePanGeometry({...params.current,zoom});
+  const geometryRef=useRef(geometry);
+  geometryRef.current=geometry;
+  const {leftWidth,cellWidth,categoryViewport,contentWidth,rowHeight,headerHeight}=geometry;
+  const applyOffset=useCallback((value,g=geometryRef.current)=>{
+    const x=clampPilotageOffset(value,g);
+    offset.current=x;animatedX.setValue(-x);
+    const next=visiblePilotageColumns(x,g);
+    setRange(old=>old.start===next.start&&old.end===next.end?old:next);
+  },[animatedX]);
+  useEffect(()=>{applyOffset(offset.current,geometryRef.current);},[viewport,width,fontScale,categories.length,zoom,labelMode,applyOffset]);
+  const applyZoom=useCallback((target,anchor=.5)=>{
+    const old=geometryRef.current,z=clampPilotageZoom(target);
+    if(Math.abs(z-old.zoom)<.012)return;
+    const next=getPilotagePanGeometry({...params.current,zoom:z});
+    const x=rescalePilotageOffset(offset.current,old,next,anchor);
+    geometryRef.current=next;setZoom(z);applyOffset(x,next);
+  },[applyOffset]);
+  const toggleLabelMode=()=>{
+    const old=geometryRef.current,mode=labelMode==='compact'?'expanded':'compact';
+    const next=getPilotagePanGeometry({...params.current,labelMode:mode,zoom:old.zoom});
+    const x=rescalePilotageOffset(offset.current,old,next,0);
+    geometryRef.current=next;
+    params.current={...params.current,labelMode:mode};
+    setLabelMode(mode);applyOffset(x,next);
+  };
+  const touchDistance=touches=>touches?.length>=2?Math.hypot(touches[0].pageX-touches[1].pageX,touches[0].pageY-touches[1].pageY):0;
+  const pinchAnchor=touches=>{
+    const g=geometryRef.current;
+    return Math.max(0,Math.min(1,((touches[0].pageX+touches[1].pageX)/2-14-g.leftWidth)/g.categoryViewport));
+  };
+  const responder=useMemo(()=>PanResponder.create({
+    onStartShouldSetPanResponderCapture:e=>inMatrix.current&&e.nativeEvent.touches?.length>=2,
+    onMoveShouldSetPanResponderCapture:(e,g)=>inMatrix.current&&(e.nativeEvent.touches?.length>=2||
+      (Math.abs(g.dx)>10&&Math.abs(g.dx)>Math.abs(g.dy)*1.5)),
+    onPanResponderGrant:e=>{
+      const touches=e.nativeEvent.touches||[],distance=touchDistance(touches);
+      gestureState.current={mode:distance>0?'pinch':'pan',offset:offset.current,zoom:geometryRef.current.zoom,distance,anchor:distance?pinchAnchor(touches):.5};
+      setGesturing(true);
+    },
+    onPanResponderMove:(e,g)=>{
+      const s=gestureState.current;if(!s)return;
+      const touches=e.nativeEvent.touches||[],distance=touchDistance(touches);
+      if(distance>0){
+        if(s.mode!=='pinch'){s.mode='pinch';s.distance=distance;s.zoom=geometryRef.current.zoom;s.anchor=pinchAnchor(touches);}
+        if(s.distance>0)applyZoom(s.zoom*distance/s.distance,s.anchor);
+      }else if(s.mode==='pan'){applyOffset(s.offset-g.dx);}
+    },
+    onPanResponderTerminationRequest:()=>false,
+    onShouldBlockNativeResponder:()=>true,
+    onPanResponderRelease:()=>{gestureState.current=null;inMatrix.current=false;setGesturing(false);},
+    onPanResponderTerminate:()=>{gestureState.current=null;inMatrix.current=false;setGesturing(false);},
+  }),[applyOffset,applyZoom]);
+  const rows=useMemo(()=>{
+    if(!categories.length||!sites.length)return [];
+    const result=[{key:'__columns__',kind:'columns'}];
+    for(const site of sites){
+      result.push({key:'s:'+site.id,kind:'site',site});
+      if(!collapsed[site.id])for(const local of site.locals||[])result.push({key:'l:'+site.id+':'+local.id,kind:'local',site,local});
     }
-  }
-  const height = Math.min(610, Math.max(166, 58 + lignes.length * rowHeight));
-  const layout = (_data, index) => ({ length: rowHeight, offset: rowHeight * index, index });
-  const synchronize = (otherRef) => (event) => {
-    const offset = Math.max(0, event.nativeEvent.contentOffset.y);
-    if (Math.abs(offset - scrollOffset.current) < 2) return;
-    scrollOffset.current = offset;
-    otherRef.current?.scrollToOffset?.({ offset, animated: false });
+    return result;
+  },[sites,categories,collapsed]);
+  const ouvrirSite=site=>navigation.navigate('SiteLocals',{siteId:site.id,nomSite:site.nom_site,clientId,nomClient});
+  const afficherNomComplet=ligne=>{
+    const isSite=ligne.kind==='site';
+    const name=isSite?ligne.site.nom_site:ligne.local.nom;
+    const infos=isSite
+      ? [(ligne.site.locals||[]).length+' local(aux)',ligne.site.adresse||'Adresse non renseignée']
+      : [ligne.site.nom_site,(ligne.local.records||[]).length+' constat(s)',ligne.site.adresse||'Adresse non renseignée'];
+    Alert.alert(name||'Installation technique',infos.filter(Boolean).join('\n'),[
+      {text:'Fermer',style:'cancel'},{text:'Ouvrir le site',onPress:()=>ouvrirSite(ligne.site)},
+    ]);
   };
-  const ouvrirSite = (site) => navigation.navigate('SiteLocals', {
-    siteId: site.id, nomSite: site.nom_site, clientId, nomClient,
-  });
-  const choisirCellule = (ligne, category) => {
-    const cible = ligne.kind === 'site' ? ligne.site : ligne.local;
-    const cell = cible.cells?.[category.key];
-    if (!cell?.total) return;
-    const site = ligne.kind === 'local'
-      ? { ...ligne.site, nom_site: `${ligne.site.nom_site} · ${ligne.local.nom}` }
-      : ligne.site;
-    openCell(site, category, cell);
+  const choisirCellule=(ligne,category)=>{
+    const cible=ligne.kind==='site'?ligne.site:ligne.local,cell=cible.cells?.[category.key];
+    if(!cell?.total)return;
+    openCell(ligne.kind==='local'?{...ligne.site,nom_site:ligne.site.nom_site+' · '+ligne.local.nom}:ligne.site,category,cell);
   };
-  const listProps = {
-    data: lignes,
-    keyExtractor: (item) => item.key,
-    getItemLayout: layout,
-    nestedScrollEnabled: true,
-    initialNumToRender: 8,
-    windowSize: 7,
-    removeClippedSubviews: false,
-    scrollEventThrottle: 32,
-  };
-
-  return <View style={{ height, flexDirection: 'row', backgroundColor: '#fff' }}>
-    <View style={{ width: leftWidth, flexShrink: 0, borderRightWidth: 1, borderRightColor: COLORS.line }}>
-      <View style={{ height: 58, paddingHorizontal: 9, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
-        <Text style={{ fontFamily: FONTS.black }}>Sites / locaux</Text>
-      </View>
-      <FlatList {...listProps} ref={leftRef} style={{ flex: 1 }}
-        maxToRenderPerBatch={8}
-        onScroll={synchronize(rightRef)}
-        renderItem={({ item: ligne }) => <TouchableOpacity accessibilityRole="button"
-          accessibilityLabel={ligne.kind === 'site'
-            ? `Afficher ou masquer les locaux de ${ligne.site.nom_site}`
-            : `Ouvrir ${ligne.local.nom} du site ${ligne.site.nom_site}`}
-          onPress={() => ligne.kind === 'site'
-            ? setCollapsed((state) => ({ ...state, [ligne.site.id]: !state[ligne.site.id] }))
-            : ouvrirSite(ligne.site)}
-          onLongPress={ligne.kind === 'site' ? () => ouvrirSite(ligne.site) : undefined}
-          style={{ height: rowHeight, paddingHorizontal: 8, paddingLeft: ligne.kind === 'site' ? 8 : 23,
-            borderBottomWidth: 1, borderBottomColor: COLORS.line, justifyContent: 'center',
-            backgroundColor: ligne.kind === 'site' ? '#FFF4E9' : '#fff' }}>
-          <Text numberOfLines={2} style={{ color: ligne.kind === 'site' ? COLORS.primary : COLORS.inkSoft,
-            fontFamily: FONTS.bold, fontSize: ligne.kind === 'site' ? 12 : 11 }}>
-            {ligne.kind === 'site' ? `${collapsed[ligne.site.id] ? '▸' : '▾'} ${ligne.site.nom_site}` : `↳ ${ligne.local.nom}`}
-          </Text>
-          <Text numberOfLines={1} style={{ color: COLORS.muted, fontSize: 10, marginTop: 3 }}>
-            {ligne.kind === 'site'
-              ? `${(ligne.site.locals || []).length} local(aux) · ${ligne.site.adresse || 'Adresse non renseignée'}`
-              : `${ligne.local.records.length} constat(s)`}
-          </Text>
-        </TouchableOpacity>} />
-    </View>
-    <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
-      <View style={{ width: Math.max(98, categories.length * cellWidth), flex: 1 }}>
-        <View style={{ height: 58, flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
-          {categories.map((category) => <View key={category.key}
-            style={{ width: cellWidth, justifyContent: 'center', paddingHorizontal: 5 }}>
-            <Text style={{ textAlign: 'center', fontSize: 10, fontFamily: FONTS.bold }}>{category.label}</Text>
-          </View>)}
+  const frame={marginHorizontal:14,borderLeftWidth:1,borderRightWidth:1,borderColor:COLORS.line,backgroundColor:'#fff'};
+  const matrixTouch=()=>{inMatrix.current=true;};
+  const outsideTouch=()=>{inMatrix.current=false;};
+  const header=<View onTouchStart={outsideTouch}>{headerContent}</View>;
+  const footer=<View onTouchStart={outsideTouch}>{footerContent}</View>;
+  const controls=(label,value,action,disabled=false)=><TouchableOpacity accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={action} style={{minWidth:36,minHeight:35,paddingHorizontal:6,alignItems:'center',justifyContent:'center',borderRadius:8,borderWidth:1,borderColor:COLORS.line,opacity:disabled ? .35 : 1}}>
+    <Text allowFontScaling={false} style={{fontSize:12,color:COLORS.orangeDark,fontFamily:FONTS.bold}}>{value}</Text>
+  </TouchableOpacity>;
+  const panBy=direction=>applyOffset(offset.current+direction*Math.max(cellWidth,categoryViewport*.8));
+  const columns=render=><View style={{width:categoryViewport,overflow:'hidden',flexShrink:0}}>
+    <Animated.View style={{width:contentWidth,flexDirection:'row',alignItems:'stretch',transform:[{translateX:animatedX}]}}>
+      {categories.map((category,i)=><View key={category.key} importantForAccessibility={i>=range.start&&i<range.end?'auto':'no-hide-descendants'} style={{width:cellWidth,flexShrink:0,justifyContent:'center'}}>{render(category)}</View>)}
+    </Animated.View>
+  </View>;
+  return <View style={{flex:1,minHeight:0}} {...responder.panHandlers}>
+  <FlatList
+    style={{flex:1,minHeight:0}}
+    onLayout={e=>{const w=Math.round(e.nativeEvent.layout.width);setViewport(v=>v===w?v:w);}}
+    data={rows} keyExtractor={item=>item.key}
+    ListHeaderComponent={header} ListFooterComponent={footer}
+    ListEmptyComponent={<View style={{marginHorizontal:14,padding:20,backgroundColor:'#fff'}}><Text style={{textAlign:'center',color:COLORS.muted}}>Aucun constat ne correspond aux filtres.</Text></View>}
+    stickyHeaderIndices={rows.length?[1]:[]}
+    extraData={labelMode+':'+zoom+':'+leftWidth+':'+cellWidth+':'+range.start+':'+range.end}
+    contentContainerStyle={{paddingBottom:28}}
+    keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator scrollEnabled={!gesturing}
+    initialNumToRender={8} maxToRenderPerBatch={8} windowSize={7} removeClippedSubviews={false}
+    renderItem={({item:ligne})=>{
+      if(ligne.kind==='columns')return <View onTouchStart={matrixTouch} style={[frame,{backgroundColor:'#FDFCFA',borderBottomWidth:1}]}>
+        <View style={{padding:6,gap:4}}>
+          <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:4}}>
+            {controls('Réduire le zoom','−',()=>applyZoom(zoom-.15),zoom<=PILOTAGE_ZOOM_MIN+.01)}
+            <Text accessibilityLabel={'Zoom '+Math.round(zoom*100)+' pour cent'} style={{fontFamily:FONTS.bold,fontSize:12,color:COLORS.ink}}>{Math.round(zoom*100)} %</Text>
+            {controls('Agrandir le zoom','+',()=>applyZoom(zoom+.15),zoom>=PILOTAGE_ZOOM_MAX-.01)}
+            {controls('Adapter à l’écran','Adapter',()=>{applyZoom(fitPilotageZoom(params.current.width,categories.length,fontScale,labelMode),0);applyOffset(0);})}
+            {controls('Zoom normal','100 %',()=>applyZoom(1))}
+          </View>
+          <View style={{flexDirection:'row',alignItems:'center',gap:4}}>
+            {controls('Catégories précédentes','‹',()=>panBy(-1),range.start===0&&offset.current<1)}
+            <View style={{flex:1}}><Text numberOfLines={1} style={{fontSize:10,textAlign:'center',color:COLORS.inkSoft}}>Colonnes {range.start+1}–{range.end} / {categories.length}</Text>
+              <View style={{height:3,backgroundColor:'#E6E4E0',borderRadius:2,overflow:'hidden',marginTop:2}}>
+                <Animated.View style={{height:3,width:Math.max(12,Math.min(100,categoryViewport/Math.max(1,contentWidth)*100))+'%',backgroundColor:COLORS.orange,borderRadius:2}}/>
+              </View>
+            </View>
+            {controls('Catégories suivantes','›',()=>panBy(1),geometry.maxOffset<=offset.current+1)}
+          </View>
+          <Text style={{fontSize:9,textAlign:'center',color:COLORS.muted}}>Glisser · pincer pour zoomer · toucher l’en-tête Sites / locaux pour élargir</Text>
         </View>
-        <FlatList {...listProps} ref={rightRef} style={{ flex: 1 }}
-          maxToRenderPerBatch={8}
-          onScroll={synchronize(leftRef)}
-          renderItem={({ item: ligne }) => {
-            const cible = ligne.kind === 'local' ? ligne.local : ligne.site;
-            return <View style={{ height: rowHeight, flexDirection: 'row',
-              borderBottomWidth: 1, borderBottomColor: COLORS.line, alignItems: 'center',
-              backgroundColor: ligne.kind === 'site' ? '#FFF4E9' : '#fff' }}>
-              {categories.map((category) => <Cell key={category.key}
-                cell={cible.cells?.[category.key] || { total: 0, state: 'none' }}
-                onPress={() => choisirCellule(ligne, category)} />)}
-            </View>;
-          }} />
+        <View style={{flexDirection:'row',alignItems:'stretch'}}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={'Sites / locaux · '+(labelMode==='compact'?'Élargir la colonne':'Réduire la colonne')} accessibilityHint="Affiche les noms sur une colonne plus large, sans modifier le zoom des catégories" onPress={toggleLabelMode} style={{width:leftWidth,minHeight:headerHeight,padding:Math.max(2,3*zoom),justifyContent:'center',borderRightWidth:1,borderColor:COLORS.line}}>
+            <Text allowFontScaling={false} style={{fontSize:Math.max(7,10*zoom),fontFamily:FONTS.black}}>Sites / locaux</Text>
+            <Text allowFontScaling={false} style={{fontSize:Math.max(7,9*zoom),color:COLORS.orangeDark,fontFamily:FONTS.bold}}>{labelMode==='compact'?'↔ +':'↔ −'}</Text>
+          </TouchableOpacity>
+          {columns(category=><View style={{minHeight:headerHeight,padding:Math.max(1,4*zoom),justifyContent:'center'}}><Text allowFontScaling={false} style={{fontSize:Math.max(6.5,10*zoom),textAlign:'center',fontFamily:FONTS.bold}}>{category.label}</Text></View>)}
+        </View>
+      </View>;
+      const isSite=ligne.kind==='site',cible=isSite?ligne.site:ligne.local;
+      return <View onTouchStart={matrixTouch} style={[frame,{flexDirection:'row',minHeight:rowHeight,alignItems:'stretch',borderBottomWidth:1,backgroundColor:isSite?'#FFF4E9':'#fff'}]}>
+        <TouchableOpacity accessibilityRole="button"
+          accessibilityLabel={isSite?'Afficher ou masquer les locaux de '+ligne.site.nom_site:'Ouvrir '+ligne.local.nom+' du site '+ligne.site.nom_site}
+          accessibilityState={isSite?{expanded:!collapsed[ligne.site.id]}:undefined}
+          onPress={()=>isSite?setCollapsed(state=>({...state,[ligne.site.id]:!state[ligne.site.id]})):ouvrirSite(ligne.site)}
+          onLongPress={()=>afficherNomComplet(ligne)}
+          style={{width:leftWidth,flexShrink:0,paddingHorizontal:Math.max(2,6*zoom),paddingVertical:Math.max(2,5*zoom),justifyContent:'center',borderRightWidth:1,borderColor:COLORS.line}}>
+          <Text numberOfLines={labelMode==='compact'?2:3} ellipsizeMode="tail" allowFontScaling={false} style={{fontSize:Math.max(7,(isSite?10.5:10)*zoom),color:isSite?COLORS.primary:COLORS.inkSoft,fontFamily:FONTS.bold}}>{isSite?(collapsed[ligne.site.id]?'▸ ':'▾ ')+ligne.site.nom_site:'↳ '+ligne.local.nom}</Text>
+          {zoom>=.65?<Text allowFontScaling={false} numberOfLines={labelMode==='compact'?1:2} style={{color:COLORS.muted,fontSize:Math.max(6.5,8.5*zoom),marginTop:2}}>{isSite?(ligne.site.locals||[]).length+' locaux'+(labelMode==='expanded'?' · '+(ligne.site.adresse||'Adresse non renseignée'):''):(ligne.local.records||[]).length+' constats'}</Text>:null}
+        </TouchableOpacity>
+        {columns(category=><Cell zoom={zoom} width={cellWidth} label={category.label+' · '+(isSite?ligne.site.nom_site:ligne.local.nom)} cell={cible.cells?.[category.key]||{total:0,state:'none',s:0,ns:0}} onPress={()=>choisirCellule(ligne,category)}/>)}
+      </View>;
+    }}
+  /></View>;
+}
+
+// Android Play builds use the hardware-accelerated canvas. Keep the existing
+// virtualized list as a deliberate accessibility and compatibility fallback.
+const NativeCanvas=Platform.OS==='android'&&UIManager.getViewManagerConfig?.('MetraPilotageCanvas')?requireNativeComponent('MetraPilotageCanvas'):null;
+function TactileTechnicalMatrix(props){
+  const {sites,categories,navigation,clientId,nomClient,openCell,header,footer}=props;
+  const [accessible,setAccessible]=useState(false),[details,setDetails]=useState(false),[collapsed,setCollapsed]=useState({});
+  const [command,setCommand]=useState(null);
+  const serial=useRef(0);
+  useEffect(()=>{
+    let mounted=true;
+    AccessibilityInfo.isScreenReaderEnabled().then(v=>{if(mounted&&v)setAccessible(true);}).catch(()=>{});
+    const sub=AccessibilityInfo.addEventListener('screenReaderChanged',v=>{if(v)setAccessible(true);});
+    return()=>{mounted=false;sub.remove();};
+  },[]);
+  useEffect(()=>{if(!details)return;const sub=BackHandler.addEventListener('hardwareBackPress',()=>{setDetails(false);return true;});return()=>sub.remove();},[details]);
+  const model=useMemo(()=>buildPilotageCanvasModel(sites,categories,collapsed),[sites,categories,collapsed]);
+  const categoryMap=useMemo(()=>new Map(categories.map(c=>[String(c.key),c])),[categories]);
+  const openSite=site=>navigation.navigate('SiteLocals',{siteId:site.id,nomSite:site.nom_site,clientId,nomClient});
+  const onAction=({nativeEvent:e})=>{
+    if(e.kind==='error'){Alert.alert('Pilotage','Le tableau natif ne peut pas afficher ces données. Ouverture de la liste accessible.');setAccessible(true);return;}
+    const row=model.lookup.get(e.row);if(!row)return;
+    const {site,local}=row;
+    if(e.kind==='name'){Alert.alert(local?.nom||site.nom_site,[local?site.nom_site:null,site.adresse,(local?local.records:site.records)?.length+' constat(s)'].filter(Boolean).join('\n'),[{text:'Fermer',style:'cancel'},{text:'Ouvrir le site',onPress:()=>openSite(site)}]);return;}
+    if(e.kind==='label'){if(local)openSite(site);else setCollapsed(s=>({...s,[site.id]:!s[site.id]}));return;}
+    if(e.kind==='cell'){const category=categoryMap.get(e.column),cell=(local||site).cells?.[e.column];if(category&&cell?.total)openCell(local?{...site,nom_site:site.nom_site+' · '+local.nom}:site,category,cell);}
+  };
+  if(!NativeCanvas)return <VirtualizedTechnicalMatrix {...props}/>;
+  const action=(label,title,onPress)=><TouchableOpacity accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={{paddingHorizontal:9,minHeight:36,justifyContent:'center',borderRadius:8,borderWidth:1,borderColor:COLORS.line,backgroundColor:'#fff'}}><Text style={{fontSize:11,fontFamily:FONTS.bold,color:COLORS.orangeDark}}>{title}</Text></TouchableOpacity>;
+  const send=action=>setCommand({seq:++serial.current,action});
+  return <View style={{flex:1,minHeight:0}}>
+    <View style={{paddingHorizontal:8,paddingTop:5,paddingBottom:5,gap:5}}>
+      <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:5}}>
+        <Text numberOfLines={1} style={{flex:1,fontFamily:FONTS.bold,fontSize:12,color:COLORS.ink}}>Cartographie technique</Text>
+        {action('Informations, filtres et export','Options',()=>setDetails(true))}
+        {action(accessible?'Ouvrir le tableau tactile':'Ouvrir la liste accessible',accessible?'Tableau':'Liste',()=>setAccessible(v=>!v))}
       </View>
-    </ScrollView>
+      {!accessible?<View style={{flexDirection:'row',alignItems:'center',gap:5}}>
+        {action('Réduire le zoom','−',()=>send('out'))}
+        {action('Agrandir le zoom','+',()=>send('in'))}
+        {action('Adapter à l’écran','Adapter',()=>send('fit'))}
+        {action('Zoom normal','100 %',()=>send('reset'))}
+        <Text numberOfLines={2} style={{flex:1,color:COLORS.muted,fontSize:9}}>Glisser · pincer · double toucher</Text>
+      </View>:null}
+    </View>
+    {accessible?<VirtualizedTechnicalMatrix {...props}/>:<NativeCanvas style={{flex:1,minHeight:0}} model={model.json} viewportCommand={command} onMatrixAction={onAction}/>}
+    {details?<View style={{position:'absolute',top:0,bottom:0,left:0,right:0,backgroundColor:COLORS.bg,zIndex:10,elevation:10}}>
+        <TouchableOpacity accessibilityRole="button" onPress={()=>setDetails(false)} style={{alignSelf:'flex-end',margin:12,padding:10}}><Text style={{fontFamily:FONTS.bold,color:COLORS.orangeDark}}>Retour au tableau</Text></TouchableOpacity>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:36}}>{header}{footer}</ScrollView>
+      </View>:null}
   </View>;
 }
+
 function recordMatches(record, site, filters) {
   const avis = normAvis(record.avis);
   if (filters.trame !== 'all' && record.trame_id !== filters.trame) return false;
@@ -356,7 +468,9 @@ export function ClientPilotageScreen({ route, navigation }) {
   if (loading || !matrix) return <View style={{ flex: 1 }}><Text style={{ color: COLORS.muted, fontFamily: FONTS.bodyMedium, marginTop: 10, marginHorizontal: 16 }}>Calcul du pilotage client…</Text><SkeletonList count={5} withTitle={false} /></View>;
 
   const pilotageAction = { flex: 0, width: '48.8%', flexDirection: 'row', gap: 7, paddingHorizontal: 10 };
-  return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 28 }} keyboardShouldPersistTaps="handled">
+  return <>
+    <TactileTechnicalMatrix sites={sites} categories={visibleCategories} navigation={navigation} clientId={clientId} nomClient={nomClient} openCell={openCell}
+      header={<>
     <View style={{ padding: 14 }}>
       <Text style={{ color: COLORS.inkSoft, fontSize: 12.5, fontFamily: FONTS.bodyMedium }}>{nomClient || 'Client'} · calcul local et disponible hors connexion</Text>
       {groupes.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }} contentContainerStyle={{ gap: 7 }}>
@@ -374,13 +488,12 @@ export function ClientPilotageScreen({ route, navigation }) {
       <Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 8 }}>{viewLabel} · {filteredRecords.length} ligne(s)</Text>
     </View>
 
-    <View style={{ marginHorizontal: 14, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', backgroundColor: 'rgba(255,255,255,0.8)' }}>
-      <View style={{ paddingHorizontal: 14, paddingTop: 12 }}><Text style={styles.sectionLabel}>Cartographie technique</Text><Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 3 }}>Chaque constat est classé dans une seule catégorie. Rouge = criticité 4–5 · orange = N.S · gris = non relevé/non visible.</Text></View>
-      {visibleCategories.length && sites.length
-        ? <VirtualizedTechnicalMatrix sites={sites} categories={visibleCategories} navigation={navigation} clientId={clientId} nomClient={nomClient} openCell={openCell} />
-        : <View style={{ padding: 20 }}><Text style={{ color: COLORS.muted, textAlign: 'center' }}>Aucun constat ne correspond aux filtres.</Text></View>}
+    <View style={{marginHorizontal:14,padding:12,borderTopLeftRadius:16,borderTopRightRadius:16,backgroundColor:'#fff',borderWidth:1,borderColor:COLORS.line}}>
+      <Text style={styles.sectionLabel}>Cartographie technique</Text>
+      <Text style={{color:COLORS.muted,fontSize:10.5,marginTop:4}}>Rouge : criticité 4–5 · orange : N.S · gris : information incomplète. Glisse le tableau de gauche à droite et de haut en bas. Pince à deux doigts pour régler le zoom, ou utilise − / +. Les sites et locaux restent visibles.</Text>
     </View>
-
+      </>}
+      footer={<>
     <View style={{ padding: 14 }}>
       <Text style={styles.sectionLabel}>Synthèse de la vue</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 9 }}>
@@ -394,6 +507,9 @@ export function ClientPilotageScreen({ route, navigation }) {
       </TouchableOpacity> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}><Stat value={resume?.sites ?? '—'} label="Sites"/><Stat value={resume?.reservesOuvertes ?? '—'} label="Réserves ouvertes" sub={resume ? `${resume.reservesLevees} levée(s)` : 'Statistiques indisponibles'}/><Stat value={resume?.actifs ?? '—'} label="Équipements actifs" sub={resume ? `${resume.aSurveiller} à surveiller` : 'Statistiques indisponibles'}/></View>
     </View>
+
+      </>}
+    />
 
     <Modal visible={filterVisible} transparent animationType="fade" onRequestClose={() => setFilterVisible(false)}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { width: '94%', maxWidth: 720, maxHeight: '90%' }]}><ScrollView keyboardShouldPersistTaps="handled"><View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={[styles.modalTitle, { flex: 1 }]}>Filtres cartographie</Text><TouchableOpacity onPress={() => setFilters(DEFAULT_FILTERS)}><Text style={{ color: COLORS.primary, fontFamily: FONTS.bold }}>Réinitialiser</Text></TouchableOpacity></View>
       <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Recherche</Text><TextInput style={styles.input} value={filters.search} placeholder="Site, local, réserve, équipement, commentaire…" onChangeText={(v) => setFilters((f) => ({ ...f, search: v }))}/>
@@ -410,5 +526,5 @@ export function ClientPilotageScreen({ route, navigation }) {
 
     <Modal visible={!!selected} transparent animationType="fade" onRequestClose={closeCell}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxWidth: 720, width: '94%', maxHeight: '88%' }]}>{selected ? <ScrollView><Text style={styles.modalTitle}>{selected.site.nom_site} · {selected.category.label}</Text><Text style={{ color: COLORS.muted, marginTop: 3 }}>{selected.cell.s} S · {selected.cell.ns} N.S · {selected.cell.nr} N.R · {selected.cell.so} S.O · {selected.cell.nv} N.V</Text>{selected.cell.issues.length ? selected.cell.issues.map((issue, idx) => { const pics = photos[issueKey(issue)] || []; return <View key={`${issueKey(issue)}-${idx}`} style={{ marginTop: 12, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 12, padding: 11 }}><Text style={{ fontFamily: FONTS.black, color: Number(issue.criticite || 0) >= 4 ? COLORS.red : COLORS.orange }}>{issue.reference_libelle || issue.cle} · {reserveSeverityLabel(issue.criticite)}</Text><Text style={{ marginTop: 5, color: COLORS.ink }}>{issue.prestation || issue.commentaire || 'Anomalie à préciser'}</Text>{pics.length ? <ScrollView horizontal style={{ marginTop: 8 }}>{pics.map((p) => <TouchableOpacity key={p.id} onPress={() => setPhotoZoom({ ...p, issue })}><PhotoVariantImage uri={p.uri} variant="thumb" style={{ width: 105, height: 78, borderRadius: 8, marginRight: 7, backgroundColor: '#eee' }} resizeMode="cover"/></TouchableOpacity>)}</ScrollView> : <Text style={{ marginTop: 7, fontSize: 10, color: COLORS.muted }}>Aucune photo liée à ce problème.</Text>}</View>; }) : <Text style={{ marginTop: 12, color: COLORS.muted }}>Aucune réserve N.S dans cette cellule.</Text>}<View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => { const s = selected.site; closeCell(); navigation.navigate('SiteLocals', { siteId: s.id, nomSite: s.nom_site, clientId, nomClient }); }}><ButtonGlow /><Text style={styles.btnPrimaryText}>Ouvrir le site</Text></TouchableOpacity><TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={closeCell}><Text style={styles.btnSecondaryText}>Fermer</Text></TouchableOpacity></View></ScrollView> : null}</View></View></Modal>
     <Modal visible={!!photoZoom} transparent animationType="fade" onRequestClose={() => setPhotoZoom(null)}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { width: '96%', maxWidth: 900 }]}>{photoZoom ? <><PhotoVariantImage uri={photoZoom.uri} variant="preview" resizeMode="contain" style={{ width: '100%', height: 430, backgroundColor: '#111', borderRadius: 10 }}/><Text style={{ marginTop: 9, fontFamily: FONTS.bold }}>{photoZoom.label || photoZoom.issue?.reference_libelle || photoZoom.issue?.cle}</Text><TouchableOpacity style={[styles.btnPrimary, { marginTop: 12 }]} onPress={() => setPhotoZoom(null)}><ButtonGlow /><Text style={styles.btnPrimaryText}>Revenir au pilotage</Text></TouchableOpacity></> : null}</View></View></Modal>
-  </ScrollView>;
+  </>;
 }

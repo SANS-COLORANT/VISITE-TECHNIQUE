@@ -84,31 +84,31 @@ export async function prewarmSiteLocals(siteId, { force = false } = {}) {
            i.description,
            i.type_code,
            (SELECT l.remote_local_id FROM api_local_links l
-             WHERE l.local_installation_id=i.id AND l.remote_present=1
+             WHERE l.local_installation_id=i.id AND l.remote_present=1 AND EXISTS(SELECT 1 FROM api_site_links rs WHERE rs.remote_site_id=l.remote_site_id AND rs.local_site_id=i.site_id AND rs.remote_present=1)
              ORDER BY l.synced_at DESC LIMIT 1) AS remote_local_id,
            (SELECT l.remote_site_id FROM api_local_links l
-             WHERE l.local_installation_id=i.id AND l.remote_present=1
+             WHERE l.local_installation_id=i.id AND l.remote_present=1 AND EXISTS(SELECT 1 FROM api_site_links rs WHERE rs.remote_site_id=l.remote_site_id AND rs.local_site_id=i.site_id AND rs.remote_present=1)
              ORDER BY l.synced_at DESC LIMIT 1) AS remote_site_id,
            (SELECT l.designation FROM api_local_links l
-             WHERE l.local_installation_id=i.id AND l.remote_present=1
+             WHERE l.local_installation_id=i.id AND l.remote_present=1 AND EXISTS(SELECT 1 FROM api_site_links rs WHERE rs.remote_site_id=l.remote_site_id AND rs.local_site_id=i.site_id AND rs.remote_present=1)
              ORDER BY l.synced_at DESC LIMIT 1) AS remote_designation,
            (SELECT l.remote_trame_id FROM api_local_links l
-             WHERE l.local_installation_id=i.id AND l.remote_present=1
+             WHERE l.local_installation_id=i.id AND l.remote_present=1 AND EXISTS(SELECT 1 FROM api_site_links rs WHERE rs.remote_site_id=l.remote_site_id AND rs.local_site_id=i.site_id AND rs.remote_present=1)
              ORDER BY l.synced_at DESC LIMIT 1) AS remote_trame_id,
            (SELECT l.remote_trame_nom FROM api_local_links l
-             WHERE l.local_installation_id=i.id AND l.remote_present=1
+             WHERE l.local_installation_id=i.id AND l.remote_present=1 AND EXISTS(SELECT 1 FROM api_site_links rs WHERE rs.remote_site_id=l.remote_site_id AND rs.local_site_id=i.site_id AND rs.remote_present=1)
              ORDER BY l.synced_at DESC LIMIT 1) AS remote_trame_nom,
            (SELECT cs.remote_client_id
               FROM api_local_links l2
               JOIN api_client_site_links cs ON cs.remote_site_id=l2.remote_site_id AND cs.remote_present=1
-              WHERE l2.local_installation_id=i.id AND l2.remote_present=1
+              WHERE l2.local_installation_id=i.id AND l2.remote_present=1 AND EXISTS(SELECT 1 FROM api_site_links rs WHERE rs.remote_site_id=l2.remote_site_id AND rs.local_site_id=i.site_id AND rs.remote_present=1)
               ORDER BY cs.synced_at DESC LIMIT 1) AS remote_client_id,
-           (SELECT COUNT(*) FROM visites v WHERE v.installation_id=i.id) AS visit_count,
+           (SELECT COUNT(*) FROM visites v WHERE v.installation_id=i.id AND v.site_id=i.site_id) AS visit_count,
            (SELECT v.date_visite FROM visites v
-             WHERE v.installation_id=i.id
+             WHERE v.installation_id=i.id AND v.site_id=i.site_id
              ORDER BY COALESCE(v.date_visite,'') DESC,v.modifie_le DESC LIMIT 1) AS latest_visit_date,
            (SELECT v.trame_id FROM visites v
-             WHERE v.installation_id=i.id
+             WHERE v.installation_id=i.id AND v.site_id=i.site_id
              ORDER BY COALESCE(v.date_visite,'') DESC,v.modifie_le DESC LIMIT 1) AS latest_trame_id
          FROM installations i
          WHERE i.site_id=? AND i.actif=1

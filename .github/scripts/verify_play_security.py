@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Conservative release-blocking checks; NOT a substitute for an independent audit."""
+import argparse
 import json
 import re
 import subprocess
@@ -17,7 +18,20 @@ assert 'withMetraPlaySecurity' in config
 assert 'METRA_PLAY_SECURE_BUILD' in config
 assert 'GOOGLE_MAPS_API_KEY' in config
 assert 'https://' in (ROOT / 'symfonyApi.js').read_text(), 'API HTTPS required'
-assert (ROOT / 'playSecurityRuntime.generated.js').read_text().strip().endswith('false;'), 'Committed secure runtime default must be false'
+parser = argparse.ArgumentParser()
+parser.add_argument('--generated-play', action='store_true',
+                    help='Validate an Expo-generated Play runtime AND the immutable Git default.')
+args = parser.parse_args()
+runtime_path = 'playSecurityRuntime.generated.js'
+default_runtime = 'export const METRA_PLAY_SECURE_BUILD = false;'
+play_runtime = 'export const METRA_PLAY_SECURE_BUILD = true;'
+committed_runtime = subprocess.check_output(
+    ['git', 'show', 'HEAD:' + runtime_path], cwd=ROOT, text=True).strip()
+assert committed_runtime == default_runtime, 'Committed secure runtime default must be false'
+working_runtime = (ROOT / runtime_path).read_text().strip()
+expected_runtime = play_runtime if args.generated_play else default_runtime
+assert working_runtime == expected_runtime, 'Working runtime differs from the required audit phase'
+print('Runtime phase: ' + ('generated Play' if args.generated_play else 'committed baseline') + ' — PASS')
 
 tracked = subprocess.check_output(['git', 'ls-files'], cwd=ROOT, text=True).splitlines()
 dangerous_extension = re.compile(r'(?i)(?:^|/)(?:\.env(?:\.|$)|[^/]+\.(?:jks|p12|pfx|pem|keystore|key)$)')

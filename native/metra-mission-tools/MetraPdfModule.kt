@@ -1,5 +1,7 @@
 package com.metra.missiontools
 
+import android.app.ActivityManager
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
@@ -12,9 +14,52 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.Executors
 
 class MetraPdfModule(private val context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
   override fun getName() = "MetraPdf"
+  private val reportIo = Executors.newSingleThreadExecutor()
+
+  @ReactMethod
+  fun reportMemoryProfile(promise: Promise) {
+    try {
+      val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+      val info = ActivityManager.MemoryInfo()
+      am.getMemoryInfo(info)
+      val out = Arguments.createMap()
+      out.putBoolean("lowRam", am.isLowRamDevice || info.lowMemory)
+      out.putInt("memoryClassMb", am.memoryClass)
+      out.putDouble("availableBytes", info.availMem.toDouble())
+      promise.resolve(out)
+    } catch (error: Exception) { promise.reject("METRA_PDF_MEMORY", error.message, error) }
+  }
+
+  @ReactMethod
+  fun copyReportToDocument(sourceUri: String, destinationUri: String, promise: Promise) {
+    reportIo.execute {
+      try {
+        val source = Uri.parse(sourceUri)
+        val destination = Uri.parse(destinationUri)
+        require(source.scheme == "file" && destination.scheme == "content") { "URI de rapport invalide" }
+        val file = File(source.path ?: throw IllegalArgumentException("PDF introuvable")).canonicalFile
+        require(file.path.startsWith(context.cacheDir.canonicalPath + File.separator) && file.isFile && file.length() > 0L) { "PDF temporaire invalide" }
+        val expected = file.length()
+        val count = file.inputStream().use { input ->
+          val output = context.contentResolver.openOutputStream(destination, "w") ?: throw IllegalArgumentException("Destination PDF inaccessible")
+          output.use { input.copyTo(it, 128 * 1024) }
+        }
+        check(count == expected && file.length() == expected) { "Copie PDF incomplète" }
+        val verified = context.contentResolver.openInputStream(destination)?.use { input ->
+          val buffer = ByteArray(128 * 1024)
+          var total = 0L
+          while (true) { val n = input.read(buffer); if (n < 0) break; total += n }
+          total
+        } ?: throw IllegalStateException("Vérification du PDF impossible")
+        check(verified == expected) { "Taille du PDF final incorrecte" }
+        promise.resolve(count.toDouble())
+      } catch (error: Exception) { promise.reject("METRA_PDF_COPY", error.message, error) }
+    }
+  }
 
   private fun openDescriptor(fileUri: String): ParcelFileDescriptor? {
     val uri = Uri.parse(fileUri)

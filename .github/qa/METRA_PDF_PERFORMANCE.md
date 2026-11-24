@@ -1,0 +1,9 @@
+# METRA — PDF volumineux, candidat suivant le n°48
+
+Cas de référence : 45 visites et 450 photos fictives, mêmes données et présentation.
+- JPEG 720 px standard (qualité existante), 1200/1600 px pour les grandes photos; originaux inchangés. Cache privé borné 192 Mio / 1000 variantes / 7 jours; empreinte MD5 + taille du fichier source, profil et version du cache. Au maximum deux encodeurs. Préparation opportuniste pendant la prise de photo et la sélection.
+- Lots de 8, 16 ou 24 unités selon mémoire Android, photos grandes pondérées, coupures sur les pages photo, 3 fragments / 500 lignes de regroupement. Un seul entête, notes/réserves/matériel et signatures à leur place. Si une impression groupée est refusée, les lots déjà copiés restent acquis; tentative par fragment. Une interruption complète de l'application nécessite encore un nouveau rendu, avec cache JPEG réutilisable.
+- Chargement binaire Expo File, une seule sauvegarde pdf-lib après fusion et habillage; copie native SAF en flux dans un nouveau document, contrôle taille, suppression du nouveau fichier incomplet uniquement. Fallback Base64 sur runtime sans module natif. Aucun changement du Word ni du schéma métier.
+- Progression réelle par phase, annulation coopérative avant publication. L'écriture finale déjà engagée se termine normalement.
+- Tests Node des 457 photos historiques et 450 photos / cache et planification, benchmark Android réel ancien AAB44/candidat froid/candidat chaud; contrôles des 450 légendes, des 45 réserves et matériels, SHA256 des originaux. Temps et tailles exportés comme preuves, pas de promesse d'une minute sur Samsung avant mesure.
+- AAB48: source, signature, mise à jour, reprise après interruption PASS; bulk et interface interrompus par perte de connexion ADB. Démarrage émulateur renforcé, gates conservés. Aucun export client ni publication Google Play.
