@@ -128,7 +128,7 @@ jobs:
       - name: Audit exact restoration runtime before compiling
         if: github.ref_name == 'fix/metra-restore-recovery-release-20261124'
         run: |
-          node --test tests/backupPlaySecure.test.mjs tests/restoreRecovery.test.mjs tests/mobileLayout.test.mjs tests/reportPdfFragments.test.mjs tests/reportPerformance.test.mjs
+          node --test tests/backupPlaySecure.test.mjs tests/restoreRecovery.test.mjs tests/mobileLayout.test.mjs tests/reportPdfFragments.test.mjs tests/reportPerformance.test.mjs tests/reportFidelity.test.mjs
           grep -qx 'export const METRA_PLAY_SECURE_BUILD = true;' playSecurityRuntime.generated.js
           node .github/scripts/metra_full_audit_runner.cjs --generated-play
           git diff --exit-code -- '*.js' '*.jsx' '*.ts' '*.tsx' package.json package-lock.json ':!playSecurityRuntime.generated.js' ':!googleMapsRuntime.generated.js'

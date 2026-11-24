@@ -7,6 +7,8 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { Asset } from 'expo-asset';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { construireHtmlRapport } from './reportBuilder.js';
+import { A4_REPORT_POINTS, ensureReportA4, assertReportPhotoIds } from './reportFidelity.js';
+import { installReportNavigation } from './reportPdfNavigation.js';
 import { planifierLotsPdf, extraireEnteteRapport, composerHtmlLot, choisirBudgetPdf, pagesPhotosRapport } from './reportPdfFragments.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
 import { dossierRapportsClientMetra, dossierRapportsSiteMetra, dossierRapportsLocalMetra, creerFichierSaf, creerFichierSafDepuisFichier } from './metraStorage.js';
@@ -150,7 +152,7 @@ function cssEditeur(layout = {}) {
     .photoGrid{display:grid!important;grid-template-columns:repeat(6,1fr)!important;gap:5mm 4mm!important;align-items:start}
     .photoCard{width:auto!important;min-height:0!important}
     .photoSize-small{grid-column:span 2}.photoSize-medium{grid-column:span 3}.photoSize-large,.photoSize-full{grid-column:1/-1}
-    .photoSize-small .photoImageWrap{height:38mm!important}.photoSize-medium .photoImageWrap{height:50mm!important}.photoSize-large .photoImageWrap{height:82mm!important}.photoSize-full .photoImageWrap{height:142mm!important}
+    .photoSize-small .photoImageWrap{height:38mm!important}.photoSize-medium .photoImageWrap{height:48mm!important}.photoSize-large .photoImageWrap{height:82mm!important}.photoSize-full .photoImageWrap{height:142mm!important}
     .captionSize-small .photoCaption{font-size:7.4pt!important}.captionSize-normal .photoCaption{font-size:9pt!important}.captionSize-large .photoCaption{font-size:11pt!important}
     .sectionBanner.titleSize-small{font-size:11pt!important}.sectionBanner.titleSize-large{font-size:17pt!important}
   `;
@@ -170,6 +172,11 @@ async function construireHtmlEdite(datas, config, photosConfig, output) {
   html = appliquerTitresMarques(html);
   html = html.replace('</style>', `${cssEditeur(layout)}</style>`);
   html = personnaliserPhotosHtml(html, preparedDatas, photosConfig);
+  if(config.coverUri&&!config.__fragmentRapport&&!coverDataUri)throw Error('La photo de couverture sélectionnée est illisible. Choisir une autre image.');
+  if(config.photos&&!config.__enteteSeulement){
+    const expected=preparedDatas.flatMap(d=>photosConfig.filter(p=>String(p.visiteId)===String(d.visite.id)&&p.include&&p.exportAllowed!==false).sort((a,b)=>a.ordre-b.ordre).map(p=>p.id));
+    assertReportPhotoIds(html,expected);
+  }
   if (coverDataUri) {
     html = html.replace(/<div class="coverVisual"><img src="[^"]+" alt="Energie & Service"\/><\/div>/, `<div class="coverVisual"><img src="${coverDataUri}" alt="Couverture du rapport"/></div>`);
     html = html.replace(/<img src="[^"]+" alt="Couverture du rapport"([^>]*)\/>/, `<img src="${coverDataUri}" alt="Couverture du rapport"$1/>`);
@@ -264,6 +271,7 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
   // Reuse the merged document rather than serializing and parsing it again.
   const pdf = pdfSource || await PDFDocument.load(await lirePdfBinaire(uriSource));
   const pages = pdf.getPages();
+  pages.forEach(ensureReportA4);
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   // Standard WinAnsi PDF fonts cannot encode arbitrary Unicode. Keep the
@@ -286,19 +294,21 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
   };
 
   const [coverExact, logoExact, certExact, pageMarkImage, ...businessSpiralImages] = await Promise.all([
-    embedBundledSafe(REPORT_ASSETS.cover, 'png'),
-    embedBundledSafe(REPORT_ASSETS.logo, 'png'),
-    embedBundledSafe(REPORT_ASSETS.cert, 'png'),
+    pdf.embedPng(dataUriBase64(REPORT_COVER)),
+    pdf.embedPng(dataUriBase64(REPORT_LOGO)),
+    pdf.embedPng(dataUriBase64(REPORT_OPQIBI)),
     embedBundledSafe(REPORT_ASSETS.pageMark, 'png'),
     ...REPORT_ASSETS.businessSpirals.map((moduleId) => embedBundledSafe(moduleId, 'jpg')),
   ]);
   const customCover = coverDataUri ? await embedJpgSafe(dataUriBase64(coverDataUri)) : null;
-  const coverFallback = !coverExact && !customCover ? await embedJpgSafe(dataUriBase64(REPORT_COVER)) : null;
-  const logoFallback = !logoExact ? await embedJpgSafe(dataUriBase64(REPORT_LOGO)) : null;
-  const certFallback = !certExact ? await embedJpgSafe(dataUriBase64(REPORT_OPQIBI)) : null;
-  const coverVisualImage = customCover || coverExact || coverFallback;
-  const coverLogoImage = logoExact || logoFallback;
-  const coverOpqibiImage = certExact || certFallback;
+  if(coverDataUri&&!customCover)throw Error('Couverture sélectionnée illisible.');
+  const coverVisualImage=customCover||coverExact,coverLogoImage=logoExact,coverOpqibiImage=certExact;
+  // Replace the printed cover itself: no second logo, text or obsolete legal
+  // address remains underneath an opaque white rectangle.
+  pdf.removePage(0);
+  pdf.insertPage(0,[A4_REPORT_POINTS.width,A4_REPORT_POINTS.height]);
+  const coverPage=pdf.getPage(0);
+  pages[0]=coverPage;
 
   const fit = (image, maxWidth, maxHeight) => {
     if (!image) return { width: 0, height: 0 };
@@ -433,7 +443,24 @@ async function imprimerPdfParFragments({datas,config,photosConfig,onProgress}) {
   const entete=extraireEnteteRapport(header.html);
   metrics.headerMs=Date.now()-headerStarted;
   progress('Données',datas.length,datas.length);
-  const final=await PDFDocument.create();
+  const final=await PDFDocument.create(), navigationBatches=[];
+  // A single, independently printed cover/TOC/intro ensures the first
+  // technical lot also has an exact starting-page bookmark.
+  async function appendPrinted(html){
+    checkReportCancelled(config);
+    const printed=await Print.printToFileAsync({html,...A4_REPORT_POINTS,base64:false});
+    try{
+      checkReportCancelled(config);
+      const chunk=await PDFDocument.load(await lirePdfBinaire(printed.uri));
+      if(!chunk.getPageCount())throw Error('Impression PDF vide.');
+      chunk.getPages().forEach(ensureReportA4);
+      const pages=await final.copyPages(chunk,chunk.getPageIndices());
+      for(const page of pages)final.addPage(page);
+    }finally{if(printed?.uri)await FileSystem.deleteAsync(printed.uri,{idempotent:true}).catch(()=>{});}
+  }
+  const bodyStart=header.html.indexOf('<body>')+'<body>'.length;
+  if(bodyStart<6)throw Error('Structure de couverture invalide.');
+  await appendPrinted(header.html.slice(0,bodyStart)+entete.replace('<div class="intro">','<div class="intro" style="page-break-after:auto">')+'</body></html>');
   async function imprimerLot(lot){
     checkReportCancelled(config);
     const htmlStart=Date.now();
@@ -449,14 +476,15 @@ async function imprimerPdfParFragments({datas,config,photosConfig,onProgress}) {
       },fragment.photosConfig,'pdf');
       rendered.push({html:page.html,fragment});
     }
-    const html=composerHtmlLot(rendered,entete,metrics.printJobs===0);
+    const html=composerHtmlLot(rendered,'',false);
+    assertReportPhotoIds(html,lot.flatMap(f=>f.photosConfig.map(p=>p.id)));
     metrics.htmlMs+=Date.now()-htmlStart;
     checkReportCancelled(config);
     progress('Impression',count,lots.length);
     let printed;
     const printStart=Date.now();
     try{
-      printed=await Print.printToFileAsync({html,base64:false});
+      printed=await Print.printToFileAsync({html,...A4_REPORT_POINTS,base64:false});
     }catch(error){
       metrics.printMs+=Date.now()-printStart;
       // Retain all previously copied pages. Retry only a rejected print,
@@ -474,6 +502,8 @@ async function imprimerPdfParFragments({datas,config,photosConfig,onProgress}) {
       const mergeStart=Date.now();
       const chunk=await PDFDocument.load(await lirePdfBinaire(printed.uri));
       if(!chunk.getPageCount())throw Error('Impression PDF vide.');
+      chunk.getPages().forEach(ensureReportA4);
+      navigationBatches.push({index:final.getPageCount(),locals:lot.filter(f=>f.premierLocal).map(f=>({id:f.data.visite.id,label:f.data.visite.nom_local||f.data.visite.nom_site||'Installation'}))});
       const pages=await final.copyPages(chunk,chunk.getPageIndices());
       for(const page of pages)final.addPage(page);
       metrics.mergeMs+=Date.now()-mergeStart;metrics.printJobs++;
@@ -486,6 +516,8 @@ async function imprimerPdfParFragments({datas,config,photosConfig,onProgress}) {
       progress('Impression',count,lots.length);
       await new Promise(resolve=>setTimeout(resolve,0));
     }
+    const nav=installReportNavigation(final,navigationBatches);
+    Object.assign(metrics,{bookmarks:nav.bookmarks,exactLocalLinks:nav.exact,headerPrintJobs:1});
     const after=reportPhotoCacheStats();
     Object.assign(metrics,{photoCacheHits:after.hits-cacheBefore.hits,photoEncodes:after.encoded-cacheBefore.encoded,assembleMs:Date.now()-started,pages:final.getPageCount()});
     return {pdf:final,coverDataUri:header.coverDataUri,metrics};

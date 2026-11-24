@@ -6,7 +6,7 @@ import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { DEFAULT_TRAME_ID, obtenirTrame } from './trameRegistry.js';
 import { enrichLatestImportedVisitFields } from './apiLatestVisitFieldEnrichmentDb.js';
 import { importerRemarSymfonyMultiligne } from './remarSymfonyMultilineImport.js';
-import { reconcileImportedEquipmentInventory } from './intranetMaterialImportReconcile.js';
+import { reconcileImportedEquipmentInventory, uniqueImportedMaterialRows } from './intranetMaterialImportReconcile.js';
 
 function clean(value) { return value == null ? '' : String(value).trim(); }
 function text(value) { const v = clean(value); return v || null; }
@@ -228,6 +228,7 @@ async function upsertEquipmentAttribute(db, equipmentId, key, value) {
 
 async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installationId, visiteId, trameId }) {
   const materials = Array.isArray(ref?.materiels) ? ref.materiels : [];
+  const uniqueMaterials=uniqueImportedMaterialRows(materials);
   const brandRows = await db.getAllAsync(
     `SELECT id,nom,logo_uri FROM marques_equipement WHERE actif=1 ORDER BY nom`
   );
@@ -237,8 +238,8 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
   const seenEquipmentIds = new Set();
   const ordinalByFingerprint = new Map();
 
-  for (let index = 0; index < materials.length; index += 1) {
-    const material = materials[index] || {};
+  for (let index = 0; index < uniqueMaterials.length; index += 1) {
+    const material = uniqueMaterials[index] || {};
     const explicitRemoteId = remoteId(material.id);
     const signature = [material?.categorie,material?.designation,material?.numeroMateriel,
       material?.marque,material?.modele].map(normalize).join('|');

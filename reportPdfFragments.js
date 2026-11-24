@@ -74,7 +74,7 @@ export function composerHtmlFragment(html, entete, { premierDocument, premierLoc
 // New adaptive planner. The historical eight-photo API above stays available
 // to legacy previews/tests. All optimized splits occur at PHOTO PAGE boundaries.
 export function poidsPhotoPage(size) {
-  return size==='small'?2:size==='large'?6:size==='full'?12:3;
+  return size==='large'?6:size==='full'?12:2;
 }
 export function pagesPhotosRapport(items) {
   const pages=[];let page=[],weight=0;

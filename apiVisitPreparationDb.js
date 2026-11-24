@@ -1,7 +1,7 @@
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { getCachedLocalReference } from './symfonyApiCacheDb.js';
-import { reconcileImportedEquipmentInventory } from './intranetMaterialImportReconcile.js';
+import { reconcileImportedEquipmentInventory, uniqueImportedMaterialRows } from './intranetMaterialImportReconcile.js';
 
 function normalize(v) { return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
 function text(v) { return v == null || v === '' ? null : String(v).trim() || null; }
@@ -289,7 +289,7 @@ export async function importApiReferenceForVisit(visiteId, remoteLocalId, remote
     let importedMaterials = 0;
     const retainedEquipmentIds = new Set();
 
-    for (const sourceMaterial of Array.isArray(ref?.materiels) ? ref.materiels : []) {
+    for (const sourceMaterial of uniqueImportedMaterialRows(Array.isArray(ref?.materiels) ? ref.materiels : [])) {
       const material = { ...sourceMaterial, remoteLocalId: remoteId };
       const equipmentId = await ensureEquipmentFromCurrentListing(db, visit.site_id, installationId, material, retainedEquipmentIds);
       await db.runAsync(

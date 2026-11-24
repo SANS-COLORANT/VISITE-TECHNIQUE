@@ -1,4 +1,5 @@
 import { filtrerLignesRapport } from './reportRowVisibility.js';
+import { pagesPhotosRapport } from './reportPdfFragments.js';
 import React, { useMemo } from 'react';
 import { FlatList, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
@@ -49,34 +50,7 @@ function sectionsOrdonnees(data, layout) {
     .sort((a, b) => a.ordre - b.ordre || a.index - b.index);
 }
 
-function poidsPhoto(size) {
-  if (size === 'small') return 2;
-  if (size === 'large') return 6;
-  if (size === 'full') return 12;
-  return 3;
-}
-
-function grouperPhotosPages(items) {
-  const pages = [];
-  let page = [], charge = 0;
-  for (const photo of items) {
-    const poids = poidsPhoto(photo.size || 'medium');
-    if (page.length && charge + poids > 12) {
-      pages.push(page);
-      page = [];
-      charge = 0;
-    }
-    page.push(photo);
-    charge += poids;
-    if (charge >= 12) {
-      pages.push(page);
-      page = [];
-      charge = 0;
-    }
-  }
-  if (page.length) pages.push(page);
-  return pages;
-}
+function grouperPhotosPages(items){return pagesPhotosRapport(items);}
 
 function buildPreviewItems(datas, photos, config, layout) {
   const out = [{ id: 'cover', type: 'cover' }];

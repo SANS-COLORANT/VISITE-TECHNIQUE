@@ -32,6 +32,7 @@ const CONTRACT_CHECKS = [
   ['responsive mobile geometry, scroll and pager contracts', 'tests/mobileLayout.test.mjs'],
   ['report PDF structure with 457 photos', 'tests/reportPdfFragments.test.mjs'],
   ['adaptive PDF, 45 visits / 450 photos and private JPEG cache', 'tests/reportPerformance.test.mjs'],
+  ['report A4, assets, identity projection and navigation fidelity', 'tests/reportFidelity.test.mjs'],
   ['runtime responsiveness v3 contract', '.github/scripts/check_runtime_responsiveness_v3.js'],
   ['startup dependency graph contract', '.github/scripts/check_startup_dependency_graph.js'],
   ['database initialization concurrency', '.github/scripts/test_db_initialization.js'],
