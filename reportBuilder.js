@@ -463,9 +463,10 @@ export function preparerPhotosRapport(data, existantes = []) {
   })).sort((a, b) => a.ordre - b.ordre);
 }
 
-async function imageRapportBase64(uri, output = 'pdf') {
+async function imageRapportBase64(uri, output = 'pdf', size = 'medium') {
   try {
-    // JPEG scaled for A4 print; original image stays untouched in local storage.
+    // PDF variants are private, fingerprinted and prepared with bounded concurrency.
+    if(output==='pdf')return await require('./reportPhotoCache.js').getReportPhotoData(uri,size);
     const pdf = output === 'pdf';
     const r = await ImageManipulator.manipulateAsync(
       uri,
@@ -529,10 +530,17 @@ async function photosHtml(data, config, photosConfig, output = 'pdf') {
 
   const prepared = [];
   const failed = [];
-  for (const p of items) {
-    const src = await imageRapportBase64(p.uri, output);
-    if (src) prepared.push({ ...p, src });
-    else failed.push(p.id);
+  // At most two native image operations; preserve the selected order.
+  const parallel=output==='pdf'?2:1;
+  for(let i=0;i<items.length;i+=parallel){
+    if(config.shouldCancel?.())throw Object.assign(new Error('Génération annulée.'),{code:'METRA_REPORT_CANCELLED'});
+    const batch=items.slice(i,i+parallel);
+    const images=await Promise.all(batch.map(p=>imageRapportBase64(p.uri,output,p.size)));
+    batch.forEach((p,j)=>{
+      const src=images[j];
+      if(src)prepared.push({...p,src});else failed.push(p.id);
+      config.onPhotoPrepared?.();
+    });
   }
   if (failed.length) throw new Error(
     'Rapport incomplet : ' + failed.length + ' photo(s) sélectionnée(s) illisible(s). ' +
@@ -543,11 +551,13 @@ async function photosHtml(data, config, photosConfig, output = 'pdf') {
 
 async function siteHtml(data, config, photosConfig, output = 'pdf') {
   const sections = (data.sections || []).map((s) => sectionHtml(s, config)).join('');
-  const reserves = reservesHtml(data, config);
+  const first=config.__fragmentRapport?.premierLocal!==false;
+  const last=config.__fragmentRapport?.dernierLocal!==false;
+  const reserves = first?reservesHtml(data, config):'';
   const photos = await photosHtml(data, config, photosConfig, output);
-  const materiel = materielHtml(data, config);
+  const materiel = last?materielHtml(data, config):'';
   const local = data.visite.nom_local || data.visite.type_local || 'Installation technique';
-  return `<article class="siteReport"><div class="siteStart"><h1>${esc(data.visite.nom_site || 'Site')}</h1><h4>${esc(local)}</h4></div>${sections}${notesHtml(data, config)}${reserves}${photos}${materiel}</article>`;
+  return `<article class="siteReport"><div class="siteStart"><h1>${esc(data.visite.nom_site || 'Site')}</h1><h4>${esc(local)}</h4></div>${sections}${first?notesHtml(data, config):''}${reserves}${photos}${materiel}</article>`;
 }
 
 function logoHtml(classe = 'reportLogo') {
@@ -677,7 +687,14 @@ async function signaturesRapportHtml(datas, output) {
 
 export async function construireHtmlRapport(datas, config, photosConfig = [], output = 'pdf') {
   const contenus = [];
-  for (const d of datas) contenus.push(await siteHtml(d, config, photosConfig, output));
+  if(config.__enteteSeulement)contenus.push('<article class="siteReport"></article>');
+  else for (const d of datas) contenus.push(await siteHtml(d, config, photosConfig, output));
+  // Avoid rebuilding the cover, summary, table of contents and signatures for
+  // every print fragment. The complete header is rendered once separately.
+  if(config.__fragmentRapport){
+    const signatures=config.__fragmentRapport.dernierLocal?await signaturesRapportHtml(datas,output):'';
+    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${cssRapport(output)}</style></head><body>${contenus.join('')}${signatures}</body></html>`;
+  }
 
   const client = datas[0]?.visite?.nom_client || 'Rapport';
   const patrimoineHtml = await construireSynthesePatrimoineHtml(datas, config);
@@ -708,7 +725,7 @@ export async function construireHtmlRapport(datas, config, photosConfig = [], ou
       <ul><li>S : Satisfaisant</li><li>N.S : Non satisfaisant</li><li>S.O : Sans objet</li><li>N.R : Non relevé</li><li>N.V : Non visible</li></ul>
     </div>
     ${contenus.join('')}
-    ${await signaturesRapportHtml(datas, output)}
+    ${config.__enteteSeulement?'':await signaturesRapportHtml(datas, output)}
     ${output === 'word' ? wordInteriorDecor(config, siteFooter) : ''}
   </body></html>`;
 }

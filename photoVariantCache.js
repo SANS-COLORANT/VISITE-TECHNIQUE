@@ -131,6 +131,9 @@ export async function preparePhotoVariants(uri) {
     getPhotoVariant(uri, 'thumb'),
     getPhotoVariant(uri, 'preview'),
   ]);
+  // A warmed report derivative is optional; capture and database commits
+  // never wait for it. Existing reports will warm their selected images too.
+  try{require('./reportPhotoCache.js').warmCapturedReportPhoto(uri);}catch{}
 }
 
 export async function forgetPhotoVariants(uri) {
