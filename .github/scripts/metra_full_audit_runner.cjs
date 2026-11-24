@@ -10,6 +10,7 @@ const root = path.resolve(__dirname, '../..');
 const output = path.join(root, 'audit-results', 'full-audit');
 fs.mkdirSync(output, { recursive: true });
 
+const generatedPlay = process.argv.includes('--generated-play');
 const suites = [
   ['source', [['node', '.github/scripts/run_source_patches.js']]],
   ['static', [['node', '.github/scripts/audit_metra_all_screens.cjs']]],
@@ -54,7 +55,7 @@ const suites = [
     ['node', '.github/scripts/test_visit_date_persistence.js'],
   ]],
   ['build-security', [
-    ['python3', '.github/scripts/verify_play_security.py'],
+    ['python3', '.github/scripts/verify_play_security.py', ...(generatedPlay ? ['--generated-play'] : [])],
     ['node', '.github/scripts/assert_sheetjs_secure.cjs'],
     ['node', '.github/scripts/check_missions_app_compat.js'],
   ]],
