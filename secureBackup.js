@@ -405,7 +405,7 @@ export async function choisirEtRestaurerSauvegardeChiffree({ motDePasse = '', au
     if(finalReport.missingMedia!==stagedReport.missingMedia || finalReport.missingVisitPhotos!==stagedReport.missingVisitPhotos || finalReport.unarchivedMedia!==stagedReport.unarchivedMedia)throw new Error('Les fichiers restaurés ne correspondent pas à la vérification initiale.');
     assertMediaConsent(finalReport,autoriserRestaurationPartielle);
     await checkpoint(restoredDb);
-    await closeAppDatabase();
+    await closeAppDatabase({strict:true});
     await cleanJournals(currentDb);
     await journal.complete(id);
     committed=true;

@@ -216,7 +216,7 @@ def select_document(name):
     ui.snapshot("restore-document-picker-failure")
     raise AssertionError("Document picker could not select "+name)
 
-def restore(name, password=None, legacy=False, expect_ok=True):
+def restore(name, password=None, legacy=False, expect_ok=True, partial=False):
     stop();launch()
     assert ui.tap(["Réglages"],seconds=35)
     assert aes.tap_scrolling("Données")
@@ -231,10 +231,12 @@ def restore(name, password=None, legacy=False, expect_ok=True):
         adb("shell","input","text",password)
         adb("shell","input","keyevent","KEYCODE_BACK",check=False)
         time.sleep(1.2)
+    if partial:
+        assert aes.tap_scrolling("Autoriser la restauration partielle")
     assert aes.tap_scrolling("Choisir le ZIP")
     assert ui.tap(["Choisir une sauvegarde"],seconds=25)
     select_document(name)
-    label="Restauration terminée" if expect_ok else "Restauration impossible"
+    label=("Restauration partielle terminée" if partial else "Restauration terminée") if expect_ok else "Restauration impossible"
     other="Restauration impossible" if expect_ok else "Restauration terminée"
     deadline=time.monotonic()+150
     while time.monotonic()<deadline:
@@ -279,12 +281,12 @@ def main():
     adb("shell","svc","data","disable",check=False)
     adb("install",sys.argv[1]);launch()
     install_fixture();launch()
-    a0,_=snapshot("01-old-AAB38")
-    mark("AAB38 fixture SQLite and three media files")
+    a0,_=snapshot("01-old-AAB")
+    mark("Previous AAB fixture SQLite and three media files")
     adb("install","-r",sys.argv[2]);launch()
-    a,apath=snapshot("02-AAB44-after-update")
+    a,apath=snapshot("02-new-AAB-after-update")
     assert a==a0,"update changed synthetic rows or media"
-    mark("AAB38 to AAB44 in-place update, no uninstall, equality of 13 tables and 3 SHA256")
+    mark("Previous to new AAB in-place update, no uninstall, equality of 13 tables and 3 SHA256")
     aes.export_test()
     arc=aes.private_archive_path()
     assert arc,"native encrypted archive absent"
@@ -293,7 +295,7 @@ def main():
         z.setpassword(PASS.encode())
         for rel,expected in a["media_sha256"].items():
             assert hashlib.sha256(z.read("data/"+rel)).hexdigest()==expected,rel
-    mark("AAB44 native AES archive contains all three exact media")
+    mark("New AAB native AES archive contains all three exact media")
     v1=make_v1(apath,"qa-legacy-A.zip")
     corrupt=make_v1(apath,"qa-corrupt-v1.zip",broken=True)
     names=[external_file(f) for f in (encrypted,v1,corrupt)]

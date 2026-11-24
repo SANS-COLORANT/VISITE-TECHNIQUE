@@ -17,6 +17,7 @@ on:
       - audit/metra-all-screen-blockers-20261123
       - fix/metra-play-backup-ux-stable-20261123
       - fix/metra-play-secure-backup-restore-20261123
+      - fix/metra-restore-recovery-release-20261124
   workflow_dispatch:
 
 permissions:
@@ -63,6 +64,7 @@ jobs:
         run: python3 .github/scripts/verify_play_security.py
 
       - name: Upgrade Expo to API36-capable SDK 54 and resolve compatible dependencies
+        if: github.ref_name != 'fix/metra-restore-recovery-release-20261124'
         run: |
           set -euo pipefail
           npm install --save expo@~54.0.38 react@19.1.0 react-native@0.81.5 --ignore-scripts --no-audit --no-fund
@@ -73,6 +75,13 @@ jobs:
           npx expo install --check
           node -e "const p=require('./package.json'); if(!p.dependencies.expo.startsWith('~54.')) process.exit(1)"
           node --check app.config.js
+
+      - name: Install exact committed dependencies for restoration candidate
+        if: github.ref_name == 'fix/metra-restore-recovery-release-20261124'
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline
+          npx expo install --check
+          git diff --exit-code -- package.json package-lock.json
 
       - name: Check JS syntax, SQLite model, REMAR and local reports
         run: |
@@ -100,6 +109,7 @@ jobs:
           node --check plugins/withMetraPlaySecurity.js
 
       - name: Commit resolved dependency lock and legacy FS migration as real source
+        if: github.ref_name != 'fix/metra-restore-recovery-release-20261124'
         run: |
           set -euo pipefail
           git add package.json package-lock.json
@@ -114,6 +124,20 @@ jobs:
             git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'build: version Expo 54 compatibility and legacy file-system migration'
             git push origin "HEAD:${{ github.ref_name }}"
           fi
+
+      - name: Audit exact restoration runtime before compiling
+        if: github.ref_name == 'fix/metra-restore-recovery-release-20261124'
+        run: |
+          node --test tests/backupPlaySecure.test.mjs tests/restoreRecovery.test.mjs
+          node .github/scripts/metra_full_audit_runner.cjs
+          git diff --exit-code -- '*.js' '*.jsx' '*.ts' '*.tsx' package.json package-lock.json ':!playSecurityRuntime.generated.js' ':!googleMapsRuntime.generated.js'
+      - name: Preserve source audit evidence
+        if: always() && github.ref_name == 'fix/metra-restore-recovery-release-20261124'
+        uses: actions/upload-artifact@v4
+        with:
+          name: METRA-RESTORE-SOURCE-AUDIT-${{ github.run_number }}
+          path: audit-results/
+          if-no-files-found: warn
 
       - name: Stamp version code without committing deployment-specific changes
         env:
@@ -230,9 +254,144 @@ jobs:
 
       - name: Archive signed AAB only when a genuine upload key was supplied
         uses: actions/upload-artifact@v4
-        if: steps.signing.outputs.ready == 'true'
+        if: steps.signing.outputs.ready == 'true' && github.ref_name != 'fix/metra-restore-recovery-release-20261124'
         with:
           name: METRA-PlayStore-AAB-${{ github.run_number }}
           path: release/METRA-PlayStore.aab*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Stage new signed AAB for native qualification (not yet approved)
+        if: steps.signing.outputs.ready == 'true' && github.ref_name == 'fix/metra-restore-recovery-release-20261124'
+        uses: actions/upload-artifact@v4
+        with:
+          name: METRA-PlayStore-AAB-UNQUALIFIED-${{ github.run_number }}
+          path: release/METRA-PlayStore.aab*
+          if-no-files-found: error
+          retention-days: 14
+
+  qualify-restore:
+    if: github.ref_name == 'fix/metra-restore-recovery-release-20261124'
+    needs: secure-android
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [roundtrip, bulk, recovery]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install independent ZIP and media verification tools
+        run: |
+          python -m pip install 'pyzipper==0.3.6' 'Pillow==11.3.0'
+          python -m py_compile .github/scripts/android_aab_restore_retention.py .github/scripts/android_backup_smoke.py .github/scripts/android_restore_recovery.py .github/scripts/android_legacy_bulk_restore.py
+      - name: Download previous signed AAB 44
+        uses: actions/download-artifact@v4
+        with:
+          name: METRA-PlayStore-AAB-44
+          run-id: 45194050713
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: aabprevious
+      - name: Download exact new signed AAB from this run
+        uses: actions/download-artifact@v4
+        with:
+          name: METRA-PlayStore-AAB-UNQUALIFIED-${{ github.run_number }}
+          path: aabnew
+      - name: Verify cryptographic hashes and signatures, generate APKs from exact AABs
+        run: |
+          set -euo pipefail
+          mkdir -p audit-results
+          curl --fail --location --retry 3 https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar -o "$RUNNER_TEMP/bundletool.jar"
+          keytool -genkeypair -keystore "$RUNNER_TEMP/qa.p12" -storetype PKCS12 -storepass android -keypass android -alias metraqa -keyalg RSA -keysize 2048 -validity 365 -dname "CN=Disposable METRA QA"
+          for n in previous new; do
+            dir="aab$n"
+            test "$(find "$dir" -name '*.aab' -type f | wc -l)" -eq 1
+            aab="$(find "$dir" -name '*.aab' -type f)"
+            expected="$(awk '{print $1}' "$(find "$dir" -name '*.aab.sha256' -type f)")"
+            actual="$(sha256sum "$aab" | awk '{print $1}')"
+            test "$expected" = "$actual"
+            printf 'AAB %s SHA256 %s\n' "$n" "$actual" | tee -a audit-results/aab-identity.txt
+            jarsigner -verify "$aab" > "audit-results/aab$n-signature.txt"
+            grep -q 'jar verified' "audit-results/aab$n-signature.txt"
+            java -jar "$RUNNER_TEMP/bundletool.jar" validate --bundle="$aab"
+            java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle="$aab" > "audit-results/aab$n-manifest.xml"
+            java -jar "$RUNNER_TEMP/bundletool.jar" build-apks --bundle="$aab" --output="$dir/test.apks" --mode=universal --ks="$RUNNER_TEMP/qa.p12" --ks-pass=pass:android --ks-key-alias=metraqa --key-pass=pass:android
+            unzip -p "$dir/test.apks" universal.apk > "$dir/test.apk"
+            test -s "$dir/test.apk"
+            sha256sum "$dir/test.apk" >> audit-results/aab-identity.txt
+          done
+          old_cert="$(keytool -printcert -jarfile aabprevious/METRA-PlayStore.aab | grep "SHA256:" | head -1)"
+          new_cert="$(keytool -printcert -jarfile aabnew/METRA-PlayStore.aab | grep "SHA256:" | head -1)"
+          test -n "$old_cert" && test "$old_cert" = "$new_cert"
+          tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          for n in previous new; do
+            "$tools/apksigner" verify --verbose "aab$n/test.apk"
+            "$tools/aapt" dump badging "aab$n/test.apk" > "audit-results/aab$n-apk-badging.txt"
+            grep -q "package: name='com.visitetechnique.tablet'" "audit-results/aab$n-apk-badging.txt"
+          done
+      - name: Enable emulator KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Native candidate test - ${{ matrix.scenario }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 8G
+          disable-animations: true
+          script: |
+            case '${{ matrix.scenario }}' in
+              roundtrip) python3 .github/scripts/android_aab_restore_retention.py aabprevious/test.apk aabnew/test.apk ;;
+              bulk) python3 .github/scripts/android_legacy_bulk_restore.py aabnew/test.apk ;;
+              recovery) python3 .github/scripts/android_restore_recovery.py aabnew/test.apk ;;
+              *) exit 1 ;;
+            esac
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: METRA-NEW-AAB-RESTORE-${{ github.run_number }}-${{ matrix.scenario }}
+          path: audit-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  qualified-play-artifact:
+    if: github.ref_name == 'fix/metra-restore-recovery-release-20261124'
+    needs: [secure-android, qualify-restore]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Download the tested signed AAB without rebuilding
+        uses: actions/download-artifact@v4
+        with:
+          name: METRA-PlayStore-AAB-UNQUALIFIED-${{ github.run_number }}
+          path: verified
+      - name: Verify the exact final AAB bytes
+        run: |
+          set -euo pipefail
+          cd verified
+          expected="$(awk '{print $1}' METRA-PlayStore.aab.sha256)"
+          actual="$(sha256sum METRA-PlayStore.aab | awk '{print $1}')"
+          test "$expected" = "$actual"
+          jarsigner -verify METRA-PlayStore.aab | grep -q 'jar verified'
+          printf '%s  %s\n' "$actual" METRA-PlayStore.aab > METRA-PlayStore.aab.sha256
+      - name: Archive the qualified candidate for internal Play testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: METRA-PlayStore-AAB-${{ github.run_number }}
+          path: verified/METRA-PlayStore.aab*
           if-no-files-found: error
           retention-days: 30
