@@ -1,11 +1,12 @@
-import React,{useCallback,useEffect,useMemo,useState}from'react';
+import React,{useCallback,useEffect,useMemo,useRef,useState}from'react';
 import { sauvegarderLegendePhoto, legendePhotoValide, attendreLegendesPhotos } from './photoCaptionPersistence.js';
-import{Alert,Image,SectionList,ScrollView,Text,TextInput,TouchableOpacity,View}from'react-native';
+import{Alert,BackHandler,Image,SectionList,ScrollView,Text,TextInput,TouchableOpacity,View}from'react-native';
 import * as ImagePicker from'expo-image-picker';
 import{COLORS,styles}from'./styles.js';
 import{CvcIcon}from'./MetraCvcIcons.js';
 import{chargerDonneesVisiteRapport,finaliserVisiteRapport,listerVisitesRapportClient,preparerPhotosRapport}from'./reportBuilder.js';
 import{ReportLayoutEditor}from'./ReportLayoutEditor.js';
+import { warmReportPhotos } from './reportPhotoCache.js';
 import{exporterRapportEdite,exporterRapportsParSiteEdites,exporterRapportsParLocalEdites}from'./reportEditorExporter.js';
 
 const DEFAULT_COVER=require('./assets/report/cover-building.png');
@@ -40,6 +41,9 @@ export function ReportScreen({route,onBack}){
  const[inclurePatrimoine,setInclurePatrimoine]=useState(false),[patrimoineScope,setPatrimoineScope]=useState('sites');
  const[format,setFormat]=useState('pdf');
   const[pdfProgress,setPdfProgress]=useState('');
+  const[pdfDetail,setPdfDetail]=useState(null);
+  const cancelPdf=useRef(false),generating=useRef(false);
+  const demanderAnnulation=()=>{if(generating.current){cancelPdf.current=true;setPdfProgress('Annulation après le lot en cours…');}};
  const[layout,setLayout]=useState({textScale:'normal',sections:{}});
  const[coverUri,setCoverUri]=useState(null),[coverLabel,setCoverLabel]=useState('Image standard METRA'),[coverVisiteId,setCoverVisiteId]=useState(null);
 
@@ -77,9 +81,20 @@ export function ReportScreen({route,onBack}){
  const choisirGalerie=async()=>{try{const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();if(!permission.granted)return Alert.alert('Permission requise',"L'accès aux photos est nécessaire pour choisir une couverture.");const r=await ImagePicker.launchImageLibraryAsync({mediaTypes:ImagePicker.MediaTypeOptions.Images,quality:.8,allowsEditing:false});if(r.canceled)return;setCoverUri(r.assets[0].uri);setCoverLabel('Image choisie dans la galerie');setCoverVisiteId(null)}catch(e){Alert.alert('Couverture',String(e?.message||e))}};
  const prendreCouverture=async()=>{try{const permission=await ImagePicker.requestCameraPermissionsAsync();if(!permission.granted)return Alert.alert('Permission requise',"L'accès à l'appareil photo est nécessaire pour prendre une couverture.");const r=await ImagePicker.launchCameraAsync({quality:.8,allowsEditing:false});if(r.canceled)return;setCoverUri(r.assets[0].uri);setCoverLabel('Photo prise pour la couverture');setCoverVisiteId(null)}catch(e){Alert.alert('Couverture',String(e?.message||e))}};
 
- const config={chrono,objet,dateRapport,afficherLignesVides,materiel,remarques,photos:inclurePhotos,notes:inclureNotes,coverUri,coverLabel,coverVisiteId,layout};
- const configRapport={...config,patrimoine:inclurePatrimoine,patrimoineScope};
- const generer=async()=>{setPdfProgress('');if(!chrono.trim()||!objet.trim())return Alert.alert('Champs requis','Renseigne le numéro de chrono et l’objet du rapport.');setBusy(true);try{await attendreLegendesPhotos(datas.map(d=>d.visite.id));const modeEffectif=mode;const r=modeEffectif==='local'?await exporterRapportsParLocalEdites({datas,config:{...configRapport,onPdfProgress:(done,total)=>setPdfProgress(`Lot ${done}/${total}`)},photosConfig:photos,format,dossiersParLocal}):modeEffectif==='site'?await exporterRapportsParSiteEdites({datas,config:configRapport,photosConfig:photos,format,dossiersParSite}):await exporterRapportEdite({datas,config:configRapport,photosConfig:photos,format});if(!r?.annule && r?.erreurs?.length) {
+ const config=useMemo(()=>({chrono,objet,dateRapport,afficherLignesVides,materiel,remarques,photos:inclurePhotos,notes:inclureNotes,coverUri,coverLabel,coverVisiteId,layout}),[chrono,objet,dateRapport,afficherLignesVides,materiel,remarques,inclurePhotos,inclureNotes,coverUri,coverLabel,coverVisiteId,layout]);
+ const configRapport=useMemo(()=>({...config,patrimoine:inclurePatrimoine,patrimoineScope}),[config,inclurePatrimoine,patrimoineScope]);
+ useEffect(()=>{
+   if(!inclurePhotos||busy||etape==='config')return;
+   let cancelled=false;
+   warmReportPhotos(photos,()=>cancelled).catch(()=>{});
+   return()=>{cancelled=true;};
+ },[photos,inclurePhotos,etape,busy]);
+ useEffect(()=>{
+   if(!busy||format!=='pdf')return;
+   const sub=BackHandler.addEventListener('hardwareBackPress',()=>{if(generating.current){demanderAnnulation();return true;}return true;});
+   return()=>sub.remove();
+ },[busy,format]);
+ const generer=async()=>{if(generating.current)return;setPdfProgress('');setPdfDetail(null);if(!chrono.trim()||!objet.trim())return Alert.alert('Champs requis','Renseigne le numéro de chrono et l’objet du rapport.');setBusy(true);generating.current=true;cancelPdf.current=false;try{setPdfProgress('Préparation des données…');await attendreLegendesPhotos(datas.map(d=>d.visite.id));const modeEffectif=mode;const exportConfig={...configRapport,shouldCancel:()=>cancelPdf.current,onReportProgress:d=>{if(cancelPdf.current)return;setPdfDetail(d);setPdfProgress(d.phase+(d.total>1?' '+d.done+'/'+d.total:'…'));}};const r=modeEffectif==='local'?await exporterRapportsParLocalEdites({datas,config:exportConfig,photosConfig:photos,format,dossiersParLocal}):modeEffectif==='site'?await exporterRapportsParSiteEdites({datas,config:exportConfig,photosConfig:photos,format,dossiersParSite}):await exporterRapportEdite({datas,config:exportConfig,photosConfig:photos,format});if(r?.interrompu){Alert.alert('Génération annulée',(r.resultats?.length||0)+' rapport(s) terminé(s) conservé(s). Les photos préparées restent réutilisables.');}else if(!r?.annule && r?.erreurs?.length) {
   const failedIds=[...new Set(r.erreurs.flatMap(e=>e.visiteIds||[]))];
   const details=r.erreurs.slice(0,5).map(e=>(e.siteNom||'')+' / '+(e.localNom||'')+' : '+e.message).join('\n');
   Alert.alert('Export partiel · reprendre les échecs',
@@ -87,9 +102,9 @@ export function ReportScreen({route,onBack}){
     [{text:'Fermer'},{text:'Sélectionner les échecs',onPress:()=>{
       if(failedIds.length){setSelected(new Set(failedIds));setEtape('config');}
     }}]);
-} else if(!r?.annule)Alert.alert('Rapport généré',modeEffectif==='local'?`${r.resultats?.length||0} rapport(s) par local enregistré(s) dans METRA.`:modeEffectif==='site'?`${r.resultats?.length||0} rapport(s) par site enregistré(s) dans METRA.`:`${r.nom||'Le rapport'} a été enregistré dans le dossier Rapports du client.`)}catch(e){Alert.alert('Génération impossible',String(e?.message||e))}finally{setBusy(false)}};
+} else if(!r?.annule)Alert.alert('Rapport généré',modeEffectif==='local'?`${r.resultats?.length||0} rapport(s) par local enregistré(s) dans METRA.`:modeEffectif==='site'?`${r.resultats?.length||0} rapport(s) par site enregistré(s) dans METRA.`:`${r.nom||'Le rapport'} a été enregistré dans le dossier Rapports du client.`)}catch(e){if(e?.code==='METRA_REPORT_CANCELLED')Alert.alert('Génération annulée','Aucun nouveau PDF incomplet. Les photos préparées restent réutilisables.');else Alert.alert('Génération impossible',String(e?.message||e))}finally{generating.current=false;setBusy(false)}};
  const photoSections=useMemo(()=>{const byVisit=new Map();for(const photo of photos){if(!byVisit.has(photo.visiteId))byVisit.set(photo.visiteId,[]);byVisit.get(photo.visiteId).push(photo)}return datas.map((d,siteIndex)=>{const items=[...(byVisit.get(d.visite.id)||[])].sort((a,b)=>a.ordre-b.ordre);return{key:d.visite.id,data:items,visiteData:d,siteIndex}})},[datas,photos]);
- const retour=()=>{if(etape==='layout')setEtape('photos');else if(etape==='photos')setEtape('config');else onBack();};
+ const retour=()=>{if(busy){if(format==='pdf')demanderAnnulation();return;}if(etape==='layout')setEtape('photos');else if(etape==='photos')setEtape('config');else onBack();};
  const titre=etape==='config'?'Nouveau rapport':etape==='photos'?'Photos et couverture':'Mise en page du rapport';
 
  return <View style={{flex:1,backgroundColor:COLORS.bg}}><View style={styles.simpleHeader}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" style={styles.simpleHeaderBack} onPress={retour}><CvcIcon name="chevron-left" size={20} color={COLORS.ink} strokeWidth={2.3}/></TouchableOpacity><Text numberOfLines={1} style={styles.simpleHeaderTitle}>{titre}</Text></View>
@@ -97,6 +112,6 @@ export function ReportScreen({route,onBack}){
  {etape==='photos'?<View style={{flex:1}}><View style={{paddingHorizontal:16,paddingTop:10,paddingBottom:10,backgroundColor:COLORS.bg,borderBottomWidth:1,borderBottomColor:COLORS.line}}>
     <TouchableOpacity accessibilityRole="button" accessibilityLabel="Valider les photos et passer à la mise en page" style={[styles.btnPrimary,{opacity:busy?0.55:1}]} disabled={busy} onPress={()=>setEtape('layout')}><Text style={styles.btnPrimaryText}>Valider les photos · Mise en page ({photos.filter(p=>p.include).length}) →</Text></TouchableOpacity>
   </View><SectionList sections={photoSections} keyExtractor={item=>item.id} contentContainerStyle={[styles.content,{paddingBottom:34}]} keyboardShouldPersistTaps="handled" stickySectionHeadersEnabled={false} ListHeaderComponent={<View><Text style={styles.sectionTitle}>Photo centrale de couverture</Text><View style={[styles.card,{padding:12,flexDirection:'column',alignItems:'stretch',justifyContent:'flex-start'}]}><Image source={coverUri?{uri:coverUri}:DEFAULT_COVER} style={{width:'100%',height:180,borderRadius:10,backgroundColor:'#eee'}} resizeMode="cover"/><Text style={[styles.cardTitle,{marginTop:10}]}>{coverLabel}</Text><Text style={styles.cardSub}>La couverture est indépendante du reportage photo : une photo choisie ici peut rester incluse dans sa visite.</Text><View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:12}}><SmallButton label="Image standard METRA" onPress={couvertureStandard}/><SmallButton label="Galerie" onPress={choisirGalerie}/><SmallButton label="Prendre une photo" onPress={prendreCouverture}/></View></View><Text style={[styles.sectionTitle,{marginTop:18}]}>Photos par visite</Text><Text style={styles.importHint}>Les photos restent séparées par site/local. Tu peux changer l’ordre des sites, puis l’ordre et la taille des photos à l’intérieur de chaque visite.</Text></View>} renderSectionHeader={({section})=>{const d=section.visiteData;return <View style={[styles.card,{marginTop:16,borderLeftWidth:4,borderLeftColor:COLORS.orange}]}><View style={{flexDirection:'row',alignItems:'center',gap:10}}><View style={{flex:1}}><Text style={styles.cardTitle}>{d.visite.nom_site||'Site'}</Text><Text style={styles.cardSub}>{d.visite.nom_local||d.visite.type_local||'Installation technique'} · {libelleTrame(d)} · {d.visite.date_visite||''}</Text><Text style={[styles.cardSub,{marginTop:3}]}>{section.data.filter(x=>x.include).length}/{section.data.length} photo(s) incluse(s)</Text></View><View style={{flexDirection:'row',gap:6}}><SmallButton label="↑ Local" disabled={section.siteIndex===0} onPress={()=>moveSite(section.siteIndex,section.siteIndex-1)}/><SmallButton label="↓ Local" disabled={section.siteIndex===datas.length-1} onPress={()=>moveSite(section.siteIndex,section.siteIndex+1)}/></View></View></View>}} renderItem={({item,index,section})=><PhotoRow photo={item} index={index} total={section.data.length} onPatch={patchPhoto} onMove={(from,to)=>movePhoto(item.visiteId,from,to)} onCover={choisirPhotoCouverture} isCover={coverUri===item.uri&&coverVisiteId===item.visiteId}/>} ListEmptyComponent={<Text style={styles.emptyText}>Aucune photo dans les visites sélectionnées. Tu peux tout de même choisir une image de couverture puis mettre le rapport en page.</Text>} ListFooterComponent={null}/></View>:null}
- {etape==='layout'?<ReportLayoutEditor datas={datas} photos={photos} config={configRapport} layout={layout} onLayoutChange={setLayout} onMoveSite={moveSite} onPatchPhoto={patchPhoto} onGenerate={generer} busy={busy} pdfProgress={pdfProgress} format={format} onFormatChange={setFormat}/>:null}
+ {etape==='layout'?<ReportLayoutEditor datas={datas} photos={photos} config={configRapport} layout={layout} onLayoutChange={setLayout} onMoveSite={moveSite} onPatchPhoto={patchPhoto} onGenerate={generer} busy={busy} pdfProgress={pdfProgress} pdfDetail={pdfDetail} onCancel={demanderAnnulation} format={format} onFormatChange={setFormat}/>:null}
  </View>;
 }

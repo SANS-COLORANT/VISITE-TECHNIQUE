@@ -54,7 +54,7 @@ def partial_archive(source):
 def main():
     assert len(sys.argv)==2
     assert qa.adb("shell","getprop","ro.kernel.qemu").strip()=="1","physical device refused"
-    qa.adb("root");qa.adb("wait-for-device")
+    qa.root_emulator()
     assert qa.adb("shell","id","-u").strip()=="0"
     qa.adb("shell","svc","wifi","disable",check=False)
     qa.adb("shell","svc","data","disable",check=False)

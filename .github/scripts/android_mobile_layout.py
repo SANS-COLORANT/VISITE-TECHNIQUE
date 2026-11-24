@@ -36,11 +36,13 @@ def seed_matrix():
 def main():
     assert len(sys.argv)==2
     assert qa.adb("shell","getprop","ro.kernel.qemu").strip()=="1"
-    qa.adb("root");qa.adb("wait-for-device")
+    qa.root_emulator()
     assert qa.adb("shell","id","-u").strip()=="0"
     qa.adb("shell","svc","wifi","disable",check=False);qa.adb("shell","svc","data","disable",check=False)
     qa.adb("shell","wm","size","720x1600");qa.adb("shell","wm","density","320")
     qa.adb("shell","settings","put","system","font_scale","1.2")
+    time.sleep(5)
+    qa.root_emulator()
     qa.adb("install",sys.argv[1]);qa.launch()
     seed_matrix();qa.launch()
     # Full-page drags in the screen body, never just on the dock.

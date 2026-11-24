@@ -43,6 +43,20 @@ def run(*args, check=True, timeout=100):
 def adb(*args, check=True, timeout=100):
     return run("adb",*args,check=check,timeout=timeout).stdout.decode(errors="replace")
 
+def root_emulator():
+    # ADB can reconnect during adbd restart. Retry infrastructure readiness,
+    # not application assertions or failed restore operations.
+    deadline=time.monotonic()+90
+    while time.monotonic()<deadline:
+        try:
+            adb('wait-for-device',timeout=20)
+            assert adb('shell','getprop','ro.kernel.qemu').strip()=='1','physical device refused'
+            if adb('shell','id','-u').strip()=='0':return
+            adb('root',timeout=20,check=False)
+        except (RuntimeError,subprocess.TimeoutExpired):pass
+        time.sleep(3)
+    raise RuntimeError('Disposable emulator root connection unavailable')
+
 def shell(command, check=True):
     return adb("shell",command,check=check).strip()
 
@@ -59,7 +73,9 @@ def launch():
     deadline=time.monotonic()+90
     while time.monotonic()<deadline and not ui.app_running():
         time.sleep(1)
-    assert ui.app_running(),"app process missing"
+    if not ui.app_running():
+        (OUT/'startup-logcat.txt').write_text(adb('logcat','-d','-t','3000',check=False),encoding='utf-8')
+        raise AssertionError('app process missing; startup-logcat.txt preserved')
     assert ui.await_label(["Réglages"],seconds=100),"home unavailable"
 
 def pull(remote, local):
@@ -275,7 +291,7 @@ def main():
     assert len(sys.argv)==3,"Usage: script OLD_APK NEW_APK"
     assert adb("get-state").strip()=="device"
     assert adb("shell","getprop","ro.kernel.qemu").strip()=="1","refuse any physical device"
-    adb("root");adb("wait-for-device")
+    root_emulator()
     assert adb("shell","id","-u").strip()=="0","root only on disposable emulator"
     adb("shell","svc","wifi","disable",check=False)
     adb("shell","svc","data","disable",check=False)

@@ -10,6 +10,7 @@ tests={
  "bulk":("android_legacy_bulk_restore.py",[current]),
  "recovery":("android_restore_recovery.py",[current]),
  "interface":("android_mobile_layout.py",[current]),
+ "report":("android_report_benchmark.py",[previous,current]),
 }
 name,args=tests[scenario]
 subprocess.run([sys.executable,str(root/name),*args],check=True)

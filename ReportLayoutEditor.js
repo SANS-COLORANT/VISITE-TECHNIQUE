@@ -217,7 +217,7 @@ function PhotoPreviewPage({ item, onPatchPhoto }) {
 
 export function ReportLayoutEditor({
   datas, photos, config, layout, onLayoutChange, onMoveSite, onPatchPhoto,
-  onGenerate, busy, pdfProgress, format, onFormatChange,
+  onGenerate, busy, pdfProgress, pdfDetail, onCancel, format, onFormatChange,
 }) {
   const items = useMemo(() => buildPreviewItems(datas, photos, config, layout), [datas, photos, config, layout]);
   const totalReserves = useMemo(() => datas.reduce((n, d) => n + (d.remarques || []).length, 0), [datas]);
@@ -274,6 +274,14 @@ export function ReportLayoutEditor({
         style={[styles.btnPrimary, { opacity: busy ? 0.55 : 1 }]} disabled={busy} onPress={onGenerate}>
         <Text style={styles.btnPrimaryText}>{busy ? (pdfProgress || 'Génération…') : `Générer ${format === 'pdf' ? 'le PDF' : 'le Word'}`}</Text>
       </TouchableOpacity>
+      {busy&&format==='pdf'?<View style={{marginTop:8,gap:6}}>
+        {pdfDetail?<View accessibilityLabel={pdfProgress} style={{height:6,backgroundColor:'#E5E3DF',borderRadius:4,overflow:'hidden'}}>
+          <View style={{height:6,backgroundColor:COLORS.orange,width:(Math.max(0,Math.min(1,pdfDetail.done/Math.max(1,pdfDetail.total)))*100)+'%'}}/>
+        </View>:null}
+        <TouchableOpacity accessibilityRole="button" onPress={onCancel} style={{alignSelf:'center',padding:8}}>
+          <Text style={{color:COLORS.orangeDark,fontWeight:'700'}}>Annuler la génération</Text>
+        </TouchableOpacity>
+      </View>:null}
     </View>
     <FlatList style={{ flex: 1 }}
     data={items}

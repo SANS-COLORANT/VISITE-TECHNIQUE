@@ -128,7 +128,7 @@ jobs:
       - name: Audit exact restoration runtime before compiling
         if: github.ref_name == 'fix/metra-restore-recovery-release-20261124'
         run: |
-          node --test tests/backupPlaySecure.test.mjs tests/restoreRecovery.test.mjs tests/mobileLayout.test.mjs
+          node --test tests/backupPlaySecure.test.mjs tests/restoreRecovery.test.mjs tests/mobileLayout.test.mjs tests/reportPdfFragments.test.mjs tests/reportPerformance.test.mjs
           grep -qx 'export const METRA_PLAY_SECURE_BUILD = true;' playSecurityRuntime.generated.js
           node .github/scripts/metra_full_audit_runner.cjs --generated-play
           git diff --exit-code -- '*.js' '*.jsx' '*.ts' '*.tsx' package.json package-lock.json ':!playSecurityRuntime.generated.js' ':!googleMapsRuntime.generated.js'
@@ -277,7 +277,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario: [roundtrip, bulk, recovery, interface]
+        scenario: [roundtrip, bulk, recovery, interface, report]
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -291,8 +291,8 @@ jobs:
           python-version: '3.12'
       - name: Install independent ZIP and media verification tools
         run: |
-          python -m pip install 'pyzipper==0.3.6' 'Pillow==11.3.0'
-          python -m py_compile .github/scripts/android_aab_restore_retention.py .github/scripts/android_backup_smoke.py .github/scripts/android_restore_recovery.py .github/scripts/android_legacy_bulk_restore.py .github/scripts/android_candidate_scenario.py .github/scripts/android_mobile_layout.py
+          python -m pip install 'pyzipper==0.3.6' 'Pillow==11.3.0' 'pypdf==5.9.0'
+          python -m py_compile .github/scripts/android_aab_restore_retention.py .github/scripts/android_backup_smoke.py .github/scripts/android_restore_recovery.py .github/scripts/android_legacy_bulk_restore.py .github/scripts/android_candidate_scenario.py .github/scripts/android_mobile_layout.py .github/scripts/android_report_benchmark.py
       - name: Download previous signed AAB 44
         uses: actions/download-artifact@v4
         with:
@@ -353,6 +353,7 @@ jobs:
           heap-size: 512M
           disk-size: 8G
           disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: python3 .github/scripts/android_candidate_scenario.py ${{ matrix.scenario }} aabprevious/test.apk aabnew/test.apk
       - uses: actions/upload-artifact@v4
         if: always()

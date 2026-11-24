@@ -199,3 +199,17 @@ export async function creerFichierSaf(dossierUri, nomFichier, mimeType, base64) 
 }
 
 export { nettoyerSegment };
+
+// Create only a NEW SAF document. A failed binary copy must remove only that
+// document, never any existing report. Native writer verifies byte count.
+export async function creerFichierSafDepuisFichier(dossierUri,nomFichier,mimeType,source,copy){
+  const SAF=FileSystem.StorageAccessFramework;
+  if(!dossierUri||!SAF?.createFileAsync||typeof copy!=='function')throw Error('Dossier ou copie PDF indisponible.');
+  const destination=await SAF.createFileAsync(dossierUri,nettoyerSegment(nomFichier,'Fichier'),mimeType);
+  try{await copy(source,destination);return destination;}
+  catch(error){
+    let cleaned=false;
+    try{await FileSystem.deleteAsync(destination,{idempotent:true});cleaned=true;}catch{}
+    throw Error('Copie PDF interrompue : '+String(error?.message||error)+(cleaned?' · Nouveau fichier incomplet supprimé.':' · Supprimer le nouveau fichier incomplet : '+destination));
+  }
+}
