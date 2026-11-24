@@ -1,4 +1,5 @@
 import { getDb } from './db.js';
+import { assertRemoteLocalParent, assertVisitParent } from './siteHierarchyDb.js';
 import { createId } from './database/ids.js';
 import { getCachedLocalReference } from './symfonyApiCacheDb.js';
 import { reconcileImportedEquipmentInventory, uniqueImportedMaterialRows } from './intranetMaterialImportReconcile.js';
@@ -74,6 +75,7 @@ async function findMappedInstallation(db, siteId, remoteLocalId) {
 }
 
 async function ensureInstallationForRemoteLocal(db, siteId, remoteLocalId, ref) {
+  await assertRemoteLocalParent(db,siteId,remoteLocalId,ref);
   let installationId = await findMappedInstallation(db, siteId, remoteLocalId);
   const designation = text(ref?.local?.designation) || 'Local technique';
   // Le libellé du local n'est jamais utilisé comme identité. Deux locaux
@@ -265,12 +267,16 @@ export async function importApiReferenceForVisit(visiteId, remoteLocalId, remote
   }
 
   const db = await getDb();
-  const visit = await db.getFirstAsync(`SELECT id,site_id,trame_id FROM visites WHERE id=?`, [visiteId]);
+  const visit = await db.getFirstAsync(`SELECT id,site_id,installation_id,trame_id FROM visites WHERE id=?`, [visiteId]);
   if (!visit) return null;
 
   let result = null;
   await db.withTransactionAsync(async () => {
+    await assertVisitParent(db,visit.site_id,visit.installation_id);
+    const mapped=await assertRemoteLocalParent(db,visit.site_id,remoteId,ref);
+    if(visit.installation_id&&mapped.local_installation_id&&String(visit.installation_id)!==String(mapped.local_installation_id))throw Error('Le local Intranet sélectionné ne correspond pas au local de cette visite.');
     const installationId = await ensureInstallationForRemoteLocal(db, visit.site_id, remoteId, ref);
+    if(visit.installation_id&&String(visit.installation_id)!==String(installationId))throw Error('Le local de la visite ne peut pas être remplacé pendant un import.');
     let resolvedClientId = sourceId(remoteClientId);
     if (!resolvedClientId) {
       const candidates = await db.getAllAsync(

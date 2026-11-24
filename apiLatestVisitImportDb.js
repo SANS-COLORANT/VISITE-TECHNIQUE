@@ -1,4 +1,5 @@
 import { canonicalSectionCode } from './intranetStorageAliases.js';
+import { assertRemoteLocalParent } from './siteHierarchyDb.js';
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { getCachedLocalReference, listCachedLocals } from './symfonyApiCacheDb.js';
@@ -80,6 +81,7 @@ async function upsertProvenance(db, entiteType, entiteId, referenceExterne, deta
 }
 
 async function ensureInstallation(db, siteId, remoteLocalId, ref) {
+  await assertRemoteLocalParent(db,siteId,remoteLocalId,ref);
   const localLink = await db.getFirstAsync(
     `SELECT local_installation_id FROM api_local_links WHERE remote_local_id=? LIMIT 1`,
     [remoteLocalId]
@@ -611,6 +613,7 @@ export async function importLatestApiVisitForLocal(siteId, remoteLocalId) {
   const ref = await getCachedLocalReference(remoteIdLocal);
   if (!ref) return { imported: false, reason: 'no_cached_reference' };
   const db = await getDb();
+  await assertRemoteLocalParent(db,localSiteId,remoteIdLocal,ref);
 
   const cachedRemoteVisitId = remoteId(ref?.derniereVisite?.id);
   if (cachedRemoteVisitId) {

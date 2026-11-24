@@ -25,7 +25,7 @@ export async function cloneLatestVisitsForSite(db,sourceSiteId,targetSiteId,maps
     [sourceSiteId]);
   const latest=[],seen=new Set();
   for(const v of visits){
-    const key=[v.installation_id||'',v.trame_id||''].join('||');
+    const key=[v.installation_id||v.api_remote_local_id||'non_rattache',v.trame_id||''].join('||');
     if(seen.has(key))continue;
     seen.add(key);latest.push(v);
   }
@@ -40,6 +40,7 @@ export async function cloneLatestVisitsForSite(db,sourceSiteId,targetSiteId,maps
     for(const key of Object.keys(visit))
       if(/^api_|^signature|^synchro|^intranet_/.test(key))
         visitOverrides[key]=null;
+    if(Object.prototype.hasOwnProperty.call(visit,'api_is_historical'))visitOverrides.api_is_historical=0;
     await clone(db,'visites',visit,visitOverrides,['cree_le','modifie_le']);
     visitMap.set(visit.id,id);
     await cloneAttributes(db,'visite',visit.id,id);
@@ -119,8 +120,13 @@ export async function cloneLatestVisitsForSite(db,sourceSiteId,targetSiteId,maps
         referenceId=mapped(equipmentMap,referenceId,'réserve équipement');
       else if(row.reference_type==='reseau'&&referenceId)
         referenceId=mapped(networkMap,referenceId,'réserve réseau');
+      // An imported reservation must never retain a reference to the
+      // original server reservation. Keep the descriptive content only.
+      const remoteReference=row.reference_type==='api_symfony'||row.origine==='Intranet';
       return {id,controle_key:rewriteKey(row.controle_key),
-        reference_id:referenceId,
+        reference_type:remoteReference?null:row.reference_type,
+        reference_id:remoteReference?null:referenceId,
+        origine:remoteReference?'Copie locale':row.origine,
         intranet_etat_avancement:null};
     });
     await copyRows('remar_values',visit.id,target,row=>({

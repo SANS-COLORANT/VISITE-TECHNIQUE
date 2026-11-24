@@ -2,6 +2,7 @@ import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { createIntranetUploadId, protectedRequest, syncClientPreparation } from './symfonyApi.js';
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
+import { COPY_TEMPLATE_KEY, parseCopyJson, assertVisitParent } from './siteHierarchyDb.js';
 
 const listeners = new Set();
 let processorPromise = null;
@@ -150,7 +151,7 @@ export async function listStructureOutbox({ remoteClientId = null, localSiteId =
   return db.getAllAsync(`SELECT * FROM api_structure_outbox ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY queued_at`, params);
 }
 
-export async function queueMetraSiteCreation({ localClientId, remoteClientId, existingLocalSiteId = null, lotId, nom, sitePrincipal = 'Non', adresse = null, codePostal = null, ville = null, energie, typeBatiment } = {}) {
+export async function queueMetraSiteCreation({ localClientId, remoteClientId, existingLocalSiteId = null, lotId, nom, sitePrincipal = 'Non', adresse = null, codePostal = null, ville = null, energie, typeBatiment, deferProcessing = false } = {}) {
   const clientId = clean(remoteClientId);
   if (!positiveInteger(clientId)) throw new Error('Client Intranet requis pour créer un site.');
   const referential = await getCachedStructureReferential(clientId);
@@ -200,11 +201,11 @@ export async function queueMetraSiteCreation({ localClientId, remoteClientId, ex
       VALUES(?,'site',?,?,?,?,?,'pending')`, [operationId, creationId, clientId, localSiteId, serialized, payloadBytes]);
   });
   notify();
-  void processStructureOutbox({ limit: 2 }).catch(() => {});
+  if(!deferProcessing)void processStructureOutbox({ limit: 2 }).catch(() => {});
   return { localSiteId, operationId, creationId, payload };
 }
 
-export async function queueMetraLocalCreation({ localSiteId, remoteClientId, existingInstallationId = null, designation, type, situation, trameId, periodiciteVisite = null } = {}) {
+export async function queueMetraLocalCreation({ localSiteId, remoteClientId, existingInstallationId = null, designation, type, situation, trameId, periodiciteVisite = null, deferProcessing = false } = {}) {
   const clientId = clean(remoteClientId);
   if (!positiveInteger(clientId)) throw new Error('Client Intranet requis pour créer un local.');
   const referential = await getCachedStructureReferential(clientId);
@@ -226,6 +227,8 @@ export async function queueMetraLocalCreation({ localSiteId, remoteClientId, exi
   const db = await getDb();
   const site = await db.getFirstAsync(`SELECT id FROM sites WHERE id=?`, [String(localSiteId)]);
   if (!site) throw new Error('Site METRA introuvable.');
+  const siteContext=await getSiteStructureContext(localSiteId);
+  if(siteContext.ambiguous||String(siteContext.remoteClientId)!==clientId)throw structureError('Le local doit être publié chez le client Intranet de son site.','client_binding_ambiguous');
   const remoteSite = await mappedRemoteSiteForLocalSite(db, localSiteId, clientId);
   const siteOperation = await db.getFirstAsync(`SELECT * FROM api_structure_outbox WHERE resource_type='site' AND local_site_id=? AND remote_client_id=? ORDER BY queued_at DESC LIMIT 1`, [String(localSiteId), clientId]);
   if (!remoteSite && !siteOperation) throw structureError('Ce site METRA n’est pas encore relié à un site Intranet et aucune création de site n’est en attente.', 'remote_site_required');
@@ -265,7 +268,7 @@ export async function queueMetraLocalCreation({ localSiteId, remoteClientId, exi
       [operationId, creationId, clientId, String(localSiteId), localInstallationId, remoteSite ? null : siteOperation.operation_id, serialized, payloadBytes]);
   });
   notify();
-  void processStructureOutbox({ limit: 3 }).catch(() => {});
+  if(!deferProcessing)void processStructureOutbox({ limit: 3 }).catch(() => {});
   return { localInstallationId, operationId, creationId, payload, remoteSiteId: remoteSite?.remote_site_id || null };
 }
 
@@ -345,6 +348,12 @@ async function materializeSiteAck(db, row, response) {
   const remoteSite = response?.site || {};
   const remoteSiteId = clean(remoteSite.id);
   const payload = parseJson(row.payload_json) || {};
+  const existing=await db.getFirstAsync('SELECT local_site_id FROM api_site_links WHERE remote_site_id=?',[remoteSiteId]);
+  const relations=await db.getAllAsync('SELECT local_site_id FROM api_client_site_links WHERE remote_site_id=? AND local_site_id IS NOT NULL',[remoteSiteId]);
+  if((existing?.local_site_id&&String(existing.local_site_id)!==String(row.local_site_id))||relations.some(x=>String(x.local_site_id)!==String(row.local_site_id)))
+    throw structureError('Accusé site : identifiant déjà associé à un autre site METRA. Aucun rattachement modifié.','invalid_ack');
+  const other=await db.getAllAsync('SELECT remote_site_id FROM api_site_links WHERE local_site_id=? AND remote_present=1',[row.local_site_id]);
+  if(other.some(x=>String(x.remote_site_id)!==remoteSiteId))throw structureError('Accusé site : un autre identifiant est déjà associé.','invalid_ack');
   await db.runAsync(`INSERT INTO api_site_links(remote_site_id,remote_client_id,local_site_id,nom,cree_localement,payload_json,synced_at,remote_present)
     VALUES(?,?,?,?,1,?,datetime('now'),1)
     ON CONFLICT(remote_site_id) DO UPDATE SET remote_client_id=excluded.remote_client_id,local_site_id=COALESCE(api_site_links.local_site_id,excluded.local_site_id),
@@ -360,6 +369,13 @@ async function materializeSiteAck(db, row, response) {
 async function materializeLocalAck(db, row, response, remoteSiteId) {
   const remoteLocal = response?.local || {};
   const remoteLocalId = clean(remoteLocal.id);
+  if(remoteLocal.siteId!=null&&clean(remoteLocal.siteId)!==clean(remoteSiteId))throw structureError('Accusé local : mauvais site parent.','invalid_ack');
+  await assertVisitParent(db,row.local_site_id,row.local_installation_id);
+  const existing=await db.getFirstAsync('SELECT remote_site_id,local_installation_id FROM api_local_links WHERE remote_local_id=?',[remoteLocalId]);
+  if(existing&&(clean(existing.remote_site_id)!==clean(remoteSiteId)||(existing.local_installation_id&&clean(existing.local_installation_id)!==clean(row.local_installation_id))))
+    throw structureError('Accusé local : identifiant déjà associé à un autre site ou local.','invalid_ack');
+  const other=await db.getAllAsync('SELECT remote_local_id FROM api_local_links WHERE local_installation_id=? AND remote_present=1',[row.local_installation_id]);
+  if(other.some(x=>clean(x.remote_local_id)!==remoteLocalId))throw structureError('Accusé local : un autre identifiant est déjà associé.','invalid_ack');
   const payload = parseJson(row.payload_json) || {};
   const referential = await getCachedStructureReferential(row.remote_client_id);
   const trame = (referential?.trames || []).find((item) => Number(item?.id) === Number(payload.trameId));
@@ -396,10 +412,10 @@ async function materializeLocalAck(db, row, response, remoteSiteId) {
           api_remote_local_id=COALESCE(api_remote_local_id,?),
           api_remote_trame_id=COALESCE(api_remote_trame_id,?),
           modifie_le=datetime('now')
-      WHERE installation_id=? AND trame_id=?
+      WHERE installation_id=? AND site_id=? AND trame_id=?
         AND (api_remote_local_id IS NULL OR trim(api_remote_local_id)='')`,
       [row.remote_client_id, remoteLocalId, clean(remoteLocal.trameId || payload.trameId),
-        row.local_installation_id, selectedLocalTrame]);
+        row.local_installation_id,row.local_site_id, selectedLocalTrame]);
   }
   return remoteLocalId;
 }
@@ -428,6 +444,14 @@ async function sendRow(db, row) {
   if (Number(claimed?.changes || 0) !== 1) return { status: 'deferred', row };
   notify();
   try {
+    const owner=await db.getFirstAsync('SELECT s.id FROM sites s JOIN api_client_links c ON c.local_client_id=s.client_id AND c.autorise=1 WHERE s.id=? AND c.remote_client_id=?',[row.local_site_id,row.remote_client_id]);
+    if(!owner)throw structureError('Opération Intranet : site ou client parent incorrect.','invalid_ack');
+    if(row.resource_type==='local'){
+      try{await assertVisitParent(db,row.local_site_id,row.local_installation_id);}
+      catch{throw structureError('Opération Intranet : le local ne fait pas partie du site parent.','invalid_ack');}
+      const mapped=await mappedRemoteSiteForLocalSite(db,row.local_site_id,row.remote_client_id);
+      if(mapped?.remote_site_id&&clean(mapped.remote_site_id)!==clean(remoteSiteId))throw structureError('Opération Intranet : site distant différent du parent attendu.','invalid_ack');
+    }
     const path = row.resource_type === 'site'
       ? `/api/clients/${encodeURIComponent(row.remote_client_id)}/sites`
       : `/api/clients/${encodeURIComponent(row.remote_client_id)}/sites/${encodeURIComponent(remoteSiteId)}/locaux`;
@@ -436,11 +460,14 @@ async function sendRow(db, row) {
     if (typeof response?.rejoue !== 'boolean') throw structureError('Accusé Intranet incomplet : indicateur rejoue absent.', 'invalid_ack');
     const resource = row.resource_type === 'site' ? response?.site : response?.local;
     if (!positiveInteger(resource?.id)) throw structureError(`Accusé Intranet incomplet : identifiant ${row.resource_type} absent.`, 'invalid_ack');
-    const remoteId = row.resource_type === 'site'
-      ? await materializeSiteAck(db, row, response)
-      : await materializeLocalAck(db, row, response, remoteSiteId);
-    await db.runAsync(`UPDATE api_structure_outbox SET status='synced',next_attempt_at=NULL,http_status=?,error_code=NULL,error_message=NULL,violations_json=NULL,remote_id=?,replayed=?,synced_at=datetime('now'),updated_at=datetime('now') WHERE operation_id=?`,
-      [response.rejoue ? 200 : 201, remoteId, response.rejoue ? 1 : 0, row.operation_id]);
+    let remoteId;
+    await db.withTransactionAsync(async()=>{
+      remoteId = row.resource_type === 'site'
+        ? await materializeSiteAck(db, row, response)
+        : await materializeLocalAck(db, row, response, remoteSiteId);
+      await db.runAsync(`UPDATE api_structure_outbox SET status='synced',next_attempt_at=NULL,http_status=?,error_code=NULL,error_message=NULL,violations_json=NULL,remote_id=?,replayed=?,synced_at=datetime('now'),updated_at=datetime('now') WHERE operation_id=?`,
+        [response.rejoue ? 200 : 201, remoteId, response.rejoue ? 1 : 0, row.operation_id]);
+    });
     notify();
     if (row.resource_type === 'site') void syncStructureReferential(row.remote_client_id).catch(() => {});
     else void syncClientPreparation(row.remote_client_id).catch(() => {});
@@ -495,4 +522,77 @@ export async function retryStructureOperation(operationId) {
   notify();
   await processStructureOutbox({ limit: 2 });
   return db.getFirstAsync(`SELECT * FROM api_structure_outbox WHERE operation_id=?`, [String(operationId)]);
+}
+
+
+// A deliberate hierarchy sync starts here. Only creation metadata recovered
+// from a verified source copy may be used automatically. Missing values are
+// sent back to the existing form; do not guess a lot, type, or remote trame.
+let hierarchyStructurePromise=Promise.resolve();
+export function ensureHierarchyStructure(scope){
+  const task=hierarchyStructurePromise.catch(()=>{}).then(()=>prepareHierarchyStructure(scope));
+  hierarchyStructurePromise=task.catch(()=>{});
+  return task;
+}
+async function prepareHierarchyStructure({siteId,installationId=null}={}){
+  const db=await getDb();
+  const context=await getSiteStructureContext(siteId);
+  if(!context.linked||context.ambiguous||!context.remoteClientId)throw structureError('Client Intranet unique requis pour synchroniser ce site.','client_binding_ambiguous');
+  const remoteClientId=context.remoteClientId;
+  if(installationId)await assertVisitParent(db,siteId,installationId);
+  const readTemplate=async(type,id)=>parseCopyJson((await db.getFirstAsync('SELECT valeur FROM attributs_libres WHERE entite_type=? AND entite_id=? AND cle=?',[type,id,COPY_TEMPLATE_KEY]))?.valeur)||{};
+  let referential=context.referential;
+  if(!referential){
+    await syncStructureReferential(remoteClientId);
+    referential=await getCachedStructureReferential(remoteClientId);
+  }
+  let siteOp=context.siteOperation;
+  if(!context.remoteSiteId&&!siteOp){
+    const t=await readTemplate('site',siteId);
+    if(!positiveInteger(t.lotId)||!clean(t.energie)||!clean(t.typeBatiment))
+      throw structureError('Renseigne le lot, l’énergie et le type de bâtiment dans le formulaire de publication du site.','structure_site_form_required');
+    try{
+      const queued=await queueMetraSiteCreation({localClientId:context.site.local_client_id,remoteClientId,existingLocalSiteId:siteId,nom:context.site.nom_site,...t,adresse:t.adresse||context.site.adresse,sitePrincipal:'Non',deferProcessing:true});
+      siteOp={operation_id:queued.operationId,status:'pending'};
+    }catch(e){if(e?.code==='local_validation')throw structureError(e.message,'structure_site_form_required');throw e;}
+  }
+  if(siteOp&&['conflict','rejected','validation_error','auth_error','cancelled'].includes(siteOp.status))
+    throw structureError('Création du site bloquée : '+(siteOp.error_message||siteOp.status),'structure_creation_failed');
+  const locals=await db.getAllAsync('SELECT id,nom,description FROM installations WHERE site_id=? AND actif=1'+(installationId?' AND id=?':'')+' ORDER BY id',installationId?[siteId,installationId]:[siteId]);
+  const blocked=[],queued=[];
+  for(const local of locals){
+    const links=await db.getAllAsync('SELECT l.remote_local_id,l.remote_site_id FROM api_local_links l WHERE l.local_installation_id=? AND l.remote_present=1',[local.id]);
+    if(links.length){
+      if(links.length!==1||!context.remoteSiteId||clean(links[0].remote_site_id)!==clean(context.remoteSiteId))
+        blocked.push({id:local.id,nom:local.nom,reason:'Rattachement Intranet ambigu ou autre site.'});
+      continue;
+    }
+    const op=await db.getFirstAsync("SELECT * FROM api_structure_outbox WHERE resource_type='local' AND local_installation_id=? AND status<>'cancelled' ORDER BY queued_at DESC LIMIT 1",[local.id]);
+    if(op){
+      if(clean(op.local_site_id)!==clean(siteId)||clean(op.remote_client_id)!==clean(remoteClientId)||['conflict','rejected','validation_error','auth_error'].includes(op.status))
+        blocked.push({id:local.id,nom:local.nom,reason:op.error_message||'Opération de création à vérifier.'});
+      continue;
+    }
+    const t=await readTemplate('installation',local.id);
+    if(!clean(t.type)||!clean(t.situation)||!positiveInteger(t.trameId)){
+      blocked.push({id:local.id,nom:local.nom,reason:'Type, situation ou trame à renseigner dans Locaux Intranet.'});continue;
+    }
+    try{
+      await queueMetraLocalCreation({localSiteId:siteId,remoteClientId,existingInstallationId:local.id,designation:local.nom,...t,deferProcessing:true});
+      queued.push(local.id);
+    }catch(e){blocked.push({id:local.id,nom:local.nom,reason:String(e?.message||e)});}
+  }
+  // Process stable outbox identities, parents first. Do not bypass Retry-After.
+  // Existing background runner and durable rows continue on a later connection.
+  for(let i=0;i<Math.max(2,Math.ceil((locals.length+1)/8)+2);i++){
+    const results=await processStructureOutbox({limit:8});
+    if(!results?.length||!results.some(r=>r.status==='synced'))break;
+  }
+  const updated=await getSiteStructureContext(siteId),ready=[],pending=[];
+  for(const local of locals){
+    const exact=await db.getAllAsync('SELECT remote_local_id,remote_site_id FROM api_local_links WHERE local_installation_id=? AND remote_present=1',[local.id]);
+    if(updated.remoteSiteId&&exact.length===1&&clean(exact[0].remote_site_id)===clean(updated.remoteSiteId)&&!blocked.some(x=>x.id===local.id))ready.push(local.id);
+    else if(!blocked.some(x=>x.id===local.id))pending.push(local.nom);
+  }
+  return {siteId,clientId:context.site.local_client_id,siteReady:Boolean(updated.remoteSiteId),ready,pending,blocked,queued,localCount:locals.length};
 }

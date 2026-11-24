@@ -438,6 +438,8 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
     throw bindingError('Cette visite possède déjà un identifiant Intranet différent. Rattachement modifiable uniquement après audit des identités.', 'imported_local_identity_conflict');
   if (clean(visite.installation_id)) {
     const installationId = clean(visite.installation_id);
+    const parent=await db.getFirstAsync('SELECT site_id FROM installations WHERE id=?',[installationId]);
+    if(!parent||clean(parent.site_id)!==clean(visite.site_id))throw bindingError('Le local METRA ne fait pas partie du site de cette visite.','local_ownership');
     if (clean(local.local_installation_id) && clean(local.local_installation_id) !== installationId)
       throw bindingError('Ce local Intranet est déjà associé à une autre installation METRA. Aucun mélange de patrimoine autorisé.', 'imported_local_identity_conflict');
     const links = await db.getAllAsync(`SELECT remote_local_id FROM api_local_links
