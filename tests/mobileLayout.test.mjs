@@ -69,3 +69,28 @@ test('continuous pilotage zoom and horizontal pan cover every column without los
  assert.ok(s.includes('transform:[{translateX:animatedX}]')&&s.includes('scrollEnabled={!gesturing}'));
  assert.ok(s.includes('Réduire le zoom')&&s.includes('Agrandir le zoom'));
 });
+
+test('compact site/local labels free at least 77% of matrix width, expanded mode is opt-in',()=>{
+ for(const width of [250,304,332,360,390,600,720,1100])for(const fontScale of [1,1.2,1.7])for(const zoom of [.38,.7,1,1.65]){
+   const compact=getPilotagePanGeometry({width,count:19,fontScale,zoom});
+   const wide=getPilotagePanGeometry({width,count:19,fontScale,zoom,labelMode:'expanded'});
+   assert.ok(compact.leftWidth<=Math.floor(width*.23));
+   assert.ok(wide.leftWidth<=Math.floor(width*.36));
+   assert.ok(wide.leftWidth>=compact.leftWidth);
+   assert.equal(wide.cellWidth,compact.cellWidth,'label expansion must not change category zoom');
+   assert.ok(compact.categoryViewport>=width-Math.floor(width*.23)-2);
+   assert.equal(visiblePilotageColumns(compact.maxOffset,compact).end,19);
+ }
+ const phone=getPilotagePanGeometry({width:332,count:19,zoom:1,fontScale:1.2});
+ assert.ok(Math.floor(phone.categoryViewport/phone.cellWidth)>=3,'three full categories on reference 360dp phone with 28dp margins');
+ for(const count of [1,7,19]){
+   const zoom=fitPilotageZoom(332,count,1.2);
+   const g=getPilotagePanGeometry({width:332,count,zoom,fontScale:1.2});
+   if(count<=7)assert.equal(g.maxOffset,0);
+   else assert.equal(zoom,.38);
+ }
+ const s=source('ClientPilotageScreen.js');
+ assert.ok(s.includes("useState('compact')")&&s.includes('onPress={toggleLabelMode}'));
+ assert.ok(s.includes('onLongPress={()=>afficherNomComplet(ligne)}'));
+ assert.ok(s.includes("numberOfLines={labelMode==='compact'?2:3}"));
+});

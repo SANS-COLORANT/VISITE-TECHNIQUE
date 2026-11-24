@@ -46,7 +46,7 @@ function Cell({ cell, onPress, width = 98, zoom=1, label='' }) {
   const inset=Math.max(1,Math.round(3*zoom));
   return <TouchableOpacity accessibilityRole="button" accessibilityLabel={label+' : '+cell.s+' satisfaisant(s), '+cell.ns+' non satisfaisant(s)'} disabled={!cell.total} onPress={onPress} style={{width:Math.max(1,width-2*inset),minHeight:Math.max(21,50*zoom),margin:inset,paddingVertical:Math.max(1,4*zoom),borderRadius:Math.max(3,10*zoom),borderWidth:Math.max(.75,1.5*zoom),borderColor:p.border,backgroundColor:p.bg,alignItems:'center',justifyContent:'center'}}>
     <Text numberOfLines={1} allowFontScaling={false} style={{fontSize:Math.max(9,16*zoom),fontFamily:FONTS.black,color:p.text}}>{p.symbol} {count||''}</Text>
-    {zoom>=.65?<Text numberOfLines={1} allowFontScaling={false} style={{fontSize:Math.max(6.5,8.5*zoom),color:p.text,marginTop:1}}>{cell.total?`${cell.s} S · ${cell.ns} N.S`:'Non concerné'}</Text>:null}
+    {zoom>=.65?<Text allowFontScaling={false} style={{fontSize:Math.max(6.5,8.5*zoom),color:p.text,marginTop:1,textAlign:'center',paddingHorizontal:1}}>{cell.total?`${cell.s} S · ${cell.ns} N.S`:'Non concerné'}</Text>:null}
   </TouchableOpacity>;
 }
 
@@ -66,12 +66,13 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
   const {width,fontScale}=useWindowDimensions();
   const [collapsed,setCollapsed]=useState({});
   const [zoom,setZoom]=useState(1),[viewport,setViewport]=useState(0);
+  const [labelMode,setLabelMode]=useState('compact');
   const [gesturing,setGesturing]=useState(false);
   const [range,setRange]=useState({start:0,end:0});
   const animatedX=useRef(new Animated.Value(0)).current;
   const offset=useRef(0),inMatrix=useRef(false),gestureState=useRef(null);
   const params=useRef({});
-  params.current={width:Math.max(1,(viewport||width)-28),count:categories.length,fontScale};
+  params.current={width:Math.max(1,(viewport||width)-28),count:categories.length,fontScale,labelMode};
   const geometry=getPilotagePanGeometry({...params.current,zoom});
   const geometryRef=useRef(geometry);
   geometryRef.current=geometry;
@@ -82,7 +83,7 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
     const next=visiblePilotageColumns(x,g);
     setRange(old=>old.start===next.start&&old.end===next.end?old:next);
   },[animatedX]);
-  useEffect(()=>{applyOffset(offset.current,geometryRef.current);},[viewport,width,fontScale,categories.length,zoom,applyOffset]);
+  useEffect(()=>{applyOffset(offset.current,geometryRef.current);},[viewport,width,fontScale,categories.length,zoom,labelMode,applyOffset]);
   const applyZoom=useCallback((target,anchor=.5)=>{
     const old=geometryRef.current,z=clampPilotageZoom(target);
     if(Math.abs(z-old.zoom)<.012)return;
@@ -90,6 +91,14 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
     const x=rescalePilotageOffset(offset.current,old,next,anchor);
     geometryRef.current=next;setZoom(z);applyOffset(x,next);
   },[applyOffset]);
+  const toggleLabelMode=()=>{
+    const old=geometryRef.current,mode=labelMode==='compact'?'expanded':'compact';
+    const next=getPilotagePanGeometry({...params.current,labelMode:mode,zoom:old.zoom});
+    const x=rescalePilotageOffset(offset.current,old,next,0);
+    geometryRef.current=next;
+    params.current={...params.current,labelMode:mode};
+    setLabelMode(mode);applyOffset(x,next);
+  };
   const touchDistance=touches=>touches?.length>=2?Math.hypot(touches[0].pageX-touches[1].pageX,touches[0].pageY-touches[1].pageY):0;
   const pinchAnchor=touches=>{
     const g=geometryRef.current;
@@ -127,6 +136,16 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
     return result;
   },[sites,categories,collapsed]);
   const ouvrirSite=site=>navigation.navigate('SiteLocals',{siteId:site.id,nomSite:site.nom_site,clientId,nomClient});
+  const afficherNomComplet=ligne=>{
+    const isSite=ligne.kind==='site';
+    const name=isSite?ligne.site.nom_site:ligne.local.nom;
+    const infos=isSite
+      ? [(ligne.site.locals||[]).length+' local(aux)',ligne.site.adresse||'Adresse non renseignée']
+      : [ligne.site.nom_site,(ligne.local.records||[]).length+' constat(s)',ligne.site.adresse||'Adresse non renseignée'];
+    Alert.alert(name||'Installation technique',infos.filter(Boolean).join('\n'),[
+      {text:'Fermer',style:'cancel'},{text:'Ouvrir le site',onPress:()=>ouvrirSite(ligne.site)},
+    ]);
+  };
   const choisirCellule=(ligne,category)=>{
     const cible=ligne.kind==='site'?ligne.site:ligne.local,cell=cible.cells?.[category.key];
     if(!cell?.total)return;
@@ -154,7 +173,7 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
     ListHeaderComponent={header} ListFooterComponent={footer}
     ListEmptyComponent={<View style={{marginHorizontal:14,padding:20,backgroundColor:'#fff'}}><Text style={{textAlign:'center',color:COLORS.muted}}>Aucun constat ne correspond aux filtres.</Text></View>}
     stickyHeaderIndices={rows.length?[1]:[]}
-    extraData={zoom+':'+leftWidth+':'+cellWidth+':'+range.start+':'+range.end}
+    extraData={labelMode+':'+zoom+':'+leftWidth+':'+cellWidth+':'+range.start+':'+range.end}
     contentContainerStyle={{paddingBottom:28}}
     keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator scrollEnabled={!gesturing}
     initialNumToRender={8} maxToRenderPerBatch={8} windowSize={7} removeClippedSubviews={false}
@@ -165,7 +184,7 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
             {controls('Réduire le zoom','−',()=>applyZoom(zoom-.15),zoom<=PILOTAGE_ZOOM_MIN+.01)}
             <Text accessibilityLabel={'Zoom '+Math.round(zoom*100)+' pour cent'} style={{fontFamily:FONTS.bold,fontSize:12,color:COLORS.ink}}>{Math.round(zoom*100)} %</Text>
             {controls('Agrandir le zoom','+',()=>applyZoom(zoom+.15),zoom>=PILOTAGE_ZOOM_MAX-.01)}
-            {controls('Adapter à l’écran','Adapter',()=>{applyZoom(fitPilotageZoom(params.current.width,categories.length,fontScale),0);applyOffset(0);})}
+            {controls('Adapter à l’écran','Adapter',()=>{applyZoom(fitPilotageZoom(params.current.width,categories.length,fontScale,labelMode),0);applyOffset(0);})}
             {controls('Zoom normal','100 %',()=>applyZoom(1))}
           </View>
           <View style={{flexDirection:'row',alignItems:'center',gap:4}}>
@@ -177,10 +196,13 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
             </View>
             {controls('Catégories suivantes','›',()=>panBy(1),geometry.maxOffset<=offset.current+1)}
           </View>
-          <Text style={{fontSize:9,textAlign:'center',color:COLORS.muted}}>Glisser latéralement · pincer à deux doigts · défiler verticalement</Text>
+          <Text style={{fontSize:9,textAlign:'center',color:COLORS.muted}}>Glisser · pincer pour zoomer · toucher l’en-tête Sites / locaux pour élargir</Text>
         </View>
         <View style={{flexDirection:'row',alignItems:'stretch'}}>
-          <View style={{width:leftWidth,minHeight:headerHeight,padding:Math.max(2,5*zoom),justifyContent:'center',borderRightWidth:1,borderColor:COLORS.line}}><Text allowFontScaling={false} style={{fontSize:Math.max(7,11*zoom),fontFamily:FONTS.black}}>Sites / locaux</Text></View>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={'Sites / locaux · '+(labelMode==='compact'?'Élargir la colonne':'Réduire la colonne')} accessibilityHint="Affiche les noms sur une colonne plus large, sans modifier le zoom des catégories" onPress={toggleLabelMode} style={{width:leftWidth,minHeight:headerHeight,padding:Math.max(2,3*zoom),justifyContent:'center',borderRightWidth:1,borderColor:COLORS.line}}>
+            <Text allowFontScaling={false} style={{fontSize:Math.max(7,10*zoom),fontFamily:FONTS.black}}>Sites / locaux</Text>
+            <Text allowFontScaling={false} style={{fontSize:Math.max(7,9*zoom),color:COLORS.orangeDark,fontFamily:FONTS.bold}}>{labelMode==='compact'?'↔ +':'↔ −'}</Text>
+          </TouchableOpacity>
           {columns(category=><View style={{minHeight:headerHeight,padding:Math.max(1,4*zoom),justifyContent:'center'}}><Text allowFontScaling={false} style={{fontSize:Math.max(6.5,10*zoom),textAlign:'center',fontFamily:FONTS.bold}}>{category.label}</Text></View>)}
         </View>
       </View>;
@@ -190,10 +212,10 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
           accessibilityLabel={isSite?'Afficher ou masquer les locaux de '+ligne.site.nom_site:'Ouvrir '+ligne.local.nom+' du site '+ligne.site.nom_site}
           accessibilityState={isSite?{expanded:!collapsed[ligne.site.id]}:undefined}
           onPress={()=>isSite?setCollapsed(state=>({...state,[ligne.site.id]:!state[ligne.site.id]})):ouvrirSite(ligne.site)}
-          onLongPress={isSite?()=>ouvrirSite(ligne.site):undefined}
+          onLongPress={()=>afficherNomComplet(ligne)}
           style={{width:leftWidth,flexShrink:0,paddingHorizontal:Math.max(2,6*zoom),paddingVertical:Math.max(2,5*zoom),justifyContent:'center',borderRightWidth:1,borderColor:COLORS.line}}>
-          <Text allowFontScaling={false} style={{fontSize:Math.max(7,(isSite?11:10.5)*zoom),color:isSite?COLORS.primary:COLORS.inkSoft,fontFamily:FONTS.bold}}>{isSite?(collapsed[ligne.site.id]?'▸ ':'▾ ')+ligne.site.nom_site:'↳ '+ligne.local.nom}</Text>
-          {zoom>=.65?<Text allowFontScaling={false} numberOfLines={2} style={{color:COLORS.muted,fontSize:Math.max(6.5,9*zoom),marginTop:2}}>{isSite?(ligne.site.locals||[]).length+' local(aux) · '+(ligne.site.adresse||'Adresse non renseignée'):(ligne.local.records||[]).length+' constat(s)'}</Text>:null}
+          <Text numberOfLines={labelMode==='compact'?2:3} ellipsizeMode="tail" allowFontScaling={false} style={{fontSize:Math.max(7,(isSite?10.5:10)*zoom),color:isSite?COLORS.primary:COLORS.inkSoft,fontFamily:FONTS.bold}}>{isSite?(collapsed[ligne.site.id]?'▸ ':'▾ ')+ligne.site.nom_site:'↳ '+ligne.local.nom}</Text>
+          {zoom>=.65?<Text allowFontScaling={false} numberOfLines={labelMode==='compact'?1:2} style={{color:COLORS.muted,fontSize:Math.max(6.5,8.5*zoom),marginTop:2}}>{isSite?(ligne.site.locals||[]).length+' locaux'+(labelMode==='expanded'?' · '+(ligne.site.adresse||'Adresse non renseignée'):''):(ligne.local.records||[]).length+' constats'}</Text>:null}
         </TouchableOpacity>
         {columns(category=><Cell zoom={zoom} width={cellWidth} label={category.label+' · '+(isSite?ligne.site.nom_site:ligne.local.nom)} cell={cible.cells?.[category.key]||{total:0,state:'none',s:0,ns:0}} onPress={()=>choisirCellule(ligne,category)}/>)}
       </View>;

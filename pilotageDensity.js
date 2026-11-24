@@ -47,17 +47,23 @@ export function getPilotageColumnWindow({width=390,fontScale=1,count=0,page=0}={
 
 /** A continuous viewport in dp. One shared horizontal offset controls every
  * row, including the sticky header. Widths change with physical zoom; the
- * label column stays visible without exceeding 44% of the device viewport. */
+ * compact label column uses at most 23% of the matrix viewport. Expanded
+ * labels are an explicit temporary reading mode, independent of table zoom. */
 export const PILOTAGE_ZOOM_MIN=.38;
 export const PILOTAGE_ZOOM_MAX=1.65;
 export function clampPilotageZoom(scale){
   const n=Number(scale);return Math.max(PILOTAGE_ZOOM_MIN,Math.min(PILOTAGE_ZOOM_MAX,Number.isFinite(n)?n:1));
 }
-export function getPilotagePanGeometry({width=360,zoom=1,count=0,fontScale=1}={}){
+export function getPilotagePanGeometry({width=360,zoom=1,count=0,fontScale=1,labelMode='compact'}={}){
   const w=Math.max(1,Math.floor(Number(width)||360)),z=clampPilotageZoom(zoom),n=Math.max(0,Math.floor(Number(count)||0));
   const fs=Math.min(1.35,Math.max(1,Number(fontScale)||1));
-  const leftWidth=Math.max(1,Math.min(Math.floor(w*.44),Math.round((w>=650?200:155)*z*fs)));
-  const cellWidth=Math.max(34,Math.round(108*z*fs)),categoryViewport=Math.max(1,w-leftWidth-2);
+  const expanded=labelMode==='expanded',tablet=w>=650;
+  const labelRatio=expanded ? .36 : .23;
+  const labelBase=expanded?(tablet?208:145):(tablet?132:92);
+  const leftWidth=Math.max(1,Math.min(Math.floor(w*labelRatio),Math.max(expanded?48:32,Math.round(labelBase*z*fs))));
+  // Spreadsheet text scales with pinch zoom, not twice with system font size.
+  // Narrow phones prioritize three readable categories at normal zoom.
+  const cellWidth=Math.max(34,Math.round((tablet?100:75)*z*Math.min(fs,1.12))),categoryViewport=Math.max(1,w-leftWidth-2);
   const contentWidth=cellWidth*n;
   return {zoom:z,width:w,leftWidth,cellWidth,categoryViewport,contentWidth,maxOffset:Math.max(0,contentWidth-categoryViewport),count:n,rowHeight:Math.max(24,Math.round(60*z)),headerHeight:Math.max(23,Math.round(45*z))};
 }
@@ -74,8 +80,15 @@ export function rescalePilotageOffset(offset,oldGeometry,nextGeometry,anchor=.5)
   const logical=(clampPilotageOffset(offset,oldGeometry)+oldGeometry.categoryViewport*fraction)/oldGeometry.cellWidth;
   return clampPilotageOffset(logical*nextGeometry.cellWidth-nextGeometry.categoryViewport*fraction,nextGeometry);
 }
-export function fitPilotageZoom(width,count,fontScale=1){
+export function fitPilotageZoom(width,count,fontScale=1,labelMode='compact'){
   if(!count)return 1;
-  const fs=Math.min(1.35,Math.max(1,Number(fontScale)||1));
-  return clampPilotageZoom((Math.max(1,width)-2)/((width>=650?200:155)+108*count)/fs);
+  const fits=zoom=>getPilotagePanGeometry({width,count,fontScale,labelMode,zoom}).maxOffset===0;
+  if(fits(1))return 1;
+  if(!fits(PILOTAGE_ZOOM_MIN))return PILOTAGE_ZOOM_MIN;
+  let low=PILOTAGE_ZOOM_MIN,high=1;
+  for(let i=0;i<16;i++){
+    const mid=(low+high)/2;
+    if(fits(mid))low=mid;else high=mid;
+  }
+  return low;
 }

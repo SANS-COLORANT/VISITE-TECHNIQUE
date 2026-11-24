@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Synthetic Android phone UI acceptance. No real user data or Intranet access."""
 import json
+import re
 import sqlite3
 import sys
 import time
@@ -70,6 +71,20 @@ def main():
     # Navigate to every page of categories without losing the site column.
     for _ in range(3):drag(370,1250,370,790)
     await_label("Sites / locaux")
+    def label_width(label):
+        node=qa.ui.find(qa.ui.dump(),[label])
+        assert node,label+" unavailable"
+        x1,y1,x2,y2=map(int,re.findall(r"\d+",node.get("bounds","")))
+        return x2-x1
+    compact_width=label_width("Sites / locaux · Élargir la colonne")
+    assert compact_width<=int(720*.24),"site labels consume too much of phone width"
+    tap("Sites / locaux · Élargir la colonne")
+    wide_width=label_width("Sites / locaux · Réduire la colonne")
+    assert wide_width>compact_width,"expanded name mode does not work"
+    tap("Sites / locaux · Réduire la colonne")
+    assert label_width("Sites / locaux · Élargir la colonne")==compact_width
+    qa.ui.snapshot("pilotage-compact-labels")
+    qa.mark("compact site/local column width and reversible label expansion")
     prev=qa.ui.find(qa.ui.dump(),["Catégories suivantes"])
     assert prev,"category paging unavailable"
     tap("Catégories suivantes")
