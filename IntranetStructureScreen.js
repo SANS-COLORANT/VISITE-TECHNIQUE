@@ -7,7 +7,7 @@ import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { IntranetSiteLocalsPanel } from './IntranetStructureUi.js';
 
 export function IntranetStructureScreen({ route, navigation }) {
-  const { siteId, nomSite } = route?.params || {};
+  const { siteId, nomSite, publishInstallationId } = route?.params || {};
   const [creatingVisit, setCreatingVisit] = useState(false);
 
   const startVisit = async (context) => {
@@ -44,7 +44,7 @@ export function IntranetStructureScreen({ route, navigation }) {
       {creatingVisit ? <Text style={{ color: COLORS.primary, fontFamily: FONTS.bold, fontSize: 11, marginBottom: 8 }}>Préparation de la visite…</Text> : null}
     </View>
     <View style={{ flex: 1, paddingHorizontal: 16 }}>
-      <IntranetSiteLocalsPanel siteId={siteId} onStartVisit={startVisit} />
+      <IntranetSiteLocalsPanel siteId={siteId} onStartVisit={startVisit} publishInstallationId={publishInstallationId}/>
     </View>
   </View>;
 }

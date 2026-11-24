@@ -6,7 +6,7 @@
  * visit evidence, and reusing file URIs can cause cross-site data loss.
  */
 export async function cloneLatestVisitsForSite(db,sourceSiteId,targetSiteId,maps,clone,cloneAttributes,makeId) {
-  const {installationMap,equipmentMap,networkMap,meterMap,itemMap}=maps;
+  const {installationMap,equipmentMap,networkMap,meterMap,itemMap,remoteInstallationMap=new Map()}=maps;
   const mapped=(map,id,field)=>{
     if(!id)return null;
     const result=map.get(id);
@@ -23,9 +23,15 @@ export async function cloneLatestVisitsForSite(db,sourceSiteId,targetSiteId,maps
   const visits=await db.getAllAsync(
     `SELECT * FROM visites WHERE site_id=? ORDER BY COALESCE(date_visite,'') DESC,cree_le DESC,id DESC`,
     [sourceSiteId]);
+  const targetInstallation=v=>{
+    const byLocal=v.installation_id?mapped(installationMap,v.installation_id,'installation'):null;
+    const byRemote=v.api_remote_local_id?remoteInstallationMap.get(String(v.api_remote_local_id)):null;
+    if(byLocal&&byRemote&&byLocal!==byRemote)throw Error('Duplication annulée : visite source et local Intranet incohérents.');
+    return byLocal||byRemote||null;
+  };
   const latest=[],seen=new Set();
   for(const v of visits){
-    const key=[v.installation_id||v.api_remote_local_id||'non_rattache',v.trame_id||''].join('||');
+    const key=[targetInstallation(v)||v.api_remote_local_id||'non_rattache',v.trame_id||''].join('||');
     if(seen.has(key))continue;
     seen.add(key);latest.push(v);
   }
@@ -34,7 +40,7 @@ export async function cloneLatestVisitsForSite(db,sourceSiteId,targetSiteId,maps
     const id=makeId();
     const visitOverrides={
       id,site_id:targetSiteId,
-      installation_id:mapped(installationMap,visit.installation_id,'installation'),
+      installation_id:targetInstallation(visit),
       statut:'a_completer',progression_pct:visit.progression_pct||0,
     };
     for(const key of Object.keys(visit))

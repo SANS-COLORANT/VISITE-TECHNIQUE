@@ -17,7 +17,7 @@ import { chooseUniqueRemarRemoteTrame } from './remarRemoteTrameSelection.js';
 import { syncClientPreparation } from './symfonyApi.js';
 import { latestClientVisitsByLocalAndTemplate } from './clientVisitSendSelection.js';
 import { getDb } from './db.js';
-import { getCachedStructureReferential, syncStructureReferential, processStructureOutbox } from './intranetStructureDb.js';
+import { getCachedStructureReferential, syncStructureReferential, processStructureOutbox, ensureHierarchyStructure } from './intranetStructureDb.js';
 
 const OFFLINE = '#111111';
 const ONLINE = '#16794B';
@@ -254,7 +254,23 @@ async function pinFullyPublishedRemarForFirstUpload(visiteId) {
   });
 }
 
+async function ensureVisitHierarchy(visiteId){
+  const db=await getDb();
+  const v=await db.getFirstAsync('SELECT id,site_id,installation_id FROM visites WHERE id=?',[String(visiteId)]);
+  if(!v)throw Error('Visite introuvable.');
+  if(!v.installation_id)return null;
+  const result=await ensureHierarchyStructure({siteId:v.site_id,installationId:v.installation_id});
+  if(!result.siteReady||!result.ready.includes(v.installation_id)){
+    const error=new Error(result.blocked[0]?.reason||'Site/local en attente de confirmation Intranet. Réessaie après leur création ; aucun envoi vers le site d’origine.');
+    error.code=result.blocked.length?'structure_local_required':'structure_local_creation_unconfirmed';
+    throw error;
+  }
+  return result;
+}
 async function bindSameImportedClient(visiteId) {
+  // New copies have no remote destination. Confirm their own parent chain
+  // before selecting a trame or preparing an upload.
+  await ensureVisitHierarchy(visiteId);
   try {
     return await bindVisitToImportedClientTarget(visiteId);
   } catch (error) {
@@ -474,6 +490,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
 
       // Ne rechercher une trame REMAR complète qu'avant le PREMIER envoi.
       // Les files déjà créées (et les replays idempotents) restent intouchables.
+      await ensureVisitHierarchy(visiteId);
       if(visite?.trame_id==='remar_v1')
         await pinFullyPublishedRemarForFirstUpload(visiteId);
       await bindSameImportedClient(visiteId);
@@ -615,7 +632,7 @@ export async function envoyerVisitesClient(clientId, { onProgress = null, visite
   const { aEnvoyer: candidats, enCours } = await listerVisitesAEnvoyerClient(clientId);
   const autorises = Array.isArray(visiteIds) ? new Set(visiteIds.map(String)) : null;
   const aEnvoyer = autorises ? candidats.filter(v=>autorises.has(String(v.id))) : candidats;
-  const bilan = { envoyees: [], enAttente: [], aConfirmer: [], enErreur: [], enCours: enCours.length, total: aEnvoyer.length };
+  const bilan = { envoyees: [], enAttente: [], aConfirmer: [], enErreur: [], enCours: autorises?enCours.filter(v=>autorises.has(String(v.id))).length:enCours.length, total: aEnvoyer.length };
   let terminees = 0;
   const progress = (visite, phase) => onProgress?.({
     rang: terminees, total: aEnvoyer.length, nom: nomVisite(visite),
@@ -648,6 +665,7 @@ export async function envoyerVisitesClient(clientId, { onProgress = null, visite
         // Même sélection contrôlée que l'envoi visite par visite.
         // Sans cette étape, l'envoi groupé réutilisait systématiquement
         // REMAR CLASSIQUE (ID 16) même lorsqu'une trame complète existait.
+        await ensureVisitHierarchy(visite.id);
         if(visite.trame_id==='remar_v1')
           await pinFullyPublishedRemarForFirstUpload(visite.id);
         await bindSameImportedClient(visite.id);
@@ -683,4 +701,64 @@ export async function envoyerVisitesClient(clientId, { onProgress = null, visite
     }
   }
   return bilan;
+}
+
+
+// Common explicit entry point: site => all its locals, local => its parent
+// and own visits, visit => its parent and exact visit (single-visit control
+// keeps the existing relecture and finalization confirmation).
+let hierarchySyncChain=Promise.resolve();
+export function synchroniserHierarchieIntranet(scope){
+  const task=hierarchySyncChain.catch(()=>{}).then(()=>syncHierarchy(scope));
+  hierarchySyncChain=task.catch(()=>{});
+  return task;
+}
+async function syncHierarchy({siteId,installationId=null,visiteId=null,onProgress=null}={}){
+  const db=await getDb();
+  if(visiteId){
+    const v=await db.getFirstAsync('SELECT site_id,installation_id FROM visites WHERE id=?',[String(visiteId)]);
+    if(!v)throw Error('Visite introuvable.');
+    if((siteId&&String(siteId)!==String(v.site_id))||(installationId&&String(installationId)!==String(v.installation_id)))throw Error('Périmètre de synchronisation incohérent.');
+    siteId=v.site_id;installationId=v.installation_id;
+  }
+  if(!siteId)throw Error('Site requis.');
+  onProgress?.({phase:'Création et vérification du site et des locaux'});
+  const structure=await ensureHierarchyStructure({siteId,installationId});
+  const ready=new Set(structure.ready.map(String));
+  const all=await listerVisitesAEnvoyerClient(structure.clientId);
+  const matches=v=>String(v.site_id)===String(siteId)&&(!installationId||String(v.installation_id)===String(installationId))&&(!visiteId||String(v.id)===String(visiteId));
+  const allowed=v=>matches(v)&&ready.has(String(v.installation_id));
+  const pending=all.aEnvoyer.filter(allowed);
+  const drafts=all.enCours.filter(matches);
+  const already=all.dejaEnvoyees.filter(allowed);
+  const bilan=pending.length?await envoyerVisitesClient(structure.clientId,{visiteIds:pending.map(v=>v.id),onProgress}):{envoyees:[],enAttente:[],aConfirmer:[],enErreur:[],total:0};
+  for(const v of already){
+    // A synced visit is never POSTed again. Resume only its durable photo
+    // queue; changed visit data still requires a certified server update API.
+    if(await isSyncedVisitChangedLocally(v.id).catch(()=>true)){
+      bilan.aConfirmer.push(nomVisite(v)+' : corrections locales non envoyées (API de mise à jour nécessaire).');
+      continue;
+    }
+    try{await queueMissingSyncedVisitPhotos(v.id);}catch(e){bilan.enErreur.push(nomVisite(v)+' : photos — '+String(e?.message||e));}
+  }
+  if(already.length)void processVisitPhotoOutbox({limit:10}).catch(()=>{});
+  const parentConfirmed=structure.siteReady&&!structure.pending.length&&!structure.blocked.length;
+  const ignored=all.aEnvoyer.filter(v=>matches(v)&&!allowed(v)).length;
+  return {...bilan,structure,brouillons:drafts.length,visitesNonRattachees:ignored,
+    dejaEnvoyees:already.length,parentConfirmed};
+}
+export function hierarchySyncMessage(result){
+  const s=result.structure;
+  return [
+    'Site : '+(s.siteReady?'confirmé':'en attente'),
+    'Locaux : '+s.ready.length+'/'+s.localCount+' confirmés',
+    'Visites : '+result.envoyees.length+'/'+result.total+' envoyées, '+result.dejaEnvoyees+' déjà présentes',
+    result.brouillons?result.brouillons+' visite(s) à finaliser (données conservées).':null,
+    result.visitesNonRattachees?result.visitesNonRattachees+' visite(s) sans local confirmé.':null,
+    s.pending.length?'Locaux en attente : '+s.pending.join(', '):null,
+    ...s.blocked.map(x=>x.nom+' : '+x.reason),
+    ...result.enAttente.map(x=>'Visite en attente : '+x),
+    ...result.aConfirmer,...result.enErreur,
+    'Les photos non confirmées poursuivent leur file d’envoi. Aucun doublon de visite créé automatiquement.',
+  ].filter(Boolean).join('\n');
 }

@@ -113,22 +113,24 @@ export async function getStructureContextForLocalClient(localClientId) {
 }
 
 async function mappedRemoteSiteForLocalSite(db, localSiteId, remoteClientId) {
-  return db.getFirstAsync(`SELECT s.remote_site_id,s.nom
+  const rows=await db.getAllAsync(`SELECT DISTINCT s.remote_site_id,s.nom
     FROM api_client_site_links cs JOIN api_site_links s ON s.remote_site_id=cs.remote_site_id
     WHERE cs.remote_client_id=? AND cs.remote_present=1 AND s.remote_present=1
-      AND COALESCE(s.local_site_id,cs.local_site_id)=? ORDER BY s.remote_site_id LIMIT 1`,
+      AND COALESCE(s.local_site_id,cs.local_site_id)=? ORDER BY s.remote_site_id`,
     [clean(remoteClientId), String(localSiteId)]);
+  if(rows.length>1)throw structureError('Plusieurs sites Intranet correspondent à ce site METRA.','imported_site_ambiguous');
+  return rows[0]||null;
 }
 
 export async function getSiteStructureContext(localSiteId) {
   const db = await getDb();
   const site = await db.getFirstAsync(`SELECT s.*,c.id AS local_client_id,c.nom AS client_nom FROM sites s JOIN clients c ON c.id=s.client_id WHERE s.id=?`, [String(localSiteId)]);
   if (!site) throw new Error('Site METRA introuvable.');
-  const pendingSite = await db.getFirstAsync(`SELECT * FROM api_structure_outbox WHERE resource_type='site' AND local_site_id=? ORDER BY queued_at DESC LIMIT 1`, [String(localSiteId)]);
+  const pendingSite = await db.getFirstAsync(`SELECT * FROM api_structure_outbox WHERE resource_type='site' AND local_site_id=? AND status<>'cancelled' ORDER BY queued_at DESC LIMIT 1`, [String(localSiteId)]);
   const clientRows = await linkedRemoteClientsForLocalClient(site.local_client_id);
   let remoteClientId = pendingSite?.remote_client_id ? clean(pendingSite.remote_client_id) : null;
   if (!remoteClientId && clientRows.length === 1) remoteClientId = clean(clientRows[0].remote_client_id);
-  const ambiguous = !pendingSite && clientRows.length > 1;
+  const ambiguous = clientRows.length !== 1 || (remoteClientId && clean(clientRows[0]?.remote_client_id)!==remoteClientId);
   const remoteSite = remoteClientId ? await mappedRemoteSiteForLocalSite(db, localSiteId, remoteClientId) : null;
   return {
     site,
@@ -542,7 +544,7 @@ async function prepareHierarchyStructure({siteId,installationId=null}={}){
   if(installationId)await assertVisitParent(db,siteId,installationId);
   const readTemplate=async(type,id)=>parseCopyJson((await db.getFirstAsync('SELECT valeur FROM attributs_libres WHERE entite_type=? AND entite_id=? AND cle=?',[type,id,COPY_TEMPLATE_KEY]))?.valeur)||{};
   let referential=context.referential;
-  if(!referential){
+  if(!referential&&(!context.remoteSiteId||!installationId)){
     await syncStructureReferential(remoteClientId);
     referential=await getCachedStructureReferential(remoteClientId);
   }
@@ -573,6 +575,7 @@ async function prepareHierarchyStructure({siteId,installationId=null}={}){
         blocked.push({id:local.id,nom:local.nom,reason:op.error_message||'Opération de création à vérifier.'});
       continue;
     }
+    if(!referential){await syncStructureReferential(remoteClientId);referential=await getCachedStructureReferential(remoteClientId);}
     const t=await readTemplate('installation',local.id);
     if(!clean(t.type)||!clean(t.situation)||!positiveInteger(t.trameId)){
       blocked.push({id:local.id,nom:local.nom,reason:'Type, situation ou trame à renseigner dans Locaux Intranet.'});continue;

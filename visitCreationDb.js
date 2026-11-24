@@ -33,6 +33,7 @@ export async function creerVisiteProduction({
   const remoteLocalId = apiRemoteLocalId == null ? null : String(apiRemoteLocalId).trim() || null;
   const remoteTrameId = apiRemoteTrameId == null ? null : String(apiRemoteTrameId).trim() || null;
   const localInstallationId = installationId == null ? null : String(installationId).trim() || null;
+  if(localInstallationId){const owner=await db.getFirstAsync('SELECT site_id FROM installations WHERE id=?',[localInstallationId]);if(!owner||String(owner.site_id)!==String(siteId))throw Error('Le local sélectionné appartient à un autre site. Aucune visite créée.');}
   // Valider le GET Symfony avant toute creation SQLite : erreur API = zero visite incorrecte.
   const selectedPreparation = remoteLocalId && remoteClientId && remoteTrameId
     ? await prepareIntranetSelectedTrame({ remoteClientId, remoteLocalId, remoteTrameId, localTrameId: trame.id })

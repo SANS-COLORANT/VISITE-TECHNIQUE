@@ -22,7 +22,7 @@ import { getRuntimeAccent, getRuntimePalette } from './visual-packs/runtime/visu
 import { ButtonGlow } from './ButtonGlow.js';
 import { ClientTourneeModal } from './ClientTourneeModal.js';
 import { bilanTournee, indexerTournee, listerTourneeClient } from './tourneeDb.js';
-import { envoyerVisitesClient, listerVisitesAEnvoyerClient } from './IntranetVisitSync.js';
+import { envoyerVisitesClient, listerVisitesAEnvoyerClient, synchroniserHierarchieIntranet, hierarchySyncMessage } from './IntranetVisitSync.js';
 import { subscribeVisitOutbox } from './intranetVisitOutboxDb.js';
 import { subscribeVisitPhotoOutbox } from './intranetVisitPhotoOutboxDb.js';
 import { getClientTransferVolume, formatTransferBytes } from './intranetTransferVolume.js';
@@ -306,10 +306,23 @@ function ClientSitesScreen({ route, navigation }) {
     navigation.navigate('IntranetStructure', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient });
   };
 
-  const lancerPublicationSite = site => {
-    setPublishSite(site);
-    setIntranetSiteVisible(true);
+  const publierFormulaire=site=>{setPublishSite(site);setIntranetSiteVisible(true);};
+  const [syncSiteId,setSyncSiteId]=useState(null);
+  const syncSite=async(site)=>{
+    if(syncSiteId||!site?.id)return;
+    setSyncSiteId(site.id);
+    try{
+      const r=await synchroniserHierarchieIntranet({siteId:site.id});
+      await charger();
+      const incomplete=!r.parentConfirmed||r.enAttente.length||r.enErreur.length||r.aConfirmer.length||r.brouillons||r.visitesNonRattachees;
+      Alert.alert(incomplete?'Synchronisation à compléter':'Structure et visites traitées',hierarchySyncMessage(r),
+        r.structure.blocked.length?[{text:'Fermer',style:'cancel'},{text:'Renseigner les locaux',onPress:()=>ouvrirStructure(null,site)}]:[{text:'OK'}]);
+    }catch(e){
+      if(e?.code==='structure_site_form_required')publierFormulaire(site);
+      else Alert.alert('Synchronisation impossible',String(e?.message||e));
+    }finally{setSyncSiteId(null);}
   };
+  const lancerPublicationSite=site=>Alert.alert('Synchroniser le site ?','METRA vérifiera ou créera ce site et ses propres locaux, puis enverra les dernières visites terminées non synchronisées. Les brouillons et les visites déjà confirmées restent conservés.',[{text:'Annuler',style:'cancel'},{text:'Synchroniser',onPress:()=>syncSite(site)}]);
 
   const supprimerLocal = async site => {
     try {
@@ -367,7 +380,7 @@ function ClientSitesScreen({ route, navigation }) {
 
   const demanderDuplication = site => Alert.alert(
     'Dupliquer ce site ?',
-    `METRA créera « ${site.nom_site} - copie » avec le patrimoine et les dernières visites (avis, relevés et réserves). Les identifiants seront nouveaux. Les signatures et photos ne sont pas copiées. Aucun site ni visite ne sera créé automatiquement dans l’Intranet.`,
+    `METRA créera « ${site.nom_site} - copie » avec le patrimoine et les dernières visites (avis, relevés et réserves). Les identifiants seront nouveaux, chaque local et visite appartiendra à la copie. Les signatures et photos ne sont pas copiées. La publication du site synchronisera aussi ses locaux et visites terminées.`,
     [
       {text:'Annuler',style:'cancel'},
       {text:'Dupliquer',onPress:async()=>{
@@ -375,7 +388,7 @@ function ClientSitesScreen({ route, navigation }) {
           const copie=await dupliquerSite(site.id,{copierPatrimoine:true,copierLab3d:true,copierVisites:true});
           await charger();
           Alert.alert('Copie locale créée',
-            `« ${copie.nomSite} » est indépendant de son original. Tu peux aussi publier cette copie sur l’Intranet avec son propre identifiant.`,
+            `« ${copie.nomSite} » : ${copie.locauxCopies} local(aux), ${copie.visitesCopiees} visite(s) copiée(s), à compléter. La synchronisation utilisera exclusivement de nouveaux identifiants.`,
             [
               {text:'Rester local',style:'cancel'},
               {text:'Publier sur Intranet',onPress:()=>lancerPublicationSite({
@@ -531,26 +544,13 @@ function ClientSitesScreen({ route, navigation }) {
             <CvcIcon name="more" size={22} color={COLORS.inkSoft} strokeWidth={2.1} />
           </TouchableOpacity>
         </View>
-        {!siteIntranet[String(item.id)]?.remote_site_id &&
-         !['pending','retry','sending','synced'].includes(siteIntranet[String(item.id)]?.sync_status)
-          ? <TouchableOpacity accessibilityRole="button"
-              accessibilityLabel={`Publier ${item.nom_site} sur l’Intranet`}
-              onPress={e=>{e?.stopPropagation?.();lancerPublicationSite(item);}}
-              style={{minHeight:36,flexDirection:'row',alignItems:'center',justifyContent:'center',
-                borderRadius:14,borderWidth:1,borderColor:'rgba(242,100,38,0.25)',
-                paddingHorizontal:12,backgroundColor:COLORS.orangeLight,marginTop:1}}>
-              <CvcIcon name="export" size={15} color={COLORS.orangeDark}/>
-              <Text style={{fontFamily:FONTS.bodyBold,color:COLORS.orangeDark,fontSize:11,marginLeft:6}}>
-                Publier sur Intranet
-              </Text>
-            </TouchableOpacity> : siteIntranet[String(item.id)]?.remote_site_id
-            ? <Text style={{color:COLORS.green,fontFamily:FONTS.bodyBold,fontSize:10.5,marginTop:2}}>
-                Intranet · site n°{siteIntranet[String(item.id)].remote_site_id}
-              </Text>
-            : siteIntranet[String(item.id)]?.sync_status
-            ? <Text style={{color:COLORS.orangeDark,fontFamily:FONTS.bodyBold,fontSize:10.5,marginTop:2}}>
-                Intranet · {siteIntranet[String(item.id)].sync_status}
-              </Text> : null}
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={'Synchroniser le site '+item.nom_site} disabled={Boolean(syncSiteId)||Boolean(envoiEnCours)}
+          onPress={e=>{e?.stopPropagation?.();lancerPublicationSite(item);}}
+          style={{minHeight:36,flexDirection:'row',alignItems:'center',justifyContent:'center',borderRadius:14,borderWidth:1,borderColor:'rgba(242,100,38,0.25)',paddingHorizontal:12,backgroundColor:COLORS.orangeLight}}>
+          <CvcIcon name="cloud-sync" size={15} color={COLORS.orangeDark}/>
+          <Text style={{fontFamily:FONTS.bodyBold,color:COLORS.orangeDark,fontSize:11,marginLeft:6}}>{syncSiteId===item.id?'Synchronisation…':'Synchroniser site + locaux + visites'}</Text>
+        </TouchableOpacity>
+        {siteIntranet[String(item.id)]?.remote_site_id?<Text style={{color:COLORS.green,fontFamily:FONTS.bodyBold,fontSize:10.5}}>Intranet · site n°{siteIntranet[String(item.id)].remote_site_id}</Text>:null}
         {/* Actions sous le nom : ne compressent jamais la zone centrale. */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
           {(() => {
@@ -620,7 +620,7 @@ function ClientSitesScreen({ route, navigation }) {
     <IntranetSiteCreationModal visible={intranetSiteVisible} clientId={clientId}
       existingSite={publishSite}
       onClose={() => {setIntranetSiteVisible(false);setPublishSite(null);}}
-      onCreated={charger} />
+      onCreated={async result=>{await charger();if(publishSite&&result?.localSiteId)await syncSite({...publishSite,id:result.localSiteId});}} />
 
     <Modal visible={!!renameSite} transparent animationType="fade" onRequestClose={() => setRenameSite(null)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Renommer le site</Text><TextInput autoFocus style={styles.input} value={renameValue} onChangeText={setRenameValue} selectTextOnFocus/><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setRenameSite(null)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerRenommage}><ButtonGlow /><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></View></View></Modal>
 

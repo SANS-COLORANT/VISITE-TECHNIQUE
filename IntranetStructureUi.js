@@ -4,6 +4,7 @@ import { COLORS, styles, FONTS } from './styles.js';
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { EmptyIcon } from './EmptyState.js';
+import { synchroniserHierarchieIntranet, hierarchySyncMessage } from './IntranetVisitSync.js';
 import {
   getStructureContextForLocalClient,
   listSiteStructureLocals,
@@ -133,7 +134,7 @@ export function IntranetSiteCreationModal({ visible, clientId, existingSite = nu
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <Text style={styles.modalTitle}>{existingSite?.id ? 'Publier ce site sur l’Intranet' : 'Créer un site dans METRA + Intranet'}</Text>
         <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16 }}>{existingSite?.id
-          ? 'Cette copie recevra un nouvel identifiant Intranet sans modifier l’original. Les locaux existants devront ensuite être publiés depuis « Locaux ». La création est mise en attente hors connexion.'
+          ? 'Cette copie recevra un nouvel identifiant Intranet sans modifier l’original. Les locaux existants seront traités ensuite par la synchronisation depuis « Locaux ». La création est mise en attente hors connexion.'
           : 'La création est enregistrée d’abord sur la tablette. Hors connexion, elle reste en attente avec le même creationId et sera rejouée sans doublon.'}</Text>
 
         {loading ? <Text style={{ color: COLORS.muted, marginTop: 12 }}>Lecture du référentiel…</Text> : null}
@@ -163,7 +164,7 @@ export function IntranetSiteCreationModal({ visible, clientId, existingSite = nu
   </Modal>;
 }
 
-export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
+export function IntranetSiteLocalsPanel({ siteId, onStartVisit, publishInstallationId=null }) {
   const [data, setData] = useState({ context: null, locals: [], availableLocals: [] });
   const [modalVisible, setModalVisible] = useState(false);
   const [existingInstallationId,setExistingInstallationId]=useState(null);
@@ -180,11 +181,12 @@ export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
     try {
       const next = await listSiteStructureLocals(siteId);
       setData(next);
-      if (!trameId && next?.context?.referential?.trames?.[0]?.id != null) setTrameId(String(next.context.referential.trames[0].id));
+      if (!publishInstallationId&&!trameId && next?.context?.referential?.trames?.[0]?.id != null) setTrameId(String(next.context.referential.trames[0].id));
     } catch (e) { console.warn('Chargement locaux Intranet impossible', e); }
-  }, [siteId, trameId]);
+  }, [siteId, trameId,publishInstallationId]);
 
   useEffect(() => { load(); return subscribeStructureOutbox(load); }, [load]);
+  useEffect(()=>{if(!publishInstallationId)return;const local=data.availableLocals.find(x=>String(x.id)===String(publishInstallationId));if(!local)return;setExistingInstallationId(local.id);setDesignation(local.nom||'');setSituation('');setType('');setTrameId(null);setPeriodiciteVisite('');setModalVisible(true);},[publishInstallationId,data.availableLocals.length]);
 
   const refreshReferential = async () => {
     const remoteClientId = data.context?.remoteClientId;
@@ -199,7 +201,7 @@ export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
     if (creating || !data.context?.remoteClientId) return;
     setCreating(true);
     try {
-      await queueMetraLocalCreation({
+      const created=await queueMetraLocalCreation({
         localSiteId: siteId,
         remoteClientId: data.context.remoteClientId,
         existingInstallationId,
@@ -208,11 +210,13 @@ export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
         situation,
         trameId,
         periodiciteVisite: periodiciteVisite.trim() ? periodiciteVisite : null,
+        deferProcessing:true,
       });
       setModalVisible(false);
       setExistingInstallationId(null);
+      const result=await synchroniserHierarchieIntranet({siteId,installationId:created.localInstallationId});
       await load();
-      void processStructureOutbox({ limit: 3 }).catch(() => {});
+      Alert.alert('Synchronisation du local',hierarchySyncMessage(result));
     } catch (e) { Alert.alert('Création du local impossible', String(e?.message || e)); }
     finally { setCreating(false); }
   };

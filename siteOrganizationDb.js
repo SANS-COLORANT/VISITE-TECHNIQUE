@@ -121,7 +121,7 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
     await clonerAttributs(db, 'site', sourceSiteId, cibleId);
     await recordCopy(db,'site',sourceSiteId,cibleId,await siteTemplate(db,sourceSiteId));
 
-    const equipmentMap = new Map(),installationMap=new Map();
+    const equipmentMap = new Map(),installationMap=new Map(),remoteInstallationMap=new Map();
     const networkMap=new Map(),meterMap=new Map(),itemMap=new Map();
     if (copierPatrimoine) {
       const installations = await db.getAllAsync(`SELECT * FROM installations WHERE site_id=? ORDER BY cree_le,id`, [sourceSiteId]);
@@ -160,9 +160,26 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
       }
     }
 
+    if(copierPatrimoine){
+      // Include cached remote-only locals that have never been opened on the
+      // tablet. Do not materialize or move the original remote identities.
+      const remoteLocals=await db.getAllAsync("SELECT l.remote_local_id,l.local_installation_id,l.designation,l.reference_json,l.remote_trame_id FROM api_local_links l JOIN api_site_links s ON s.remote_site_id=l.remote_site_id WHERE s.local_site_id=? AND l.remote_present=1 AND s.remote_present=1 ORDER BY l.remote_local_id",[sourceSiteId]);
+      for(const remote of remoteLocals){
+        if(remote.local_installation_id){
+          const existing=installationMap.get(remote.local_installation_id);
+          if(!existing)throw Error('Duplication annulée : le local Intranet source est rattaché à un autre site.');
+          remoteInstallationMap.set(String(remote.remote_local_id),existing);
+          continue;
+        }
+        const ref=parseCopyJson(remote.reference_json)||{},id=uuidv4();
+        await db.runAsync("INSERT INTO installations(id,site_id,type_code,nom,description,actif) VALUES(?,?,?,?,?,1)",[id,cibleId,'installation_technique',remote.designation||ref.local?.designation||'Local technique',ref.local?.situation||null]);
+        remoteInstallationMap.set(String(remote.remote_local_id),id);
+        await recordCopy(db,'installation','remote-local:'+remote.remote_local_id,id,localCreationTemplate(ref.local||{},remote.remote_trame_id||ref.trame?.id));
+      }
+    }
     const copyResult=copierPatrimoine&&copierVisites
       ?await cloneLatestVisitsForSite(db,sourceSiteId,cibleId,
-        {installationMap,equipmentMap,networkMap,meterMap,itemMap},
+        {installationMap,equipmentMap,networkMap,meterMap,itemMap,remoteInstallationMap},
         insererClone,clonerAttributs,uuidv4)
       :{visites:0};
 
@@ -201,7 +218,7 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
       if(newId===oldId||row?.site_id!==cibleId)throw Error('Duplication annulée : local non indépendant.');
     }
     await db.runAsync('COMMIT');
-    return { siteId: cibleId, nomSite: nomCible, locauxCopies:installationMap.size, visitesCopiees:copyResult.visites };
+    return { siteId: cibleId, nomSite: nomCible, locauxCopies:new Set([...installationMap.values(),...remoteInstallationMap.values()]).size, visitesCopiees:copyResult.visites };
   } catch (error) {
     await db.runAsync('ROLLBACK').catch(() => {});
     throw error;
