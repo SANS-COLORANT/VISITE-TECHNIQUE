@@ -27,3 +27,20 @@ export function getPilotageMatrixGeometry({ mode = 'compact', screenWidth = 390,
   const matrixHeight = Math.min(ceiling, Math.max(compact ? 154 : 166, profile.headerHeight + rows * profile.rowHeight));
   return { ...profile, leftWidth, matrixHeight };
 }
+
+/** Viewport-sized columns: no clipped last column and no invisible fixed-width
+ * scroll region. On a narrow phone, expose every category via page controls. */
+export function getPilotageColumnWindow({width=390,fontScale=1,count=0,page=0}={}) {
+  const w=Math.max(1,Math.floor(Number(width)||390));
+  const n=Math.max(0,Math.floor(Number(count)||0));
+  const scale=Math.min(1.35,Math.max(1,Number(fontScale)||1));
+  const leftWidth=Math.min(Math.floor(w*.43),Math.max(110,Math.min(w>=650?210:152,Math.floor(w*.38))));
+  const available=Math.max(1,w-leftWidth);
+  const capacity=Math.max(1,Math.floor(available/Math.ceil(85*scale)));
+  const pageSize=Math.max(1,Math.min(n||1,capacity));
+  const pages=Math.max(1,Math.ceil(n/pageSize));
+  const current=Math.min(pages-1,Math.max(0,Math.floor(Number(page)||0)));
+  const start=current*pageSize,end=Math.min(n,start+pageSize);
+  const cellWidth=Math.floor(available/pageSize);
+  return {leftWidth,cellWidth,pageSize,pages,page:current,start,end};
+}

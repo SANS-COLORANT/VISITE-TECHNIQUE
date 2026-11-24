@@ -1,6 +1,6 @@
 /** VISITE TECHNIQUE — point d'entrée natif Android. */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, View, Text, TouchableOpacity, BackHandler, Keyboard, PanResponder, Platform, ScrollView, StatusBar, useWindowDimensions } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -27,7 +27,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { AmbientBackground } from './premiumChrome.js';
 import { getPrefSync, PREFS } from './uiPrefs.js';
 import { BottomTabBar } from './BottomTabBar.js';
-import { ROUTE_ROOT_TABS, ROOT_TAB_ROUTES, canStartRootSwipe, rootSwipeProgress, rootSwipeTarget } from './rootTabSwipe.js';
+import { ROUTE_ROOT_TABS, ROOT_TAB_KEYS, ROOT_TAB_ROUTES, canStartRootSwipe, rootSwipeProgress, rootSwipeTarget } from './rootTabSwipe.js';
 import { QuickVisitSheet } from './QuickVisitSheet.js';
 import { DialogHost, ToastHost, installPremiumAlert } from './PremiumDialogs.js';
 
@@ -190,6 +190,10 @@ function AppContent({ phoneIntegralMode = false }) {
   const [r1Visible, setR1Visible] = useState(false);
   const [creditsVisible, setCreditsVisible] = useState(false);
   const tabSwipeProgress = useRef(new Animated.Value(0)).current;
+  const {width:rootPageWidth}=useWindowDimensions();
+  const [tabPreview,setTabPreview]=useState(null);
+  const tabGestureActive=useRef(false);
+  const tabGestureSerial=useRef(0);
   const [quickVisitVisible, setQuickVisitVisible] = useState(false);
   const [hydraulicVisible, setHydraulicVisible] = useState(false);
   const [lab3dVisible, setLab3dVisible] = useState(false);
@@ -246,6 +250,7 @@ function AppContent({ phoneIntegralMode = false }) {
   const backSwipeResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_event, gesture) => (
       backSwipeEnabled
+      && gesture.x0 < 24 // Edge-only back: never steal table or catalogue scrolling.
       && gesture.dx > 18
       && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.45
     ),
@@ -264,9 +269,9 @@ function AppContent({ phoneIntegralMode = false }) {
   const resetToTab = useCallback((name) => {
     Keyboard.dismiss();
     setR1Visible(false);
-    setTimeout(() => setStack(name === 'Home'
+    setStack(name === 'Home'
       ? [{ name: 'Home', params: {} }]
-      : [{ name: 'Home', params: {} }, { name, params: {} }]), 0);
+      : [{ name: 'Home', params: {} }, { name, params: {} }]);
   }, []);
 
   const tabSwipeKey = ROUTE_ROOT_TABS[currentName] || null;
@@ -276,40 +281,66 @@ function AppContent({ phoneIntegralMode = false }) {
     && visualPack.interface?.experimentalSpiralDock !== true
     && !r1Visible && !creditsVisible && !quickVisitVisible
   );
-  const tabSwipeResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_event, gesture) =>
-      tabSwipeEnabled && canStartRootSwipe(tabSwipeKey, gesture.dx, gesture.dy),
-    onPanResponderTerminationRequest: () => true,
-    onPanResponderGrant: () => {
+  const rootOrderIndex=Math.max(0,ROOT_TAB_KEYS.indexOf(tabSwipeKey));
+  const tabSwipeResponder=useMemo(()=>PanResponder.create({
+    onMoveShouldSetPanResponder:(_event,gesture)=>tabSwipeEnabled && canStartRootSwipe(tabSwipeKey,gesture.dx,gesture.dy),
+    onPanResponderTerminationRequest:()=>true,
+    onPanResponderGrant:()=>{
+      tabGestureSerial.current+=1;
+      tabGestureActive.current=true;
       tabSwipeProgress.stopAnimation();
-      tabSwipeProgress.setValue(0);
+      tabSwipeProgress.setValue(rootOrderIndex);
+      Keyboard.dismiss();
     },
-    onPanResponderMove: (_event, gesture) => {
-      tabSwipeProgress.setValue(rootSwipeProgress(gesture.dx));
+    onPanResponderMove:(_event,gesture)=>{
+      if(!tabGestureActive.current)return;
+      const progress=rootSwipeProgress(gesture.dx,rootPageWidth);
+      const position=Math.max(0,Math.min(ROOT_TAB_KEYS.length-1,rootOrderIndex+progress));
+      const neighbour=ROOT_TAB_KEYS[rootOrderIndex+(progress>0?1:progress<0?-1:0)];
+      setTabPreview(neighbour===tabSwipeKey?null:neighbour||null);
+      tabSwipeProgress.setValue(position);
     },
-    onPanResponderRelease: (_event, gesture) => {
-      const nextKey = tabSwipeEnabled ? rootSwipeTarget(tabSwipeKey, gesture.dx, gesture.vx) : null;
-      if (!nextKey) {
-        Animated.spring(tabSwipeProgress, { toValue: 0, speed: 22, bounciness: 1, useNativeDriver: true }).start();
-        return;
-      }
-      Animated.timing(tabSwipeProgress, {
-        toValue: gesture.dx < 0 ? 1 : -1,
-        duration: 110, easing: Easing.out(Easing.quad), useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) resetToTab(ROOT_TAB_ROUTES[nextKey]);
-        requestAnimationFrame(() => tabSwipeProgress.setValue(0));
+    onPanResponderRelease:(_event,gesture)=>{
+      if(!tabGestureActive.current)return;
+      tabGestureActive.current=false;
+      const serial=tabGestureSerial.current;
+      const nextKey=tabSwipeEnabled?rootSwipeTarget(tabSwipeKey,gesture.dx,gesture.vx):null;
+      if(nextKey)setTabPreview(nextKey);
+      const destination=nextKey?ROOT_TAB_KEYS.indexOf(nextKey):rootOrderIndex;
+      Animated.timing(tabSwipeProgress,{toValue:destination,duration:185,easing:Easing.out(Easing.cubic),useNativeDriver:true}).start(({finished})=>{
+        if(!finished||serial!==tabGestureSerial.current)return;
+        if(nextKey)resetToTab(ROOT_TAB_ROUTES[nextKey]);
+        else setTabPreview(null);
       });
     },
-    onPanResponderTerminate: () => {
-      Animated.spring(tabSwipeProgress, { toValue: 0, speed: 22, bounciness: 1, useNativeDriver: true }).start();
+    onPanResponderTerminate:()=>{
+      tabGestureActive.current=false;
+      const serial=++tabGestureSerial.current;
+      Animated.timing(tabSwipeProgress,{toValue:rootOrderIndex,duration:140,useNativeDriver:true}).start(({finished})=>{
+        if(finished&&serial===tabGestureSerial.current)setTabPreview(null);
+      });
     },
-  }), [tabSwipeEnabled, tabSwipeKey, resetToTab, tabSwipeProgress]);
+  }),[tabSwipeEnabled,tabSwipeKey,rootOrderIndex,rootPageWidth,resetToTab,tabSwipeProgress]);
 
-  useEffect(() => {
+  // Route changes (tap, back, navigation within a screen) are the single
+  // authority for the idle position. Layout effect prevents a one-frame jump.
+  useLayoutEffect(()=>{
+    tabGestureSerial.current+=1;
+    tabGestureActive.current=false;
     tabSwipeProgress.stopAnimation();
-    tabSwipeProgress.setValue(0);
-  }, [currentName, tabSwipeProgress]);
+    const key=ROUTE_ROOT_TABS[currentName]||(CLIENT_TAB_ROUTES.has(currentName)?'clients':null);
+    tabSwipeProgress.setValue(Math.max(0,ROOT_TAB_KEYS.indexOf(key)));
+    setTabPreview(null);
+  },[currentName,rootPageWidth,visualRevision,tabSwipeProgress]);
+  useEffect(()=>{
+    if(tabSwipeEnabled)return;
+    tabGestureSerial.current+=1;
+    tabGestureActive.current=false;
+    tabSwipeProgress.stopAnimation();
+    const key=ROUTE_ROOT_TABS[currentName]||(CLIENT_TAB_ROUTES.has(currentName)?'clients':null);
+    tabSwipeProgress.setValue(Math.max(0,ROOT_TAB_KEYS.indexOf(key)));
+    setTabPreview(null);
+  },[tabSwipeEnabled,currentName,tabSwipeProgress]);
 
   const goMissionsHome = useCallback(() => {
     if (!missionsVisible) return goHome();
@@ -391,6 +422,14 @@ function AppContent({ phoneIntegralMode = false }) {
     { icon: '⚙', label: 'Réglages', caption: 'Packs visuels', onPress: () => navigate('Parametres') },
   ];
 
+  const rootPagerActive=Boolean(tabSwipeKey&&!spiralActive);
+  const rootPagerTranslate=tabSwipeProgress.interpolate({inputRange:[0,ROOT_TAB_KEYS.length-1],outputRange:[0,-rootPageWidth*(ROOT_TAB_KEYS.length-1)],extrapolate:'clamp'});
+  const renderRootPage=(key)=>{
+    const pageRoute=key===tabSwipeKey?route:{params:{}};
+    if(key==='home')return <HomeScreen navigation={navigation} route={pageRoute} spiralPreview={false} onR1LongPress={()=>setR1Visible(true)} missionsEnabled={missionsVisible} onCreditsLongPress={()=>setCreditsVisible(true)}/>;
+    if(key==='clients')return <><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="MetraDirectory" navigation={navigation} route={pageRoute}/></>;
+    return <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack}/><SettingsErrorBoundary onBack={goHome}><DeferredScreen name="Parametres" visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged}/></SettingsErrorBoundary></>;
+  };
   return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, paddingBottom: Platform.OS === 'android' ? Math.max(0, safeBottomInset) : 0, backgroundColor: spiralActive ? '#F4F1E8' : (missionMode ? MISSION_COLORS.bg : COLORS.bg) }} {...(backSwipeEnabled ? backSwipeResponder.panHandlers : (tabSwipeEnabled ? tabSwipeResponder.panHandlers : {}))}>
     {/* Barre d'état transparente : le fond à halos monte jusqu'en haut de l'écran. */}
     <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
@@ -398,8 +437,18 @@ function AppContent({ phoneIntegralMode = false }) {
     <IntranetStructureRuntime />
     <IntranetVisitSyncRuntime />
 
-    {current.name === 'Home' ? <>{spiralActive ? <SimpleHeader title="Visite Technique" visualPack={visualPack} onCreditsLongPress={() => setCreditsVisible(true)} /> : null}<HomeScreen navigation={navigation} route={route} spiralPreview={spiralActive} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} onCreditsLongPress={() => setCreditsVisible(true)} /></> : null}
-    {current.name === 'MetraDirectory' ? <><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MetraDirectory" navigation={navigation} route={route} /></> : null}
+    {rootPagerActive?<View style={{flex:1,minHeight:0,overflow:'hidden'}}>
+      <Animated.View style={{flex:1,width:rootPageWidth*ROOT_TAB_KEYS.length,transform:[{translateX:rootPagerTranslate}]}}>
+        {ROOT_TAB_KEYS.map((key,index)=>key===tabSwipeKey||key===tabPreview?<View key={key}
+          pointerEvents={key===tabSwipeKey?'auto':'none'} accessibilityElementsHidden={key!==tabSwipeKey}
+          importantForAccessibility={key===tabSwipeKey?'auto':'no-hide-descendants'}
+          style={{position:'absolute',top:0,bottom:0,left:index*rootPageWidth,width:rootPageWidth}}>
+          {renderRootPage(key)}
+        </View>:null)}
+      </Animated.View>
+    </View>:null}
+    {!rootPagerActive && current.name === 'Home' ? <>{spiralActive ? <SimpleHeader title="Visite Technique" visualPack={visualPack} onCreditsLongPress={() => setCreditsVisible(true)} /> : null}<HomeScreen navigation={navigation} route={route} spiralPreview={spiralActive} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} onCreditsLongPress={() => setCreditsVisible(true)} /></> : null}
+    {!rootPagerActive && current.name === 'MetraDirectory' ? <><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MetraDirectory" navigation={navigation} route={route} /></> : null}
     {current.name === 'ClientSites' ? <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientSites" navigation={navigation} route={route} /></> : null}
     {current.name === 'SiteLocals' ? <><SimpleHeader title={current.params?.nomSite || 'Locaux'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="SiteLocals" navigation={navigation} route={route} /></> : null}
     {current.name === 'ClientMap' ? <><SimpleHeader title="Carte METRA des sites" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientMap" navigation={navigation} route={route} /></> : null}
@@ -413,7 +462,7 @@ function AppContent({ phoneIntegralMode = false }) {
     {current.name === 'HydraulicSchema' ? <><SimpleHeader title="Schéma technique animé" onBack={goBack} visualPack={visualPack} /><HydraulicSchemaWorkspace route={route} /></> : null}
     {current.name === 'Lab3D' && lab3dVisible ? <><SimpleHeader title="LAB 3D · Maquette du site" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="Lab3D" navigation={navigation} route={route} /></> : null}
     {current.name === 'Report' ? <DeferredScreen name="Report" route={route} onBack={goBack} /> : null}
-    {current.name === 'Parametres' ? <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} /><SettingsErrorBoundary onBack={goHome}><DeferredScreen name="Parametres" visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged} /></SettingsErrorBoundary></> : null}
+    {!rootPagerActive && current.name === 'Parametres' ? <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} /><SettingsErrorBoundary onBack={goHome}><DeferredScreen name="Parametres" visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged} /></SettingsErrorBoundary></> : null}
 
     {current.name === 'Missions' && missionsVisible ? <><MissionHeader title="Tableau de bord" onBack={goHome} visualPack={visualPack} root /><DeferredScreen name="Missions" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionCreate' && missionsVisible ? <><MissionHeader title="Nouvelle Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionCreate" navigation={navigation} route={route} /></> : null}

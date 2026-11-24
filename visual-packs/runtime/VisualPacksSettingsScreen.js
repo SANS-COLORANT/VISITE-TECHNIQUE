@@ -286,8 +286,7 @@ export function VisualPacksSettingsScreen({ visualPack, onVisualPackChanged }) {
   const animationOn = !!visualPack?.id && visualPack.id !== 'classic';
   const accent = visualPack?.colors?.main || '#F26426';
 
-  return (
-    <View style={{ flex: 1 }}>
+  const topContent=<>
       <CompactToggle
         animationOn={animationOn}
         activeName={visualPack?.name || 'Thème animé'}
@@ -300,15 +299,12 @@ export function VisualPacksSettingsScreen({ visualPack, onVisualPackChanged }) {
 
       <LabSettingsEntry open={labOpen} onPress={() => setLabOpen((value) => !value)} />
 
-      <View style={{ flex: 1 }}>
-        {labOpen ? (
-          <ScrollView contentContainerStyle={{ paddingBottom: 70 }}>
-            <LabMetraPanel />
-          </ScrollView>
-        ) : (
-          <ParametresScreen />
-        )}
-      </View>
+  </>;
+  return (
+    <View style={{flex:1,minHeight:0}}>
+      {labOpen?<ScrollView style={{flex:1}} contentContainerStyle={{paddingBottom:70}}>
+        {topContent}<LabMetraPanel/>
+      </ScrollView>:<ParametresScreen topContent={topContent}/>}
 
       <Modal
         visible={selectorVisible}

@@ -45,7 +45,7 @@ const reloadAppAsync = (...args) => require('expo').reloadAppAsync(...args);
 const CATEGORIES_EQUIPEMENT=['Adoucisseur','Armoire électrique','Ballon ECS','Chaudière','Circulateur','Coffret gaz','Compteur','Désemboueur','Détendeur','Échangeur','Extincteur','Filtre','Manomètre','Pompe','Robinetterie','Soupape','Vanne',"Vase d'expansion"];
 const MARQUES_EQUIPEMENT=['De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Atlantic','Frisquet','Chappée','Chaffoteaux','Elm Leblanc','Bosch','Vaillant','Fernox','Alfa Laval'];
 
-function ParametresScreen(){
+function ParametresScreen({topContent=null}={}){
   const[onglet,setOnglet]=useState('reserves');
   const[cataloguePret,setCataloguePret]=useState(false);
   const[catalogueErreur,setCatalogueErreur]=useState(null);
@@ -60,8 +60,15 @@ function ParametresScreen(){
     return()=>{actif=false;};
   },[onglet,cataloguePret]);
 
+  const tabs=<View style={styles.paramTabs}>
+      <TouchableOpacity style={[styles.paramTab,onglet==='reserves'&&styles.paramTabActive]} onPress={()=>setOnglet('reserves')}><Text style={[styles.paramTabText,onglet==='reserves'&&styles.paramTabTextActive]}>Réserves</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.paramTab,onglet==='equipements'&&styles.paramTabActive]} onPress={()=>setOnglet('equipements')}><Text style={[styles.paramTabText,onglet==='equipements'&&styles.paramTabTextActive]}>Équipements</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.paramTab,onglet==='trames'&&styles.paramTabActive]} onPress={()=>setOnglet('trames')}><Text style={[styles.paramTabText,onglet==='trames'&&styles.paramTabTextActive]}>Trames</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.paramTab,onglet==='donnees'&&styles.paramTabActive]} onPress={()=>setOnglet('donnees')}><Text style={[styles.paramTabText,onglet==='donnees'&&styles.paramTabTextActive]}>Données</Text></TouchableOpacity>
+  </View>;
+  const equipmentHeader=<>{topContent}{tabs}</>;
   const contenuEquipements=cataloguePret
-    ?<EquipmentCatalogueBrowser/>
+    ?<EquipmentCatalogueBrowser header={equipmentHeader}/>
     :<View style={{flex:1,alignItems:'center',justifyContent:'center',padding:28}}>
       {catalogueErreur?
         <>
@@ -76,13 +83,8 @@ function ParametresScreen(){
         </>}
     </View>;
 
-  return <View style={{flex:1,backgroundColor:'transparent'}}>
-    <View style={styles.paramTabs}>
-      <TouchableOpacity style={[styles.paramTab,onglet==='reserves'&&styles.paramTabActive]} onPress={()=>setOnglet('reserves')}><Text style={[styles.paramTabText,onglet==='reserves'&&styles.paramTabTextActive]}>Réserves</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.paramTab,onglet==='equipements'&&styles.paramTabActive]} onPress={()=>setOnglet('equipements')}><Text style={[styles.paramTabText,onglet==='equipements'&&styles.paramTabTextActive]}>Équipements</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.paramTab,onglet==='trames'&&styles.paramTabActive]} onPress={()=>setOnglet('trames')}><Text style={[styles.paramTabText,onglet==='trames'&&styles.paramTabTextActive]}>Trames</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.paramTab,onglet==='donnees'&&styles.paramTabActive]} onPress={()=>setOnglet('donnees')}><Text style={[styles.paramTabText,onglet==='donnees'&&styles.paramTabTextActive]}>Données</Text></TouchableOpacity>
-    </View>
+  return <View style={{flex:1,minHeight:0,backgroundColor:'transparent'}}>
+    {onglet!=='equipements'||!cataloguePret?<>{topContent}{tabs}</>:null}
     {onglet==='trames'?<TrameLibraryPanel/>:onglet==='reserves'?<BibliothequeReserves/>:onglet==='equipements'?contenuEquipements:<GestionDonnees/>}
   </View>;
 }

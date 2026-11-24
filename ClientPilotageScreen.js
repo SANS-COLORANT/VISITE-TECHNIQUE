@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { buildMatrixCells, getClientTechnicalMatrix, getMatrixCellPhotos, normAvis } from './clientTechnicalMatrix.js';
@@ -11,6 +11,7 @@ import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { prewarmSiteLocals } from './navigationPrewarm.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { SkeletonList } from './Skeleton.js';
+import { getPilotageColumnWindow } from './pilotageDensity.js';
 
 const STATE = {
   green: { bg: '#E8F5E9', border: '#2E7D32', text: '#1B5E20', symbol: '✓' },
@@ -39,10 +40,10 @@ async function mapAvecConcurrence(items, limite, worker) {
   await Promise.all(workers); return resultats;
 }
 
-function Cell({ cell, onPress }) {
+function Cell({ cell, onPress, width = 98 }) {
   const p = STATE[cell.state] || STATE.none;
-  const count = cell.ns || cell.nr || cell.nv || cell.so || cell.s || 0;
-  return <TouchableOpacity disabled={!cell.total} onPress={onPress} style={{ width: 92, minHeight: 58, margin: 3, borderRadius: 10, borderWidth: 1.5, borderColor: p.border, backgroundColor: p.bg, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 18, fontFamily: FONTS.black, color: p.text }}>{p.symbol} {count || ''}</Text><Text style={{ fontSize: 8.5, color: p.text, marginTop: 2 }}>{cell.total ? `${cell.s} S · ${cell.ns} N.S` : 'Non concerné'}</Text></TouchableOpacity>;
+  const count = cell.state === 'red' || cell.state === 'orange' ? (cell.ns || 0) : cell.state === 'unknown' ? ((cell.nr || 0)+(cell.nv || 0)) : cell.state === 'green' ? (cell.s || 0) : (cell.so || 0);
+  return <TouchableOpacity disabled={!cell.total} onPress={onPress} style={{ width: Math.max(1,width - 6), minHeight: 50, margin: 3, paddingVertical: 5, borderRadius: 10, borderWidth: 1.5, borderColor: p.border, backgroundColor: p.bg, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 16, fontFamily: FONTS.black, color: p.text }}>{p.symbol} {count || ''}</Text><Text style={{ fontSize: 8.5, color: p.text, marginTop: 2 }}>{cell.total ? `${cell.s} S · ${cell.ns} N.S` : 'Non concerné'}</Text></TouchableOpacity>;
 }
 
 function Stat({ value, label, sub }) {
@@ -54,115 +55,83 @@ function Chip({ label, active, onPress, danger = false }) {
 }
 
 /**
- * Première colonne non défilante. Les cellules de droite ont une seule zone
- * de défilement horizontal ; la vue parente scrolle verticalement les deux
- * colonnes ensemble (pas de FlatList verticale imbriquée, ni de désalignement).
+ * A single vertical virtualized list owns the whole pilotage screen.
+ * A responsive window of complete category columns avoids conflicting nested
+ * vertical scrolls and preserves the site/local column on small devices.
  */
-/**
- * Deux listes verticales virtualisées synchronisées pour les grands clients :
- * la colonne sites/locaux reste fixe et toutes les catégories défilent ensemble.
- * Hauteurs fixes + getItemLayout évitent tout décalage pendant les gestes.
- */
-function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, nomClient, openCell }) {
-  const [collapsed, setCollapsed] = useState({});
-  const leftRef = useRef(null);
-  const rightRef = useRef(null);
-  const scrollOffset = useRef(0);
-  const rowHeight = 72;
-  const leftWidth = 210;
-  const cellWidth = 98;
-  const lignes = [];
-  for (const site of sites) {
-    lignes.push({ key: `s:${site.id}`, kind: 'site', site });
-    if (!collapsed[site.id]) for (const local of site.locals || []) {
-      lignes.push({ key: `l:${site.id}:${local.id}`, kind: 'local', site, local });
+function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, nomClient, openCell, header, footer }) {
+  const {width,fontScale}=useWindowDimensions();
+  const [collapsed,setCollapsed]=useState({});
+  const [page,setPage]=useState(0);
+  const [viewport,setViewport]=useState(0);
+  const geometry=getPilotageColumnWindow({width:Math.max(1,(viewport||width)-30),fontScale,count:categories.length,page});
+  const {leftWidth,cellWidth,pages,start,end}=geometry;
+  const shown=categories.slice(start,end);
+  useEffect(()=>{if(page!==geometry.page)setPage(geometry.page);},[page,geometry.page]);
+  const rows=useMemo(()=>{
+    if(!categories.length||!sites.length)return [];
+    const result=[{key:'__columns__',kind:'columns'}];
+    for(const site of sites){
+      result.push({key:'s:'+site.id,kind:'site',site});
+      if(!collapsed[site.id])for(const local of site.locals||[])result.push({key:'l:'+site.id+':'+local.id,kind:'local',site,local});
     }
-  }
-  const height = Math.min(610, Math.max(166, 58 + lignes.length * rowHeight));
-  const layout = (_data, index) => ({ length: rowHeight, offset: rowHeight * index, index });
-  const synchronize = (otherRef) => (event) => {
-    const offset = Math.max(0, event.nativeEvent.contentOffset.y);
-    if (Math.abs(offset - scrollOffset.current) < 2) return;
-    scrollOffset.current = offset;
-    otherRef.current?.scrollToOffset?.({ offset, animated: false });
+    return result;
+  },[sites,categories,collapsed]);
+  const ouvrirSite=site=>navigation.navigate('SiteLocals',{siteId:site.id,nomSite:site.nom_site,clientId,nomClient});
+  const choisirCellule=(ligne,category)=>{
+    const cible=ligne.kind==='site'?ligne.site:ligne.local;
+    const cell=cible.cells?.[category.key];
+    if(!cell?.total)return;
+    openCell(ligne.kind==='local'?{...ligne.site,nom_site:ligne.site.nom_site+' · '+ligne.local.nom}:ligne.site,category,cell);
   };
-  const ouvrirSite = (site) => navigation.navigate('SiteLocals', {
-    siteId: site.id, nomSite: site.nom_site, clientId, nomClient,
-  });
-  const choisirCellule = (ligne, category) => {
-    const cible = ligne.kind === 'site' ? ligne.site : ligne.local;
-    const cell = cible.cells?.[category.key];
-    if (!cell?.total) return;
-    const site = ligne.kind === 'local'
-      ? { ...ligne.site, nom_site: `${ligne.site.nom_site} · ${ligne.local.nom}` }
-      : ligne.site;
-    openCell(site, category, cell);
+  const frame={marginHorizontal:14,borderLeftWidth:1,borderRightWidth:1,borderColor:COLORS.line,backgroundColor:'#fff'};
+  const move=direction=>setPage(Math.max(0,Math.min(pages-1,geometry.page+direction)));
+  const pageButton=(direction,label,icon)=>{
+    const disabled=direction<0?geometry.page===0:geometry.page>=pages-1;
+    return <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}}
+      disabled={disabled} onPress={()=>move(direction)}
+      style={{minWidth:44,minHeight:38,alignItems:'center',justifyContent:'center',borderRadius:8,borderWidth:1,borderColor:COLORS.line,opacity:disabled?.32:1}}>
+      <Text style={{color:COLORS.orangeDark,fontFamily:FONTS.black,fontSize:18}}>{icon}</Text>
+    </TouchableOpacity>;
   };
-  const listProps = {
-    data: lignes,
-    keyExtractor: (item) => item.key,
-    getItemLayout: layout,
-    nestedScrollEnabled: true,
-    initialNumToRender: 8,
-    windowSize: 7,
-    removeClippedSubviews: false,
-    scrollEventThrottle: 32,
-  };
-
-  return <View style={{ height, flexDirection: 'row', backgroundColor: '#fff' }}>
-    <View style={{ width: leftWidth, flexShrink: 0, borderRightWidth: 1, borderRightColor: COLORS.line }}>
-      <View style={{ height: 58, paddingHorizontal: 9, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
-        <Text style={{ fontFamily: FONTS.black }}>Sites / locaux</Text>
-      </View>
-      <FlatList {...listProps} ref={leftRef} style={{ flex: 1 }}
-        maxToRenderPerBatch={8}
-        onScroll={synchronize(rightRef)}
-        renderItem={({ item: ligne }) => <TouchableOpacity accessibilityRole="button"
-          accessibilityLabel={ligne.kind === 'site'
-            ? `Afficher ou masquer les locaux de ${ligne.site.nom_site}`
-            : `Ouvrir ${ligne.local.nom} du site ${ligne.site.nom_site}`}
-          onPress={() => ligne.kind === 'site'
-            ? setCollapsed((state) => ({ ...state, [ligne.site.id]: !state[ligne.site.id] }))
-            : ouvrirSite(ligne.site)}
-          onLongPress={ligne.kind === 'site' ? () => ouvrirSite(ligne.site) : undefined}
-          style={{ height: rowHeight, paddingHorizontal: 8, paddingLeft: ligne.kind === 'site' ? 8 : 23,
-            borderBottomWidth: 1, borderBottomColor: COLORS.line, justifyContent: 'center',
-            backgroundColor: ligne.kind === 'site' ? '#FFF4E9' : '#fff' }}>
-          <Text numberOfLines={2} style={{ color: ligne.kind === 'site' ? COLORS.primary : COLORS.inkSoft,
-            fontFamily: FONTS.bold, fontSize: ligne.kind === 'site' ? 12 : 11 }}>
-            {ligne.kind === 'site' ? `${collapsed[ligne.site.id] ? '▸' : '▾'} ${ligne.site.nom_site}` : `↳ ${ligne.local.nom}`}
-          </Text>
-          <Text numberOfLines={1} style={{ color: COLORS.muted, fontSize: 10, marginTop: 3 }}>
-            {ligne.kind === 'site'
-              ? `${(ligne.site.locals || []).length} local(aux) · ${ligne.site.adresse || 'Adresse non renseignée'}`
-              : `${ligne.local.records.length} constat(s)`}
-          </Text>
-        </TouchableOpacity>} />
-    </View>
-    <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
-      <View style={{ width: Math.max(98, categories.length * cellWidth), flex: 1 }}>
-        <View style={{ height: 58, flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
-          {categories.map((category) => <View key={category.key}
-            style={{ width: cellWidth, justifyContent: 'center', paddingHorizontal: 5 }}>
-            <Text style={{ textAlign: 'center', fontSize: 10, fontFamily: FONTS.bold }}>{category.label}</Text>
-          </View>)}
+  return <FlatList
+    style={{flex:1,minHeight:0}}
+    onLayout={e=>{const w=Math.round(e.nativeEvent.layout.width);setViewport(v=>v===w?v:w);}}
+    data={rows} keyExtractor={item=>item.key}
+    ListHeaderComponent={header} ListFooterComponent={footer}
+    ListEmptyComponent={<View style={{marginHorizontal:14,padding:20,backgroundColor:'#fff'}}><Text style={{textAlign:'center',color:COLORS.muted}}>Aucun constat ne correspond aux filtres.</Text></View>}
+    stickyHeaderIndices={rows.length?[1]:[]}
+    extraData={geometry.page+':'+leftWidth+':'+cellWidth+':'+end}
+    contentContainerStyle={{paddingBottom:28}}
+    keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator
+    initialNumToRender={12} maxToRenderPerBatch={10} windowSize={7} removeClippedSubviews={false}
+    renderItem={({item:ligne})=>{
+      if(ligne.kind==='columns')return <View style={[frame,{backgroundColor:'#FDFCFA',borderBottomWidth:1}]}>
+        {pages>1?<View style={{flexDirection:'row',alignItems:'center',gap:8,padding:8}}>
+          {pageButton(-1,'Catégories précédentes','‹')}
+          <View style={{flex:1,alignItems:'center'}}><Text style={{fontSize:11,fontFamily:FONTS.bold,color:COLORS.ink}}>Catégories {start+1}–{end} / {categories.length}</Text><Text style={{fontSize:9,color:COLORS.muted}}>Afficher les autres colonnes</Text></View>
+          {pageButton(1,'Catégories suivantes','›')}
+        </View>:null}
+        <View style={{flexDirection:'row',alignItems:'stretch'}}>
+          <View style={{width:leftWidth,padding:7,justifyContent:'center',borderRightWidth:1,borderColor:COLORS.line}}><Text style={{fontSize:11,fontFamily:FONTS.black}}>Sites / locaux</Text></View>
+          {shown.map(category=><View key={category.key} style={{width:cellWidth,minHeight:42,padding:4,justifyContent:'center'}}><Text style={{fontSize:10,textAlign:'center',fontFamily:FONTS.bold}}>{category.label}</Text></View>)}
         </View>
-        <FlatList {...listProps} ref={rightRef} style={{ flex: 1 }}
-          maxToRenderPerBatch={8}
-          onScroll={synchronize(leftRef)}
-          renderItem={({ item: ligne }) => {
-            const cible = ligne.kind === 'local' ? ligne.local : ligne.site;
-            return <View style={{ height: rowHeight, flexDirection: 'row',
-              borderBottomWidth: 1, borderBottomColor: COLORS.line, alignItems: 'center',
-              backgroundColor: ligne.kind === 'site' ? '#FFF4E9' : '#fff' }}>
-              {categories.map((category) => <Cell key={category.key}
-                cell={cible.cells?.[category.key] || { total: 0, state: 'none' }}
-                onPress={() => choisirCellule(ligne, category)} />)}
-            </View>;
-          }} />
-      </View>
-    </ScrollView>
-  </View>;
+      </View>;
+      const isSite=ligne.kind==='site', cible=isSite?ligne.site:ligne.local;
+      return <View style={[frame,{flexDirection:'row',minHeight:60,alignItems:'stretch',borderBottomWidth:1,backgroundColor:isSite?'#FFF4E9':'#fff'}]}>
+        <TouchableOpacity accessibilityRole="button"
+          accessibilityLabel={isSite?'Afficher ou masquer les locaux de '+ligne.site.nom_site:'Ouvrir '+ligne.local.nom+' du site '+ligne.site.nom_site}
+          accessibilityState={isSite?{expanded:!collapsed[ligne.site.id]}:undefined}
+          onPress={()=>isSite?setCollapsed(state=>({...state,[ligne.site.id]:!state[ligne.site.id]})):ouvrirSite(ligne.site)}
+          onLongPress={isSite?()=>ouvrirSite(ligne.site):undefined}
+          style={{width:leftWidth,flexShrink:0,paddingHorizontal:6,paddingLeft:isSite?6:12,paddingVertical:7,justifyContent:'center',borderRightWidth:1,borderColor:COLORS.line}}>
+          <Text style={{fontSize:isSite?11:10.5,color:isSite?COLORS.primary:COLORS.inkSoft,fontFamily:FONTS.bold}}>{isSite?(collapsed[ligne.site.id]?'▸ ':'▾ ')+ligne.site.nom_site:'↳ '+ligne.local.nom}</Text>
+          <Text numberOfLines={2} style={{color:COLORS.muted,fontSize:9,marginTop:3}}>{isSite?(ligne.site.locals||[]).length+' local(aux) · '+(ligne.site.adresse||'Adresse non renseignée'):(ligne.local.records||[]).length+' constat(s)'}</Text>
+        </TouchableOpacity>
+        {shown.map(category=><View key={category.key} style={{width:cellWidth,justifyContent:'center'}}><Cell width={cellWidth} cell={cible.cells?.[category.key]||{total:0,state:'none'}} onPress={()=>choisirCellule(ligne,category)}/></View>)}
+      </View>;
+    }}
+  />;
 }
 function recordMatches(record, site, filters) {
   const avis = normAvis(record.avis);
@@ -356,7 +325,9 @@ export function ClientPilotageScreen({ route, navigation }) {
   if (loading || !matrix) return <View style={{ flex: 1 }}><Text style={{ color: COLORS.muted, fontFamily: FONTS.bodyMedium, marginTop: 10, marginHorizontal: 16 }}>Calcul du pilotage client…</Text><SkeletonList count={5} withTitle={false} /></View>;
 
   const pilotageAction = { flex: 0, width: '48.8%', flexDirection: 'row', gap: 7, paddingHorizontal: 10 };
-  return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 28 }} keyboardShouldPersistTaps="handled">
+  return <>
+    <VirtualizedTechnicalMatrix sites={sites} categories={visibleCategories} navigation={navigation} clientId={clientId} nomClient={nomClient} openCell={openCell}
+      header={<>
     <View style={{ padding: 14 }}>
       <Text style={{ color: COLORS.inkSoft, fontSize: 12.5, fontFamily: FONTS.bodyMedium }}>{nomClient || 'Client'} · calcul local et disponible hors connexion</Text>
       {groupes.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }} contentContainerStyle={{ gap: 7 }}>
@@ -374,13 +345,12 @@ export function ClientPilotageScreen({ route, navigation }) {
       <Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 8 }}>{viewLabel} · {filteredRecords.length} ligne(s)</Text>
     </View>
 
-    <View style={{ marginHorizontal: 14, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', backgroundColor: 'rgba(255,255,255,0.8)' }}>
-      <View style={{ paddingHorizontal: 14, paddingTop: 12 }}><Text style={styles.sectionLabel}>Cartographie technique</Text><Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 3 }}>Chaque constat est classé dans une seule catégorie. Rouge = criticité 4–5 · orange = N.S · gris = non relevé/non visible.</Text></View>
-      {visibleCategories.length && sites.length
-        ? <VirtualizedTechnicalMatrix sites={sites} categories={visibleCategories} navigation={navigation} clientId={clientId} nomClient={nomClient} openCell={openCell} />
-        : <View style={{ padding: 20 }}><Text style={{ color: COLORS.muted, textAlign: 'center' }}>Aucun constat ne correspond aux filtres.</Text></View>}
+    <View style={{marginHorizontal:14,padding:12,borderTopLeftRadius:16,borderTopRightRadius:16,backgroundColor:'#fff',borderWidth:1,borderColor:COLORS.line}}>
+      <Text style={styles.sectionLabel}>Cartographie technique</Text>
+      <Text style={{color:COLORS.muted,fontSize:10.5,marginTop:4}}>Rouge : criticité 4–5 · orange : N.S · gris : information incomplète. Défile verticalement pour voir tous les locaux et utilise les flèches pour afficher les catégories.</Text>
     </View>
-
+      </>}
+      footer={<>
     <View style={{ padding: 14 }}>
       <Text style={styles.sectionLabel}>Synthèse de la vue</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 9 }}>
@@ -394,6 +364,9 @@ export function ClientPilotageScreen({ route, navigation }) {
       </TouchableOpacity> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}><Stat value={resume?.sites ?? '—'} label="Sites"/><Stat value={resume?.reservesOuvertes ?? '—'} label="Réserves ouvertes" sub={resume ? `${resume.reservesLevees} levée(s)` : 'Statistiques indisponibles'}/><Stat value={resume?.actifs ?? '—'} label="Équipements actifs" sub={resume ? `${resume.aSurveiller} à surveiller` : 'Statistiques indisponibles'}/></View>
     </View>
+
+      </>}
+    />
 
     <Modal visible={filterVisible} transparent animationType="fade" onRequestClose={() => setFilterVisible(false)}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { width: '94%', maxWidth: 720, maxHeight: '90%' }]}><ScrollView keyboardShouldPersistTaps="handled"><View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={[styles.modalTitle, { flex: 1 }]}>Filtres cartographie</Text><TouchableOpacity onPress={() => setFilters(DEFAULT_FILTERS)}><Text style={{ color: COLORS.primary, fontFamily: FONTS.bold }}>Réinitialiser</Text></TouchableOpacity></View>
       <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Recherche</Text><TextInput style={styles.input} value={filters.search} placeholder="Site, local, réserve, équipement, commentaire…" onChangeText={(v) => setFilters((f) => ({ ...f, search: v }))}/>
@@ -410,5 +383,5 @@ export function ClientPilotageScreen({ route, navigation }) {
 
     <Modal visible={!!selected} transparent animationType="fade" onRequestClose={closeCell}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxWidth: 720, width: '94%', maxHeight: '88%' }]}>{selected ? <ScrollView><Text style={styles.modalTitle}>{selected.site.nom_site} · {selected.category.label}</Text><Text style={{ color: COLORS.muted, marginTop: 3 }}>{selected.cell.s} S · {selected.cell.ns} N.S · {selected.cell.nr} N.R · {selected.cell.so} S.O · {selected.cell.nv} N.V</Text>{selected.cell.issues.length ? selected.cell.issues.map((issue, idx) => { const pics = photos[issueKey(issue)] || []; return <View key={`${issueKey(issue)}-${idx}`} style={{ marginTop: 12, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 12, padding: 11 }}><Text style={{ fontFamily: FONTS.black, color: Number(issue.criticite || 0) >= 4 ? COLORS.red : COLORS.orange }}>{issue.reference_libelle || issue.cle} · {reserveSeverityLabel(issue.criticite)}</Text><Text style={{ marginTop: 5, color: COLORS.ink }}>{issue.prestation || issue.commentaire || 'Anomalie à préciser'}</Text>{pics.length ? <ScrollView horizontal style={{ marginTop: 8 }}>{pics.map((p) => <TouchableOpacity key={p.id} onPress={() => setPhotoZoom({ ...p, issue })}><PhotoVariantImage uri={p.uri} variant="thumb" style={{ width: 105, height: 78, borderRadius: 8, marginRight: 7, backgroundColor: '#eee' }} resizeMode="cover"/></TouchableOpacity>)}</ScrollView> : <Text style={{ marginTop: 7, fontSize: 10, color: COLORS.muted }}>Aucune photo liée à ce problème.</Text>}</View>; }) : <Text style={{ marginTop: 12, color: COLORS.muted }}>Aucune réserve N.S dans cette cellule.</Text>}<View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => { const s = selected.site; closeCell(); navigation.navigate('SiteLocals', { siteId: s.id, nomSite: s.nom_site, clientId, nomClient }); }}><ButtonGlow /><Text style={styles.btnPrimaryText}>Ouvrir le site</Text></TouchableOpacity><TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={closeCell}><Text style={styles.btnSecondaryText}>Fermer</Text></TouchableOpacity></View></ScrollView> : null}</View></View></Modal>
     <Modal visible={!!photoZoom} transparent animationType="fade" onRequestClose={() => setPhotoZoom(null)}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { width: '96%', maxWidth: 900 }]}>{photoZoom ? <><PhotoVariantImage uri={photoZoom.uri} variant="preview" resizeMode="contain" style={{ width: '100%', height: 430, backgroundColor: '#111', borderRadius: 10 }}/><Text style={{ marginTop: 9, fontFamily: FONTS.bold }}>{photoZoom.label || photoZoom.issue?.reference_libelle || photoZoom.issue?.cle}</Text><TouchableOpacity style={[styles.btnPrimary, { marginTop: 12 }]} onPress={() => setPhotoZoom(null)}><ButtonGlow /><Text style={styles.btnPrimaryText}>Revenir au pilotage</Text></TouchableOpacity></> : null}</View></View></Modal>
-  </ScrollView>;
+  </>;
 }
