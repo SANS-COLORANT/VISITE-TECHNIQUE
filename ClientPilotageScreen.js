@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, FlatList, Modal, PanResponder, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, FlatList, Modal, PanResponder, Platform, requireNativeComponent, ScrollView, Text, TextInput, TouchableOpacity, UIManager, View, useWindowDimensions } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { buildMatrixCells, getClientTechnicalMatrix, getMatrixCellPhotos, normAvis } from './clientTechnicalMatrix.js';
@@ -11,6 +11,7 @@ import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { prewarmSiteLocals } from './navigationPrewarm.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { SkeletonList } from './Skeleton.js';
+import { buildPilotageCanvasModel } from './pilotageCanvasModel.js';
 import { clampPilotageZoom, clampPilotageOffset, getPilotagePanGeometry, visiblePilotageColumns, rescalePilotageOffset, fitPilotageZoom, PILOTAGE_ZOOM_MIN, PILOTAGE_ZOOM_MAX } from './pilotageDensity.js';
 
 const STATE = {
@@ -222,6 +223,58 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
     }}
   /></View>;
 }
+
+// Android Play builds use the hardware-accelerated canvas. Keep the existing
+// virtualized list as a deliberate accessibility and compatibility fallback.
+const NativeCanvas=Platform.OS==='android'&&UIManager.getViewManagerConfig?.('MetraPilotageCanvas')?requireNativeComponent('MetraPilotageCanvas'):null;
+function TactileTechnicalMatrix(props){
+  const {sites,categories,navigation,clientId,nomClient,openCell,header,footer}=props;
+  const [accessible,setAccessible]=useState(false),[details,setDetails]=useState(false),[collapsed,setCollapsed]=useState({});
+  const [command,setCommand]=useState(null);
+  const serial=useRef(0);
+  useEffect(()=>{
+    let mounted=true;
+    AccessibilityInfo.isScreenReaderEnabled().then(v=>{if(mounted&&v)setAccessible(true);}).catch(()=>{});
+    const sub=AccessibilityInfo.addEventListener('screenReaderChanged',v=>{if(v)setAccessible(true);});
+    return()=>{mounted=false;sub.remove();};
+  },[]);
+  const model=useMemo(()=>buildPilotageCanvasModel(sites,categories,collapsed),[sites,categories,collapsed]);
+  const categoryMap=useMemo(()=>new Map(categories.map(c=>[String(c.key),c])),[categories]);
+  const openSite=site=>navigation.navigate('SiteLocals',{siteId:site.id,nomSite:site.nom_site,clientId,nomClient});
+  const onAction=({nativeEvent:e})=>{
+    if(e.kind==='error'){Alert.alert('Pilotage','Le tableau natif ne peut pas afficher ces données. Ouverture de la liste accessible.');setAccessible(true);return;}
+    const row=model.lookup.get(e.row);if(!row)return;
+    const {site,local}=row;
+    if(e.kind==='name'){Alert.alert(local?.nom||site.nom_site,[local?site.nom_site:null,site.adresse,(local?local.records:site.records)?.length+' constat(s)'].filter(Boolean).join('\n'),[{text:'Fermer',style:'cancel'},{text:'Ouvrir le site',onPress:()=>openSite(site)}]);return;}
+    if(e.kind==='label'){if(local)openSite(site);else setCollapsed(s=>({...s,[site.id]:!s[site.id]}));return;}
+    if(e.kind==='cell'){const category=categoryMap.get(e.column),cell=(local||site).cells?.[e.column];if(category&&cell?.total)openCell(local?{...site,nom_site:site.nom_site+' · '+local.nom}:site,category,cell);}
+  };
+  if(!NativeCanvas)return <VirtualizedTechnicalMatrix {...props}/>;
+  const action=(label,title,onPress)=><TouchableOpacity accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={{paddingHorizontal:9,minHeight:36,justifyContent:'center',borderRadius:8,borderWidth:1,borderColor:COLORS.line,backgroundColor:'#fff'}}><Text style={{fontSize:11,fontFamily:FONTS.bold,color:COLORS.orangeDark}}>{title}</Text></TouchableOpacity>;
+  const send=action=>setCommand({seq:++serial.current,action});
+  return <View style={{flex:1,minHeight:0}}>
+    <View style={{paddingHorizontal:8,paddingTop:5,paddingBottom:5,gap:5}}>
+      <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:5}}>
+        <Text numberOfLines={1} style={{flex:1,fontFamily:FONTS.bold,fontSize:12,color:COLORS.ink}}>Cartographie technique</Text>
+        {action('Informations, filtres et export','Options',()=>setDetails(true))}
+        {action(accessible?'Ouvrir le tableau tactile':'Ouvrir la liste accessible',accessible?'Tableau':'Liste',()=>setAccessible(v=>!v))}
+      </View>
+      {!accessible?<View style={{flexDirection:'row',alignItems:'center',gap:5}}>
+        {action('Réduire le zoom','−',()=>send('out'))}
+        {action('Agrandir le zoom','+',()=>send('in'))}
+        {action('Adapter à l’écran','Adapter',()=>send('fit'))}
+        {action('Zoom normal','100 %',()=>send('reset'))}
+        <Text numberOfLines={2} style={{flex:1,color:COLORS.muted,fontSize:9}}>Glisser · pincer · double toucher</Text>
+      </View>:null}
+    </View>
+    {accessible?<VirtualizedTechnicalMatrix {...props}/>:<NativeCanvas style={{flex:1,minHeight:0}} model={model.json} viewportCommand={command} onMatrixAction={onAction}/>}
+    {details?<View style={{position:'absolute',top:0,bottom:0,left:0,right:0,backgroundColor:COLORS.bg,zIndex:10,elevation:10}}>
+        <TouchableOpacity accessibilityRole="button" onPress={()=>setDetails(false)} style={{alignSelf:'flex-end',margin:12,padding:10}}><Text style={{fontFamily:FONTS.bold,color:COLORS.orangeDark}}>Retour au tableau</Text></TouchableOpacity>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:36}}>{header}{footer}</ScrollView>
+      </View>:null}
+  </View>;
+}
+
 function recordMatches(record, site, filters) {
   const avis = normAvis(record.avis);
   if (filters.trame !== 'all' && record.trame_id !== filters.trame) return false;
@@ -415,7 +468,7 @@ export function ClientPilotageScreen({ route, navigation }) {
 
   const pilotageAction = { flex: 0, width: '48.8%', flexDirection: 'row', gap: 7, paddingHorizontal: 10 };
   return <>
-    <VirtualizedTechnicalMatrix sites={sites} categories={visibleCategories} navigation={navigation} clientId={clientId} nomClient={nomClient} openCell={openCell}
+    <TactileTechnicalMatrix sites={sites} categories={visibleCategories} navigation={navigation} clientId={clientId} nomClient={nomClient} openCell={openCell}
       header={<>
     <View style={{ padding: 14 }}>
       <Text style={{ color: COLORS.inkSoft, fontSize: 12.5, fontFamily: FONTS.bodyMedium }}>{nomClient || 'Client'} · calcul local et disponible hors connexion</Text>

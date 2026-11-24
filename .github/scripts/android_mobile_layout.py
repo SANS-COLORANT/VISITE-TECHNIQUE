@@ -68,6 +68,7 @@ def main():
     qa.mark("catalog scrolls past header and back on 360dp")
     tap("Clients");await_label("Recherche clients & sites");tap("QA MOBILE CLIENT")
     tap("Pilotage");await_label("Cartographie technique")
+    if qa.ui.find(qa.ui.dump(),["Ouvrir la liste accessible"]):tap("Ouvrir la liste accessible")
     # Navigate to every page of categories without losing the site column.
     for _ in range(3):drag(370,1250,370,790)
     await_label("Sites / locaux")

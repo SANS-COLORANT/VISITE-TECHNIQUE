@@ -11,6 +11,7 @@ tests={
  "recovery":("android_restore_recovery.py",[current]),
  "interface":("android_mobile_layout.py",[current]),
  "report":("android_report_benchmark.py",[previous,current]),
+ "pilotage":("android_pilotage_canvas.py",[current]),
 }
 name,args=tests[scenario]
 subprocess.run([sys.executable,str(root/name),*args],check=True)
