@@ -134,7 +134,7 @@ export function IntranetSiteCreationModal({ visible, clientId, existingSite = nu
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <Text style={styles.modalTitle}>{existingSite?.id ? 'Publier ce site sur l’Intranet' : 'Créer un site dans METRA + Intranet'}</Text>
         <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16 }}>{existingSite?.id
-          ? 'Cette copie recevra un nouvel identifiant Intranet sans modifier l’original. Les locaux existants seront traités ensuite par la synchronisation depuis « Locaux ». La création est mise en attente hors connexion.'
+          ? 'Cette copie recevra un nouvel identifiant Intranet sans modifier l’original. METRA traitera ensuite les locaux et les visites du périmètre choisi. Si des champs obligatoires manquent, ils seront à renseigner. La création peut être mise en attente hors connexion.'
           : 'La création est enregistrée d’abord sur la tablette. Hors connexion, elle reste en attente avec le même creationId et sera rejouée sans doublon.'}</Text>
 
         {loading ? <Text style={{ color: COLORS.muted, marginTop: 12 }}>Lecture du référentiel…</Text> : null}

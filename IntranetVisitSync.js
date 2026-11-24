@@ -268,9 +268,7 @@ async function ensureVisitHierarchy(visiteId){
   return result;
 }
 async function bindSameImportedClient(visiteId) {
-  // New copies have no remote destination. Confirm their own parent chain
-  // before selecting a trame or preparing an upload.
-  await ensureVisitHierarchy(visiteId);
+  // Callers confirm the parent chain before selecting a trame.
   try {
     return await bindVisitToImportedClientTarget(visiteId);
   } catch (error) {

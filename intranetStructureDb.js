@@ -329,12 +329,16 @@ export async function listSiteStructureLocals(localSiteId) {
 async function resolveRemoteSiteIdForOperation(db, row) {
   if (row.resource_type !== 'local') return null;
   const mapped = await mappedRemoteSiteForLocalSite(db, row.local_site_id, row.remote_client_id);
-  if (mapped?.remote_site_id) return clean(mapped.remote_site_id);
   if (row.depends_on_id) {
-    const parent = await db.getFirstAsync(`SELECT status,remote_id FROM api_structure_outbox WHERE operation_id=?`, [row.depends_on_id]);
-    if (parent?.status === 'synced' && parent.remote_id) return clean(parent.remote_id);
+    const parent = await db.getFirstAsync(`SELECT status,remote_id,local_site_id,remote_client_id,resource_type FROM api_structure_outbox WHERE operation_id=?`, [row.depends_on_id]);
+    if(!parent||parent.resource_type!=='site'||clean(parent.local_site_id)!==clean(row.local_site_id)||clean(parent.remote_client_id)!==clean(row.remote_client_id))
+      throw structureError('Dépendance de création : site ou client incorrect.','invalid_ack');
+    if(parent.status!=='synced'||!parent.remote_id)return null;
+    if(mapped?.remote_site_id&&clean(mapped.remote_site_id)!==clean(parent.remote_id))
+      throw structureError('Dépendance de création : identifiant du site divergent.','invalid_ack');
+    return clean(parent.remote_id);
   }
-  return null;
+  return mapped?.remote_site_id?clean(mapped.remote_site_id):null;
 }
 
 async function markRetry(db, row, error, delay) {
@@ -434,7 +438,9 @@ async function sendRow(db, row) {
       return { status: 'deferred', row };
     }
   }
-  const remoteSiteId = await resolveRemoteSiteIdForOperation(db, row);
+  let remoteSiteId;
+  try{remoteSiteId=await resolveRemoteSiteIdForOperation(db,row);}
+  catch(error){await markTerminal(db,row,'rejected',error);notify();return {status:'error',row,error};}
   if (row.resource_type === 'local' && !positiveInteger(remoteSiteId)) return { status: 'deferred', row };
 
   // Atomic claim: a site deletion may cancel/delete a pending operation

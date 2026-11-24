@@ -168,6 +168,7 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
         if(remote.local_installation_id){
           const existing=installationMap.get(remote.local_installation_id);
           if(!existing)throw Error('Duplication annulée : le local Intranet source est rattaché à un autre site.');
+          if([...remoteInstallationMap.values()].includes(existing))throw Error('Duplication annulée : plusieurs locaux Intranet partagent la même installation source.');
           remoteInstallationMap.set(String(remote.remote_local_id),existing);
           continue;
         }

@@ -71,18 +71,34 @@ try{
       VALUES('old-v','equipement','cta1','p-remar-cta','CTA','GTB','N.S','Erreur GTB'),
             ('old-v','item','old-item','p-remar-filtres','filtre_cta','Filtration','S','Filtre OK');
   `);
+  await db.db.execAsync(`
+    INSERT INTO api_client_links(remote_client_id,local_client_id,nom,payload_json) VALUES('12','c','CROUS','{}');
+    INSERT INTO api_site_links(remote_site_id,remote_client_id,local_site_id,nom,payload_json) VALUES('45','12','old','Origine','{"lotId":2,"energie":"GAZ","typeBatiment":"Habitation"}');
+    INSERT INTO api_client_site_links(remote_client_id,remote_site_id,local_site_id) VALUES('12','45','old');
+    INSERT INTO api_local_links(remote_local_id,remote_site_id,designation,reference_json,local_installation_id,remote_trame_id) VALUES('991','45','Chaufferie','{"local":{"type":"Chaufferie","situation":"RDC"},"trame":{"id":16}}','old-local','16');
+    INSERT INTO api_local_links(remote_local_id,remote_site_id,designation,reference_json,remote_trame_id) VALUES('992','45','Local non ouvert','{"local":{"type":"Technique","situation":"RDC"},"trame":{"id":3}}','3');
+    INSERT INTO visites(id,site_id,trame_id,statut,date_visite,api_remote_local_id) VALUES('old-v3','old','icpe_v1','terminee','2026-11-16','992');
+  `);
   let seq=0;const uuidv4=()=>('copy-'+(++seq).toString().padStart(6,'0'));
   const clone=load('siteVisitCloneDb.js',{});
   const ownership=load('siteHierarchyDb.js',{});
   const api=load('siteOrganizationDb.js',{getDb:async()=>db.db,uuidv4,...ownership,
     cloneLatestVisitsForSite:clone.cloneLatestVisitsForSite});
   const result=await api.dupliquerSite('old',{copierPatrimoine:true,copierLab3d:false,copierVisites:true});
-  assert.equal(result.visitesCopiees,2);
-  assert.equal(result.locauxCopies,2);
+  assert.equal(result.visitesCopiees,3);
+  assert.equal(result.locauxCopies,3);
   const copied=await db.db.getAllAsync('SELECT v.id,v.site_id,v.installation_id,i.site_id AS local_site FROM visites v JOIN installations i ON i.id=v.installation_id WHERE v.site_id=?',[result.siteId]);
-  assert.equal(copied.length,2);assert.equal(new Set(copied.map(v=>v.installation_id)).size,2);
+  assert.equal(copied.length,3);assert.equal(new Set(copied.map(v=>v.installation_id)).size,3);
   assert.ok(copied.every(v=>v.site_id===v.local_site&&v.site_id===result.siteId&&!v.installation_id.startsWith('old-local')));
   await assert.rejects(ownership.assertVisitParent(db.db,'old',copied[0].installation_id),/ne fait pas partie/);
+  const metadata=await db.db.getFirstAsync("SELECT valeur FROM attributs_libres WHERE entite_type='site' AND entite_id=? AND cle=?",[result.siteId,ownership.COPY_TEMPLATE_KEY]);
+  assert.equal(JSON.parse(metadata.valeur).lotId,2);
+  assert.equal(JSON.parse(metadata.valeur).id,undefined);
+  assert.equal((await db.db.getAllAsync("SELECT * FROM api_site_links WHERE local_site_id=?",[result.siteId])).length,0);
+  const remoteCopy=await db.db.getFirstAsync("SELECT i.id FROM installations i WHERE site_id=? AND nom='Local non ouvert'",[result.siteId]);
+  assert.ok(remoteCopy);
+  assert.equal((await db.db.getFirstAsync("SELECT api_remote_local_id FROM visites WHERE installation_id=?",[remoteCopy.id])).api_remote_local_id,null);
+  assert.equal((await db.db.getFirstAsync("SELECT local_installation_id FROM api_local_links WHERE remote_local_id='992'")).local_installation_id,null);
   const copy=await db.db.getFirstAsync(
     "SELECT * FROM visites WHERE site_id=? AND trame_id='remar_v1'",[result.siteId]);
   assert.ok(copy&&copy.id!=='old-v'&&copy.api_remote_local_id===null);
@@ -106,7 +122,6 @@ try{
   assert.equal((await db.db.getFirstAsync("SELECT valeur FROM champs_visite WHERE visite_id='old-v' AND cle='Nom du site'")).valeur,'Résidence origine');
   assert.equal((await db.db.getAllAsync('PRAGMA foreign_key_check')).length,0);
   assert.equal((await db.db.getAllAsync('SELECT * FROM photos WHERE visite_id=?',[copy.id])).length,0);
-  await db.db.execAsync("INSERT INTO api_client_links(remote_client_id,local_client_id,nom,payload_json) VALUES('12','c','CROUS','{}'); INSERT INTO api_site_links(remote_site_id,remote_client_id,local_site_id,nom,payload_json) VALUES('45','12','old','Origine','{}'); INSERT INTO api_client_site_links(remote_client_id,remote_site_id,local_site_id) VALUES('12','45','old'); INSERT INTO api_local_links(remote_local_id,remote_site_id,designation,reference_json,local_installation_id) VALUES('991','45','Chaufferie','{}','old-local');");
   await ownership.assertRemoteLocalParent(db.db,'old','991',{site:{id:'45'}});
   await assert.rejects(ownership.assertRemoteLocalParent(db.db,result.siteId,'991',{site:{id:'45'}}),/autre site/);
   assert.equal((await db.db.getFirstAsync("SELECT local_installation_id FROM api_local_links WHERE remote_local_id='991'")).local_installation_id,'old-local');
