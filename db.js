@@ -11,18 +11,22 @@ export function uuidv4() { return createId(); }
 
 let dbInstance = null;
 let dbInitPromise = null;
+let dbInitTarget = null;
 async function getDb() {
-  if (dbInstance) return dbInstance;
-  if (!dbInitPromise) {
-    dbInitPromise = (async () => {
-      const db = await openAppDatabase();
+  // Never return a cached native handle closed by a restoration.
+  // openAppDatabase also rejects normal access during a replacement.
+  const db=await openAppDatabase();
+  if(dbInstance===db)return db;
+  if(dbInitTarget!==db || !dbInitPromise){
+    dbInitTarget=db;
+    dbInitPromise=(async()=>{
       await seedDemoSiNecessaire(db);
       await seedBibliothequeSiNecessaire(db);
       await seedEquipementsBibliothequeSiNecessaire(db);
-      dbInstance = db;
+      if(dbInitTarget===db)dbInstance=db;
       return db;
-    })().catch((error) => {
-      dbInitPromise = null;
+    })().catch(error=>{
+      if(dbInitTarget===db){dbInitPromise=null;dbInitTarget=null;}
       throw error;
     });
   }
