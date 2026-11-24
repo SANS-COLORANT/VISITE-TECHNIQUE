@@ -31,12 +31,27 @@ def adb(*argv, check=True, timeout=40):
         encoding="utf-8", errors="replace", timeout=timeout,
         check=check).stdout
 def input_password(label):
-    node = ui.await_label([label], seconds=18)
+    # Android accessibility may expose a nearby title with a similar name.
+    # Select actual EditText controls in top-to-bottom order, never the label.
+    is_confirm = "Confirmer" in label
+    target = 1 if is_confirm else 0
+    nodes = ui.dump()
+    fields = [n for n in nodes
+              if "EditText" in n.get("class", "") or "AutoCompleteTextView" in n.get("class", "")]
+    fields.sort(key=lambda n: int(re.findall(r"\d+", n.get("bounds", "0,0,0,0"))[1]))
+    node = fields[target] if len(fields) > target else ui.await_label(
+        ["Retaper le mot de passe"] if is_confirm else ["Mot de passe de la sauvegarde"], seconds=18)
     if not node:
+        print("BACKUP EDITTEXT NOT FOUND " + label + ", nodes=" + str(len(fields)), flush=True)
         return False
     a = list(map(int, re.findall(r"\d+", node["bounds"])))
+    if len(a) != 4:
+        return False
+    print("BACKUP EDITTEXT TARGET " + label + " class=" + node.get("class", "") + " bounds=" + str(a), flush=True)
     adb("shell", "input", "tap", str((a[0]+a[2])//2), str((a[1]+a[3])//2))
     adb("shell", "input", "text", PASSWORD)
+    # Do not send KEYCODE_BACK here: when the IME has already hidden,
+    # Android interprets BACK as dismissing the entire React Native Modal.
     return True
 def tap_scrolling(label, max_scrolls=5):
     for attempt in range(max_scrolls):
@@ -61,6 +76,12 @@ def export_test():
     adb("root",check=False)
     adb("wait-for-device")
     adb("shell","monkey","-p",PKG,"-c","android.intent.category.LAUNCHER","1")
+    # Android 16 may display the native splash before the JS process starts.
+    # Avoid interpreting the normal launch window as a native crash.
+    deadline = time.monotonic() + 75
+    while time.monotonic() < deadline and not ui.app_running():
+        time.sleep(1)
+    assert ui.app_running(), "METRA process never launched after 75 seconds"
     assert ui.await_label(["Réglages"],seconds=80), "Home not available"
     record("home visible",True)
     assert ui.tap(["Réglages"],seconds=24), "Cannot reach settings"
@@ -71,8 +92,17 @@ def export_test():
     record("encrypted backup dialog opens",True)
     ui.snapshot("backup-form")
     assert input_password("Mot de passe sauvegarde"), "Password field missing"
+    # On Android 16, typing the first password opens the IME over the second
+    # EditText. Without dismissing the IME, ADB taps its obscured bounds and
+    # keeps writing into the first field. The screenshot proves confirmation
+    # was empty even though input_password() returned success.
+    adb("shell","input","keyevent","KEYCODE_BACK",check=False)
+    time.sleep(1.2)
+    assert ui.await_label(["Confirmer le mot de passe"],seconds=10), "Confirmation label not visible"
     assert input_password("Confirmer mot de passe sauvegarde"), "Confirmation field missing"
     adb("shell","input","keyevent","KEYCODE_BACK",check=False)
+    time.sleep(1.2)
+    ui.snapshot("backup-filled-form")
     assert tap_scrolling("Créer le ZIP chiffré"), "Cannot confirm encrypted ZIP"
     record("AES ZIP creation requested",True)
     archive=None
