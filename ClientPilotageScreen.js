@@ -90,7 +90,7 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
     const disabled=direction<0?geometry.page===0:geometry.page>=pages-1;
     return <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}}
       disabled={disabled} onPress={()=>move(direction)}
-      style={{minWidth:44,minHeight:38,alignItems:'center',justifyContent:'center',borderRadius:8,borderWidth:1,borderColor:COLORS.line,opacity:disabled?.32:1}}>
+      style={{minWidth:44,minHeight:38,alignItems:'center',justifyContent:'center',borderRadius:8,borderWidth:1,borderColor:COLORS.line,opacity:disabled ? .32 : 1}}>
       <Text style={{color:COLORS.orangeDark,fontFamily:FONTS.black,fontSize:18}}>{icon}</Text>
     </TouchableOpacity>;
   };
@@ -104,7 +104,7 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
     extraData={geometry.page+':'+leftWidth+':'+cellWidth+':'+end}
     contentContainerStyle={{paddingBottom:28}}
     keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator
-    initialNumToRender={12} maxToRenderPerBatch={10} windowSize={7} removeClippedSubviews={false}
+    initialNumToRender={8} maxToRenderPerBatch={8} windowSize={7} removeClippedSubviews={false}
     renderItem={({item:ligne})=>{
       if(ligne.kind==='columns')return <View style={[frame,{backgroundColor:'#FDFCFA',borderBottomWidth:1}]}>
         {pages>1?<View style={{flexDirection:'row',alignItems:'center',gap:8,padding:8}}>

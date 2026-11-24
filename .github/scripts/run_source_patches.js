@@ -29,6 +29,7 @@ const CONTRACT_CHECKS = [
   ['terrain visit UI data regression', '.github/scripts/test_terrain_visit_ui.js'],
   ['APK export patch compatibility', '.github/scripts/test_visit_export_build_patch.js'],
   ['large-client performance contract', '.github/scripts/check_large_client_performance.js'],
+  ['responsive mobile geometry, scroll and pager contracts', 'tests/mobileLayout.test.mjs'],
   ['runtime responsiveness v3 contract', '.github/scripts/check_runtime_responsiveness_v3.js'],
   ['startup dependency graph contract', '.github/scripts/check_startup_dependency_graph.js'],
   ['database initialization concurrency', '.github/scripts/test_db_initialization.js'],

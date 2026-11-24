@@ -303,7 +303,7 @@ export function VisualPacksSettingsScreen({ visualPack, onVisualPackChanged }) {
   return (
     <View style={{flex:1,minHeight:0}}>
       {labOpen?<ScrollView style={{flex:1}} contentContainerStyle={{paddingBottom:70}}>
-        {topContent}<LabMetraPanel/>
+        {topContent}<LabMetraPanel />
       </ScrollView>:<ParametresScreen topContent={topContent}/>}
 
       <Modal

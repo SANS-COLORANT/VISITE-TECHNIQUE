@@ -32,6 +32,8 @@ test('single vertical pilotage list and header; no competing synchronized list',
  assert.ok(s.includes('ListHeaderComponent={header} ListFooterComponent={footer}'));
  assert.ok(!s.includes('synchronize(rightRef)'));
  assert.ok(!s.includes('synchronize(leftRef)'));
+ assert.match(s,/maxToRenderPerBatch=\{8\}/,'large-client render batch limit');
+ assert.match(s,/initialNumToRender=\{8\}/,'bounded initial mount');
 });
 test('catalogue controls scroll with brand lists and settings header is passed through',()=>{
  const s=source('EquipmentCatalogueBrowser.js'),p=source('ParametresScreen.js'),v=source('visual-packs/runtime/VisualPacksSettingsScreen.js');
