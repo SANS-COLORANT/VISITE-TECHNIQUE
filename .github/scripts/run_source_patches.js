@@ -302,6 +302,7 @@ const JS_SYNTAX_FILES = [
   'photoModeVisitData.js',
   'CreditsModal.js',
   'ReportProgressOverlay.js',
+  'ReportReadyModal.js',
   'rootTabSwipe.js',
   'BottomTabBar.js',
   'MetraDirectoryScreen.js',
