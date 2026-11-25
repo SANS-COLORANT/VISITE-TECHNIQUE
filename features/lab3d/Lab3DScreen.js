@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Modal,
   PanResponder,
@@ -12,6 +11,7 @@ import {
   Vibration,
   View,
 } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from '../../MetraSpinner.js';
 import Svg, { Circle, Line, Polygon, Text as SvgText } from 'react-native-svg';
 import {
   LAB3D_DN,

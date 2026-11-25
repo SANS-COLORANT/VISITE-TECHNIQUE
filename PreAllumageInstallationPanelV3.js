@@ -1,6 +1,7 @@
 /** Pré-allumage V3 : aucun local imposé, chaufferies et équipements ajoutés au fil de la visite. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, SectionList, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Alert, Modal, SectionList, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { getChampsVisite, getControlesVisite } from './db.js';
 import { PreAllumageCompactField } from './PreAllumageCompactField.js';
 import { PreAllumageCompactControl } from './PreAllumageCompactControl.js';

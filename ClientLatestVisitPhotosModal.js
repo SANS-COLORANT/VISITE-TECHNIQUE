@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Keyboard, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { flattenLatestVisitPhotos, getVisitPhotoReference, readPhotoLocalChoice, savePhotoLocalChoice } from './latestVisitPhotosDb.js';

@@ -1,6 +1,7 @@
 /** Itinéraire du client : choisir les sites et locaux à faire (liste de contrôle). */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { COLORS, FONTS, styles } from './styles.js';
 import { getDb } from './db.js';
 import { CvcIcon } from './MetraCvcIcons.js';

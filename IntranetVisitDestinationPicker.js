@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { bindVisitToIntranetTarget, getVisitIntranetBindingOptions } from './intranetVisitBindingDb.js';
 import { syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';

@@ -1,6 +1,7 @@
 /** Informations Pré-allumage métier : saisons, exploitants et rédacteurs sélectionnables. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, ScrollView, SectionList, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Modal, ScrollView, SectionList, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { getChampsVisite, upsertChamp } from './db.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
 import { synchroniserNombreLocauxPreAllumage } from './preAllumageBusinessDb.js';

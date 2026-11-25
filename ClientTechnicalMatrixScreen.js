@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { getClientTechnicalMatrix, getMatrixCellPhotos } from './clientTechnicalMatrix.js';
 import { reserveSeverityLabel } from './reserveSeverity.js';

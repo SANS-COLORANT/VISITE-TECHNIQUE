@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, SectionList, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, SectionList, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { getChampsVisite, getControlesVisite } from './db.js';
 import { DurableChampGenerique } from './DurableChampGenerique.js';
 import { PersistentControleGenerique } from './PersistentControleGenerique.js';

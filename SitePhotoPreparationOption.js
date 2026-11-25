@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Switch, Text, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { COLORS, FONTS } from './styles.js';
 import { loadCachedLatestVisitPhotos, syncLatestVisitPhotosManifest } from './latestVisitPhotosStorage.js';
 import { filterLatestVisitPhotos, photoSummary, formatPhotoBytes } from './latestVisitPhotoModel.js';

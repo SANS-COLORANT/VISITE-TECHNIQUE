@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, ActivityIndicator, Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from '../../MetraSpinner.js';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 

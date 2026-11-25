@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import Svg, { Circle, G, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { COLORS, styles, FONTS } from './styles.js';

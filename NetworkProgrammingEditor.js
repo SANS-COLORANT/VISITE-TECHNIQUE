@@ -3,7 +3,8 @@
  * Les anciens champs pente/T°/programme restent disponibles dans la carte.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import Svg, { Circle, Polyline } from 'react-native-svg';
 import { COLORS, FONTS } from './styles.js';
 import { useDurableAutosave } from './durableAutosave.js';

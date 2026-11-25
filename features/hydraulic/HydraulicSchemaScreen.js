@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, PanResponder, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Alert, Modal, PanResponder, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from '../../MetraSpinner.js';
 import { Svg, Line, Polyline, Circle, Rect } from 'react-native-svg';
 import { COLORS, styles } from './styles.js';
 import { getChampsVisite, upsertChamp } from './db.js';

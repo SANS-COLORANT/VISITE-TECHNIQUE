@@ -1,7 +1,9 @@
 /** Niveau Site -> Locaux : un local ouvre uniquement son historique de visites. */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
+import { SkeletonList } from './Skeleton.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { getDb, uuidv4 } from './db.js';
 import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollOffset } from './navigationMemory.js';
@@ -268,7 +270,7 @@ function SiteLocalsScreen({ route, navigation }) {
         </TouchableOpacity>;
       }}
       ListEmptyComponent={loading
-        ? <View style={{ paddingVertical: 36 }}><ActivityIndicator color={COLORS.orange} /></View>
+        ? <SkeletonList count={4} withTitle={false} />
         : <View style={styles.empty}><EmptyIcon name="local" /><Text style={styles.emptyText}>Aucun local sur ce site.</Text><Text style={styles.emptySub}>Crée un local METRA ou utilise « Locaux Intranet » depuis la fiche du site.</Text></View>}
     />
 

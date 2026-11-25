@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, PanResponder, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, PanResponder, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { COLORS, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { listerMissions } from './missionsDb.js';

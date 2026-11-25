@@ -1,6 +1,7 @@
 /** Écran Visite — pager natif, swipe interactif et panneaux gardés chauds. */
 import React, { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions, Animated, Easing } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, PanResponder, Alert, Keyboard, useWindowDimensions, Animated, Easing } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SWIPE_NEIGHBOUR_OPACITY, SWIPE_NEIGHBOUR_SCALE, rubberBand, settleSpring, shouldStartSwipe, swipeDirection } from './swipeNavigation.js';

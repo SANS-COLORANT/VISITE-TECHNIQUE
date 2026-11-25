@@ -1,6 +1,7 @@
 /** Synthèse patrimoine client 100 % offline, enrichie par le LAB Santé. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Text, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { listerSitesClient } from './db.js';
 import { getStatsSitesPatrimoine } from './patrimoineDb.js';
 import { getLabFeatureEnabled } from './featureSettings.js';

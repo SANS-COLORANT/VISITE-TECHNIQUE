@@ -1,6 +1,7 @@
 /** Écran Paramètres — réserves + catalogue matériel + sécurité des données. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, BackHandler, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, BackHandler, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { COLORS, styles } from './styles.js';
 import { METRA_PLAY_SECURE_BUILD } from './playSecurityRuntime.generated.js';
 import { FONTS } from './styles.js';

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { exporterDernieresVisitesClient } from './clientBatchExport.js';
 import { garantirRacineMetra, obtenirRacineMetra } from './metraStorage.js';

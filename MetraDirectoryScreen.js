@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Keyboard, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { activateTablet, getActivationStatus, syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
 import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory, listImportedApiClients } from './symfonyApiCacheDb.js';

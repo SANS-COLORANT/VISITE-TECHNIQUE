@@ -1,6 +1,7 @@
 /** Informations Pré-allumage compactes : une seule date visible, sans boutons photo inutiles. */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, SectionList, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { SectionList, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { getChampsVisite, upsertChamp } from './db.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
 import { COLORS, styles, FONTS } from './styles.js';

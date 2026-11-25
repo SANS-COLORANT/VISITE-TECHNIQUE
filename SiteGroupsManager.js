@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { creerGroupeSite, definirSiteDansGroupe, listerAppartenancesClient, listerGroupesClient, supprimerGroupeSite } from './siteOrganizationDb.js';
 import { CvcIcon } from './MetraCvcIcons.js';

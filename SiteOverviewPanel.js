@@ -1,6 +1,7 @@
 /** Suivi patrimoine d'un site, indépendant des trames de visite figées. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SkeletonList } from './Skeleton.js';
 import { BrandMark } from './BrandLogo.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
@@ -130,7 +131,7 @@ export function SiteOverviewPanel({ siteId, mode }) {
     } catch (e) { Alert.alert('Remplacement impossible', String(e?.message || e)); }
   };
 
-  if (loading) return <View style={{ paddingVertical: 36 }}><ActivityIndicator color={COLORS.orange} /></View>;
+  if (loading) return <SkeletonList count={3} withTitle={false} />;
 
   if (mode === 'equipements') {
     return <View>

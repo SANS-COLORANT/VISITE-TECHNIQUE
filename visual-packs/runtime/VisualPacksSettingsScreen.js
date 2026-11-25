@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Modal,
   ScrollView,
@@ -8,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from '../../MetraSpinner.js';
 import { COLORS, styles } from '../../styles.js';
 import { ParametresScreen } from '../../ParametresScreen.js';
 import { LabMetraPanel } from '../../LabMetraPanel.js';

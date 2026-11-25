@@ -1,6 +1,7 @@
 /** Conclusion Pré-allumage proposée automatiquement depuis les remarques de la visite. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { getChampsVisite, upsertChamp } from './db.js';
 import { listerRemarquesVisite } from './remarkDb.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';

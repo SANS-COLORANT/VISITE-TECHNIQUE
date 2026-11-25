@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { initialiserPreAllumageModulaire } from './preAllumageModularDb.js';
 import { preparerStructurePreAllumage } from './preAllumageStructureDb.js';
 import { PreAllumageInfoPanelV3 } from './PreAllumageInfoPanelV3.js';

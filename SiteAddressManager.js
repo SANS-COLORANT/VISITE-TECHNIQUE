@@ -1,6 +1,7 @@
 /** Gestion des sites : nom, adresse, groupes, duplication et import Excel. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import * as DocumentPicker from 'expo-document-picker';
 import * as XLSX from 'xlsx';
 import { COLORS, styles, FONTS } from './styles.js';

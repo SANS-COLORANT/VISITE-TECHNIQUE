@@ -1,26 +1,45 @@
 /**
- * Silhouettes de chargement (DA "Verre chaud") : blocs gris chaud qui
- * respirent, à la place d'une roue seule. Animation sur le thread natif.
+ * Silhouettes de chargement (DA "Verre chaud") : blocs gris chaud traversés
+ * par un reflet lumineux, à la place d'une roue seule.
+ * Un seul balayage partagé par tous les blocs à l'écran (une boucle native,
+ * démarrée au premier bloc et arrêtée au dernier), au lieu d'une boucle par bloc.
  */
-import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
-function usePulse() {
-  const v = useRef(new Animated.Value(0.55)).current;
+const sweep = new Animated.Value(0);
+let users = 0;
+let loop = null;
+function useSweep() {
   useEffect(() => {
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(v, { toValue: 1, duration: 650, useNativeDriver: true }),
-      Animated.timing(v, { toValue: 0.55, duration: 650, useNativeDriver: true }),
-    ]));
-    loop.start();
-    return () => loop.stop();
-  }, [v]);
-  return v;
+    users += 1;
+    if (users === 1) {
+      sweep.setValue(0);
+      loop = Animated.loop(Animated.timing(sweep, { toValue: 1, duration: 1300, easing: Easing.inOut(Easing.quad), useNativeDriver: true }));
+      loop.start();
+    }
+    return () => {
+      users -= 1;
+      if (users === 0 && loop) { loop.stop(); loop = null; }
+    };
+  }, []);
+  return sweep;
 }
 
+const SHINE = ['rgba(255,255,255,0)', 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0)'];
+
 export function SkeletonBlock({ width = '100%', height = 14, radius = 8, style }) {
-  const opacity = usePulse();
-  return <Animated.View style={[{ width, height, borderRadius: radius, backgroundColor: 'rgba(22,21,15,0.08)', opacity }, style]} />;
+  const v = useSweep();
+  const [w, setW] = useState(0);
+  const band = Math.max(60, Math.min(160, w * 0.45));
+  const x = v.interpolate({ inputRange: [0, 1], outputRange: [-band, Math.max(w, 1)] });
+  return <View onLayout={(e) => { const next = Math.round(e.nativeEvent.layout.width); if (next !== w) setW(next); }}
+    style={[{ width, height, borderRadius: radius, backgroundColor: 'rgba(22,21,15,0.075)', overflow: 'hidden' }, style]}>
+    {w > 0 ? <Animated.View style={{ position: 'absolute', top: 0, bottom: 0, width: band, transform: [{ translateX: x }] }}>
+      <LinearGradient colors={SHINE} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={{ flex: 1 }} />
+    </Animated.View> : null}
+  </View>;
 }
 
 function CardSkeleton({ lines = 2 }) {

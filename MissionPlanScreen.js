@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import Svg, { Circle, Line, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';

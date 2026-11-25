@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Alert, Animated, BackHandler, FlatList, Modal, PanResponder, Platform, requireNativeComponent, ScrollView, Text, TextInput, TouchableOpacity, UIManager, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, Alert, Animated, BackHandler, FlatList, Modal, PanResponder, Platform, requireNativeComponent, ScrollView, Text, TextInput, TouchableOpacity, UIManager, View, useWindowDimensions } from 'react-native';
+import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { buildMatrixCells, getClientTechnicalMatrix, getMatrixCellPhotos, normAvis } from './clientTechnicalMatrix.js';
