@@ -17,6 +17,7 @@ import { Picto, ACTION_PICTOS } from './MetraPictos.js';
 import { MarqueeText } from './VisitKit.js';
 import { VisitStatusSheet } from './VisitStatusSheet.js';
 import { getVisite, getNote, upsertNote, getDb } from './db.js';
+import { VisitCompleteModal } from './VisitCompleteModal.js';
 import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { recalculerProgressionVisite } from './visitProgressDb.js';
@@ -132,6 +133,9 @@ function VisiteScreen({ route, onBack }) {
   // Capture libre depuis la barre : la photographie reste locale par défaut.
   const [captureLibreEnCours, setCaptureLibreEnCours] = useState(false);
   const [signatureVisible, setSignatureVisible] = useState(false);
+  // Fin de visite animée : 'complete' quand la visite passe à 100 %, 'exported'
+  // après l'export Excel de fin de visite.
+  const [celebration, setCelebration] = useState(null);
   const [signature, setSignature] = useState(null);
   const [apercuEnCours, setApercuEnCours] = useState(false);
   // Onglets en bas, à portée de pouce (Réglages › Affichage terrain).
@@ -163,6 +167,7 @@ function VisiteScreen({ route, onBack }) {
   const desiredRestoreTabRef = useRef(initialTab);
   const tabOrderRef = useRef([]);
   const progressionTimerRef = useRef(null);
+  const lastProgressionRef = useRef(null); // célébrer seulement le passage sous 100 % -> 100 %
   const transitionRef = useRef(false);
   const pagerX = useRef(new Animated.Value(0)).current;
   const preAllumageLocalX = useRef(new Animated.Value(0)).current;
@@ -494,6 +499,7 @@ function VisiteScreen({ route, onBack }) {
         try {
           const { pct: progression, etat } = await recalculerProgressionVisite(db, visiteId, { withStatus: true });
           if (etat) setTabStatus(etat);
+          lastProgressionRef.current = progression;
           setVisite((courante) => {
             const next = courante ? { ...courante, ...v, progression_pct: progression } : { ...v, progression_pct: progression };
             markVisitHot(visiteId, { preview: next, ui: { activeTab: activeTabRef.current } });
@@ -534,6 +540,9 @@ function VisiteScreen({ route, onBack }) {
         const db = await getDb();
         const { pct: progression, etat } = await recalculerProgressionVisite(db, visiteId, { withStatus: true });
         if (etat) setTabStatus(etat);
+        const avant = lastProgressionRef.current;
+        lastProgressionRef.current = progression;
+        if (avant !== null && avant < 100 && progression >= 100) setCelebration('complete');
         setVisite((actuelle) => {
           if (!actuelle) return actuelle;
           const next = { ...actuelle, progression_pct: progression };
@@ -748,7 +757,7 @@ function VisiteScreen({ route, onBack }) {
       Keyboard.dismiss();
       await attendre(180);
       const resultat = await chargerExcelExportModule().exporterEtPartager(visiteId);
-      if (resultat && !resultat.annule) feedback('Export Excel prêt');
+      if (resultat && !resultat.annule) setCelebration('exported');
       if (resultat?.stats?.reseauxSupplementaires > 0) {
         Alert.alert('Export complet', `${resultat.stats.reseauxSupplementaires} réseau(x) supplémentaire(s) ont été placés dans la feuille « RESEAUX COMPLEMENTAIRES » afin de ne perdre aucune donnée.`);
       }
@@ -1002,6 +1011,10 @@ function VisiteScreen({ route, onBack }) {
           charger({ forceCaches: true }).catch(() => {});
         }}
       />
+      <VisitCompleteModal visible={Boolean(celebration)} kind={celebration || 'complete'} visiteId={visiteId}
+        subtitle={[visite?.nom_site, visite?.nom_installation].filter(Boolean).join(' · ')}
+        onClose={() => setCelebration(null)}
+        onFinish={() => { setCelebration(null); setTimeout(menuFinVisite, 250); }} />
       <SignatureSheet visible={signatureVisible} initial={signature} onClose={() => setSignatureVisible(false)} onSave={enregistrerSignature} />
       <Modal visible={anomalieVisible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={() => setAnomalieVisible(false)}><View style={[styles.modalOverlay, { paddingBottom: Math.max(12, modalBottomInset + 12) }]}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Ajouter une anomalie</Text><Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>

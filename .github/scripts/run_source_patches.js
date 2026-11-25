@@ -303,6 +303,7 @@ const JS_SYNTAX_FILES = [
   'CreditsModal.js',
   'ReportProgressOverlay.js',
   'ReportReadyModal.js',
+  'VisitCompleteModal.js',
   'rootTabSwipe.js',
   'BottomTabBar.js',
   'MetraDirectoryScreen.js',

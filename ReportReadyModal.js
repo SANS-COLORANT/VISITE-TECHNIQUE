@@ -57,7 +57,7 @@ function ShareGlyph({ size = 20, color }) {
   </Svg>;
 }
 
-function SuccessBadge({ visible }) {
+export function SuccessBadge({ visible }) {
   const pop = useRef(new Animated.Value(0)).current;
   const ring = useRef(new Animated.Value(0)).current;
   const check = useRef(new Animated.Value(0)).current;
