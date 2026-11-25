@@ -583,12 +583,6 @@ async function exporterUnFormatEdite({datas,config,photosConfig,format,dossier})
   }
 }
 
-// Tags progress events with the document position for grouped exports, so the
-// progress screen can show "Document 2 sur 5" and one overall percentage.
-function avecNumeroDocument(config,doc,docs){
-  if(!config?.onReportProgress||docs<2)return config;
-  return {...config,onReportProgress:d=>config.onReportProgress({...d,doc,docs})};
-}
 
 export async function exporterRapportEdite({ datas, config, photosConfig, format = 'pdf', dossierUri = null }) {
   checkReportCancelled(config);
@@ -625,7 +619,11 @@ export async function exporterRapportsParSiteEdites({ datas, config, photosConfi
       const dossierSite = dossiersParSite === false || !clientNom
         ? dossierClient
         : await dossierRapportsSiteMetra({ clientNom, siteNom, clientId, siteId: siteDatas[0]?.visite?.site_id });
-      resultats.push(await exporterRapportEdite({ datas: siteDatas, config: avecNumeroDocument(siteConfig, numeroDocument, groupes.size), photosConfig, format, dossierUri: dossierSite }));
+      // Progress events carry the document position ("Document 2 sur 5"). Kept
+      // inline: tests evaluate this function on its own.
+      const doc = numeroDocument, docs = groupes.size;
+      const configDoc = docs > 1 && siteConfig.onReportProgress ? { ...siteConfig, onReportProgress: (d) => siteConfig.onReportProgress({ ...d, doc, docs }) } : siteConfig;
+      resultats.push(await exporterRapportEdite({ datas: siteDatas, config: configDoc, photosConfig, format, dossierUri: dossierSite }));
     } catch (error) {
       if(error?.code==='METRA_REPORT_CANCELLED')break;
       erreurs.push({ siteId: siteDatas[0]?.visite?.site_id, siteNom, visiteIds: siteDatas.map((d) => d.visite.id), message: String(error?.message || error) });
@@ -668,7 +666,9 @@ export async function exporterRapportsParLocalEdites({ datas, config, photosConf
       } else if (clientNom) {
         dossier = await dossierRapportsSiteMetra({ clientNom, siteNom, clientId, siteId: localDatas[0]?.visite?.site_id });
       }
-      resultats.push(await exporterRapportEdite({ datas: localDatas, config: avecNumeroDocument(localConfig, numeroDocument, groupes.size), photosConfig, format, dossierUri: dossier }));
+      const doc = numeroDocument, docs = groupes.size;
+      const configDoc = docs > 1 && localConfig.onReportProgress ? { ...localConfig, onReportProgress: (d) => localConfig.onReportProgress({ ...d, doc, docs }) } : localConfig;
+      resultats.push(await exporterRapportEdite({ datas: localDatas, config: configDoc, photosConfig, format, dossierUri: dossier }));
     } catch (error) {
       if(error?.code==='METRA_REPORT_CANCELLED')break;
       erreurs.push({ localId: localDatas[0]?.visite?.installation_id,
