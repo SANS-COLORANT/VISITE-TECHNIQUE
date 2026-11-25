@@ -3,6 +3,7 @@ import { pagesPhotosRapport } from './reportPdfFragments.js';
 import React, { useMemo } from 'react';
 import { FlatList, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
+import { ReportProgressOverlay } from './ReportProgressOverlay.js';
 const DEFAULT_COVER = require('./assets/report/cover-building.png');
 
 const TEXT_LABELS = { compact: 'Petit', normal: 'Normal', large: 'Grand' };
@@ -248,14 +249,7 @@ export function ReportLayoutEditor({
         style={[styles.btnPrimary, { opacity: busy ? 0.55 : 1 }]} disabled={busy} onPress={onGenerate}>
         <Text style={styles.btnPrimaryText}>{busy ? (pdfProgress || 'Génération…') : `Générer ${format === 'pdf' ? 'le PDF' : 'le Word'}`}</Text>
       </TouchableOpacity>
-      {busy&&format==='pdf'?<View style={{marginTop:8,gap:6}}>
-        {pdfDetail?<View accessibilityLabel={pdfProgress} style={{height:6,backgroundColor:'#E5E3DF',borderRadius:4,overflow:'hidden'}}>
-          <View style={{height:6,backgroundColor:COLORS.orange,width:(Math.max(0,Math.min(1,pdfDetail.done/Math.max(1,pdfDetail.total)))*100)+'%'}}/>
-        </View>:null}
-        <TouchableOpacity accessibilityRole="button" onPress={onCancel} style={{alignSelf:'center',padding:8}}>
-          <Text style={{color:COLORS.orangeDark,fontWeight:'700'}}>Annuler la génération</Text>
-        </TouchableOpacity>
-      </View>:null}
+      <ReportProgressOverlay visible={Boolean(busy&&pdfProgress)} format={format} status={pdfProgress} detail={pdfDetail} onCancel={onCancel}/>
     </View>
     <FlatList style={{ flex: 1 }}
     data={items}

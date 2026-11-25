@@ -301,6 +301,7 @@ const JS_SYNTAX_FILES = [
   'MetraCvcIcons.js',
   'photoModeVisitData.js',
   'CreditsModal.js',
+  'ReportProgressOverlay.js',
   'rootTabSwipe.js',
   'BottomTabBar.js',
   'MetraDirectoryScreen.js',

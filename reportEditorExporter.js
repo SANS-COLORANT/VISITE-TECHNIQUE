@@ -549,9 +549,14 @@ async function exporterUnFormatEdite({datas,config,photosConfig,format,dossier})
   const clientCover=datas[0]?.visite?.nom_client||'Rapport';
   checkReportCancelled(config);
   if(format==='word'){
+    config.onReportProgress?.({phase:'Mise en page Word',done:0,total:1});
     const rendered=await construireHtmlEdite(datas,config,photosConfig,'word');
+    checkReportCancelled(config);
     const nom=base+'.doc';
-    return {format,uri:await ecrireWordHtml(dossier,nom,rendered.html),nom};
+    config.onReportProgress?.({phase:'Enregistrement',done:0,total:1});
+    const uri=await ecrireWordHtml(dossier,nom,rendered.html);
+    config.onReportProgress?.({phase:'Terminé',done:1,total:1});
+    return {format,uri,nom};
   }
   let habille=null;
   const started=Date.now(),nom=base+'.pdf';
@@ -578,6 +583,13 @@ async function exporterUnFormatEdite({datas,config,photosConfig,format,dossier})
   }
 }
 
+// Tags progress events with the document position for grouped exports, so the
+// progress screen can show "Document 2 sur 5" and one overall percentage.
+function avecNumeroDocument(config,doc,docs){
+  if(!config?.onReportProgress||docs<2)return config;
+  return {...config,onReportProgress:d=>config.onReportProgress({...d,doc,docs})};
+}
+
 export async function exporterRapportEdite({ datas, config, photosConfig, format = 'pdf', dossierUri = null }) {
   checkReportCancelled(config);
   const clientNom = datas?.[0]?.visite?.nom_client || null;
@@ -600,8 +612,10 @@ export async function exporterRapportsParSiteEdites({ datas, config, photosConfi
   }
   const resultats = [];
   const erreurs = [];
+  let numeroDocument = 0;
   for (const siteDatas of groupes.values()) {
     if(config.shouldCancel?.())break;
+    numeroDocument += 1;
     const visiteId = siteDatas[0]?.visite?.id;
     const siteConfig = config.coverVisiteId && !siteDatas.some((data) => data.visite.id === config.coverVisiteId)
       ? { ...config, coverUri: null, coverLabel: 'Image standard METRA', coverVisiteId: null }
@@ -611,7 +625,7 @@ export async function exporterRapportsParSiteEdites({ datas, config, photosConfi
       const dossierSite = dossiersParSite === false || !clientNom
         ? dossierClient
         : await dossierRapportsSiteMetra({ clientNom, siteNom, clientId, siteId: siteDatas[0]?.visite?.site_id });
-      resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossierSite }));
+      resultats.push(await exporterRapportEdite({ datas: siteDatas, config: avecNumeroDocument(siteConfig, numeroDocument, groupes.size), photosConfig, format, dossierUri: dossierSite }));
     } catch (error) {
       if(error?.code==='METRA_REPORT_CANCELLED')break;
       erreurs.push({ siteId: siteDatas[0]?.visite?.site_id, siteNom, visiteIds: siteDatas.map((d) => d.visite.id), message: String(error?.message || error) });
@@ -636,8 +650,10 @@ export async function exporterRapportsParLocalEdites({ datas, config, photosConf
 
   const resultats = [];
   const erreurs = [];
+  let numeroDocument = 0;
   for (const localDatas of groupes.values()) {
     if(config.shouldCancel?.())break;
+    numeroDocument += 1;
     const visiteId = localDatas[0]?.visite?.id;
     const localConfig = config.coverVisiteId && config.coverVisiteId !== visiteId
       ? { ...config, coverUri: null, coverLabel: 'Image standard METRA', coverVisiteId: null }
@@ -652,7 +668,7 @@ export async function exporterRapportsParLocalEdites({ datas, config, photosConf
       } else if (clientNom) {
         dossier = await dossierRapportsSiteMetra({ clientNom, siteNom, clientId, siteId: localDatas[0]?.visite?.site_id });
       }
-      resultats.push(await exporterRapportEdite({ datas: localDatas, config: localConfig, photosConfig, format, dossierUri: dossier }));
+      resultats.push(await exporterRapportEdite({ datas: localDatas, config: avecNumeroDocument(localConfig, numeroDocument, groupes.size), photosConfig, format, dossierUri: dossier }));
     } catch (error) {
       if(error?.code==='METRA_REPORT_CANCELLED')break;
       erreurs.push({ localId: localDatas[0]?.visite?.installation_id,
