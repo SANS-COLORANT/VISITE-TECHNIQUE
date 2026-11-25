@@ -7,6 +7,7 @@ import { getDb } from './db.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { ajouterCiblesTournee, listerTourneeClient, retirerCiblesTournee, retirerCiblesFaites } from './tourneeDb.js';
+import { EmptyState } from './EmptyState.js';
 
 const keySite = (siteId) => `s:${siteId}`;
 const keyLocal = (siteId, installationId) => `i:${siteId}:${installationId}`;
@@ -136,7 +137,7 @@ export function ClientTourneeModal({ visible, clientId, sites = [], onClose, onC
               {ouvertIci ? locaux.map((l) => <Case key={l.id} indent={30} on={choix.has(keyLocal(item.id, l.id))} label={l.nom || 'Local'} onPress={() => basculer(keyLocal(item.id, l.id))} />) : null}
             </View>;
           }}
-          ListEmptyComponent={<Text style={{ color: COLORS.muted, paddingVertical: 14 }}>Aucun site.</Text>}
+          ListEmptyComponent={<EmptyState compact icon="map" title="Aucun site." />}
         />}
         <Text style={{ marginTop: 8, fontSize: 12, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft }}>{nbChoisis} site{nbChoisis > 1 ? 's' : ''}{nbLocaux ? ` · ${nbLocaux} local${nbLocaux > 1 ? 'aux' : ''}` : ''} dans l’itinéraire</Text>
         <View style={styles.modalActions}>

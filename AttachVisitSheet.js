@@ -12,6 +12,7 @@ import { CvcIcon } from './MetraCvcIcons.js';
 import { IconOrb } from './premiumChrome.js';
 import { COLORS, FONTS } from './styles.js';
 import { listerSitesRattachement, rattacherVisiteRapide, rechercherClientsRattachement } from './quickVisitDb.js';
+import { EmptyState } from './EmptyState.js';
 
 const NEW_SITE = '__nouveau_site__';
 
@@ -94,7 +95,7 @@ function AttachVisitSheet({ visible, visiteId, nomSiteActuel = '', onClose, onAt
               keyExtractor={(c) => c.id}
               keyboardShouldPersistTaps="handled"
               style={{ maxHeight: 330 }}
-              ListEmptyComponent={!loading ? <Text style={s.empty}>Aucun client trouvé sur cet appareil.</Text> : null}
+              ListEmptyComponent={!loading ? <EmptyState compact icon="building" title="Aucun client trouvé sur cet appareil." /> : null}
               renderItem={({ item }) => (
                 <TouchableOpacity activeOpacity={0.85} onPress={() => choisirClient(item)} style={s.row}>
                   <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={34}><CvcIcon name="local" size={17} color={COLORS.orangeDark} /></IconOrb>

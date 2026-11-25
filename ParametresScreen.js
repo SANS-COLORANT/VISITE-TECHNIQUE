@@ -16,6 +16,7 @@ import { ensureEquipmentCatalogReady } from './database/index.js';
 import { ButtonGlow } from './ButtonGlow.js';
 
 import { getPrefSync, setPrefSync, PREFS } from './uiPrefs.js';
+import { EmptyIcon } from './EmptyState.js';
 
 // Charger les modules lourds uniquement lors de l'ouverture de leur onglet.
 function EquipmentCatalogueBrowser(props) {
@@ -431,7 +432,7 @@ function BibliothequeReserves(){
         {reservesErreur?<View style={{padding:12,backgroundColor:'#FFF4F2',borderRadius:12,marginBottom:10}}><Text style={{color:COLORS.red}}>Réserves indisponibles : {reservesErreur}</Text><TouchableOpacity onPress={charger} style={{padding:10}}><Text style={{color:COLORS.orangeDark}}>Réessayer (aucune donnée supprimée)</Text></TouchableOpacity></View>:null}
         <TextInput style={[styles.input,{marginBottom:12,backgroundColor:COLORS.white}]} value={recherche} onChangeText={setRecherche} placeholder="Rechercher une réserve, un poste, une prestation…" returnKeyType="search" />
       </View>}
-      ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>{recherche?'Aucune réserve trouvée':'Aucune réserve enregistrée'}</Text><Text style={styles.emptySub}>{recherche?'Essaie un autre mot-clé.':'Ajoute une réserve pour la retrouver ensuite pendant les visites.'}</Text></View>}
+      ListEmptyComponent={<View style={styles.empty}><EmptyIcon name={recherche?'search':'remark'} /><Text style={styles.emptyText}>{recherche?'Aucune réserve trouvée':'Aucune réserve enregistrée'}</Text><Text style={styles.emptySub}>{recherche?'Essaie un autre mot-clé.':'Ajoute une réserve pour la retrouver ensuite pendant les visites.'}</Text></View>}
       renderItem={({item})=>{
         const meta=[item.poste,item.delai?`${item.delai} mois`:null,item.prix!=null?`${item.prix} € HT`:null].filter(Boolean).join(' · ');
         return <TouchableOpacity style={[styles.card,{alignItems:'flex-start'}]} activeOpacity={.7} onPress={()=>ouvrirEdition(item)}>

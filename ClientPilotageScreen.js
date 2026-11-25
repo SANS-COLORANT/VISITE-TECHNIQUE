@@ -14,6 +14,7 @@ import { ButtonGlow } from './ButtonGlow.js';
 import { SkeletonList } from './Skeleton.js';
 import { buildPilotageCanvasModel } from './pilotageCanvasModel.js';
 import { clampPilotageZoom, clampPilotageOffset, getPilotagePanGeometry, visiblePilotageColumns, rescalePilotageOffset, fitPilotageZoom, PILOTAGE_ZOOM_MIN, PILOTAGE_ZOOM_MAX } from './pilotageDensity.js';
+import { EmptyState } from './EmptyState.js';
 
 const STATE = {
   green: { bg: '#E8F5E9', border: '#2E7D32', text: '#1B5E20', symbol: '✓' },
@@ -173,7 +174,7 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
     onLayout={e=>{const w=Math.round(e.nativeEvent.layout.width);setViewport(v=>v===w?v:w);}}
     data={rows} keyExtractor={item=>item.key}
     ListHeaderComponent={header} ListFooterComponent={footer}
-    ListEmptyComponent={<View style={{marginHorizontal:14,padding:20,backgroundColor:'#fff'}}><Text style={{textAlign:'center',color:COLORS.muted}}>Aucun constat ne correspond aux filtres.</Text></View>}
+    ListEmptyComponent={<EmptyState compact icon="search" title="Aucun constat ne correspond aux filtres." message="Élargis ou retire un filtre pour revoir les constats." />}
     stickyHeaderIndices={rows.length?[1]:[]}
     extraData={labelMode+':'+zoom+':'+leftWidth+':'+cellWidth+':'+range.start+':'+range.end}
     contentContainerStyle={{paddingBottom:28}}

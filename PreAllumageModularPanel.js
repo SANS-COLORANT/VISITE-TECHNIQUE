@@ -22,6 +22,7 @@ import {
   supprimerLocalPreAllumage,
   supprimerRubriquePreAllumage,
 } from './preAllumageModularDb.js';
+import { EmptyState } from './EmptyState.js';
 
 function mapChamps(rows) {
   return Object.fromEntries((rows || []).map((r) => [`${r.section_code}||${r.cle}`, r.valeur]));
@@ -156,7 +157,7 @@ export function PreAllumageModularPanel({ visiteId, panelId, onSaved }) {
         {item.field.type === 'controle' ? (editionStructure ? <SaisieNom value={item.field.displayLabel} onSave={async (nom) => { await renommerChampPreAllumage(item.field.modularFieldId, nom); await recharger(); onSaved?.(); }} style={[styles.fieldLabel, { borderBottomWidth: 1, borderBottomColor: COLORS.line, marginBottom: 8, paddingVertical: 4 }]} /> : null) : null}
         {item.field.type === 'champ' ? <DurableChampGenerique visiteId={visiteId} sectionCode={section.sectionCode} field={{ ...item.field, renamable: editionStructure }} valeurInitiale={champsMap[item.key]} displayLabel={item.field.displayLabel} onRename={editionStructure ? async (nom) => { await renommerChampPreAllumage(item.field.modularFieldId, nom); await recharger(); onSaved?.(); } : null} onSaved={(valeur) => { setChampsMap((m) => ({ ...m, [item.key]: valeur })); onSaved?.(); }} /> : item.field.presets ? <PresetControleGenerique visiteId={visiteId} sectionCode={section.sectionCode} field={item.field} displayLabel={item.field.displayLabel} etatInitial={controlesMap[item.key]} onEtatChange={(patch) => setControlesMap((m) => ({ ...m, [item.key]: { ...(m[item.key] || {}), ...patch } }))} onSaved={onSaved} /> : <PersistentControleGenerique visiteId={visiteId} sectionCode={section.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onSaved={onSaved} />}
       </View>}
-      ListEmptyComponent={<Text style={{ color: COLORS.inkSoft, textAlign: 'center', padding: 24 }}>Aucune rubrique. Activez « Modifier » pour ajouter un local ou une rubrique.</Text>}
+      ListEmptyComponent={<EmptyState compact icon="note" title="Aucune rubrique." message="Activez « Modifier » pour ajouter un local ou une rubrique." />}
       contentContainerStyle={styles.panelContent}
       keyboardShouldPersistTaps="handled"
       stickySectionHeadersEnabled={false}

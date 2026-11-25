@@ -11,6 +11,7 @@ import {
 } from './missionReportDb.js';
 import { exporterRapportMissionDocx, exporterRapportMissionPdf } from './missionReportExporter.js';
 import { ButtonGlow } from './ButtonGlow.js';
+import { EmptyState } from './EmptyState.js';
 
 function parseBlocks(section) {
   try {
@@ -165,7 +166,7 @@ export function MissionReportScreen({ navigation, route }) {
           </View>
         </View>;
       }}
-      ListEmptyComponent={<Text style={{ color: COLORS.muted }}>Aucune section. Utilisez « Actualiser les données ».</Text>}
+      ListEmptyComponent={<EmptyState compact icon="document" title="Aucune section." message="Utilisez « Actualiser les données »." />}
     />
 
     <Modal visible={!!editing} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
