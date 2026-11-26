@@ -30,6 +30,8 @@ const importFile = read('missionExcelImport.js');
 const excelSchema = read('missionExcelSchema.js');
 const recipes = read('missionRecipes.js');
 const missionScreen = read('MissionScreen.js');
+// Fiche Mission modulable : l'écran assemble des blocs rendus dans MissionSheetBlocks.js.
+const missionSheet = missionScreen + read('MissionSheetBlocks.js') + read('MissionSheetSheets.js');
 const fieldPlaybooks = read('missionFieldPlaybooks.js');
 const reportRecipes = read('missionReportRecipes.js');
 const visitAutofill = read('missionVisitAutofillDb.js');
@@ -146,7 +148,7 @@ requireText(read('missionVisitMemoryDb.js'), 'chargerMemoireVisiteMission', 'pre
 requireText(read('MissionVisitScreen.js'), 'MÉMOIRE · VISITE PRÉCÉDENTE', 'previous visit summary UX');
 requireText(read('MissionVisitScreen.js'), 'REPRENDRE', 'explicit one-tap reuse of previous value');
 requireText(read('MissionVisitScreen.js'), 'METRA ne les recopie jamais automatiquement', 'no stale auto-copy rule');
-requireText(read('MissionScreen.js'), 'Parcours recommandé · {playbook.label}', 'mission-specific dossier guidance');
+requireText(missionSheet, 'Parcours recommandé · {playbook.label}', 'mission-specific dossier guidance');
 requireText(reportRecipes, 'getMissionReportRecipe', 'mission-specific report recipe API');
 requireText(read('missionReportDb.js'), "key: 'inventaire'", 'automatic inventory report section');
 requireText(read('missionReportDb.js'), "key: 'architecture'", 'automatic technical architecture report section');
@@ -205,7 +207,14 @@ requireText(read('missionClientExcelExport.js'), 'preparerSyntheseActionsMission
 requireText(read('missionClientExcelExport.js'), "'04_Reserves'", 'dedicated reserve worksheet');
 requireText(read('missionClientExcelExport.js'), "'05_Inventaire'", 'client inventory worksheet');
 requireText(read('missionClientExcelExport.js'), "'06_Mesures'", 'client measures worksheet');
-requireText(read('MissionScreen.js'), 'Excel client simplifié', 'direct client Excel export UX');
+requireText(missionSheet, 'Excel client simplifié', 'direct client Excel export UX');
+// Fiche Mission modulable (docs/MISSIONS.md § Fiche Mission modulable).
+requireText(missionScreen, 'resolveSheetLayout', 'Mission sheet layout inherits mission → type → family → factory');
+requireText(missionScreen, 'listerReprisesMissions', 'Mission sheet offers one-tap resume of the current visit');
+requireText(missionSheet, 'Déplacer « ${label} » vers…', 'Mission sheet offers a single-pointer alternative to drag and drop');
+requireText(read('missionSheetStore.js'), "from './uiPrefs.js'", 'Mission sheet layouts live in UI preferences, never in the business database');
+requireText(read('MissionsHomeScreen.js'), 'Reprendre la visite', 'Missions home resumes the last visit in one tap');
+if (/from ['"][^'"]*intranet[^'"]*['"]|require\(['"][^'"]*intranet/i.test(missionSheet + read('missionSheetQueries.js') + read('missionSheetLayout.js') + read('missionSheetDb.js'))) throw new Error('Mission sheet must not import Intranet modules');
 requireText(read('MissionActionsScreen.js'), 'Synthèse Excel', 'direct actions summary export UX');
 requireText(app, "MissionSubjects", 'persistent subject history route');
 requireText(read('MissionSubjectsScreen.js'), 'Sujets · constats · décisions', 'subject timeline workspace');

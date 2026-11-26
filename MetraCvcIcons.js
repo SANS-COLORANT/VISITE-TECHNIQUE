@@ -283,6 +283,78 @@ function CvcIcon({ name, size = 36, color = '#10384B', strokeWidth = 1.9 }) {
       <Polyline points="9,14 12,17 19,10" />
       <Line x1="10" y1="21" x2="18" y2="21" />
     </G>;
+  } else if (key === 'star' || key === 'pin') {
+    body = <G {...p}><Path d="M14 4.6l2.8 5.8 6.4.9-4.6 4.5 1.1 6.4L14 19.2l-5.7 3 1.1-6.4-4.6-4.5 6.4-.9Z" /></G>;
+  } else if (key === 'star-filled' || key === 'pinned') {
+    body = <G {...p}><Path d="M14 4.6l2.8 5.8 6.4.9-4.6 4.5 1.1 6.4L14 19.2l-5.7 3 1.1-6.4-4.6-4.5 6.4-.9Z" fill={color} /></G>;
+  } else if (key === 'eye-off' || key === 'hide') {
+    body = <G {...p}>
+      <Path d="M3.5 14s3.8-6.5 10.5-6.5S24.5 14 24.5 14 20.7 20.5 14 20.5 3.5 14 3.5 14Z" />
+      <Circle cx="14" cy="14" r="3.2" />
+      <Line x1="5.5" y1="22.5" x2="22.5" y2="5.5" />
+    </G>;
+  } else if (key === 'lock') {
+    body = <G {...p}>
+      <Rect x="7" y="12.5" width="14" height="10.5" rx="2.6" />
+      <Path d="M10 12.5V9.6a4 4 0 0 1 8 0v2.9" />
+      <Line x1="14" y1="16.4" x2="14" y2="19" />
+    </G>;
+  } else if (key === 'layout' || key === 'customize') {
+    body = <G {...p}>
+      <Rect x="4.8" y="4.8" width="8.2" height="8.2" rx="2" />
+      <Rect x="15" y="4.8" width="8.2" height="5.2" rx="2" />
+      <Rect x="15" y="12" width="8.2" height="11.2" rx="2" />
+      <Rect x="4.8" y="15" width="8.2" height="8.2" rx="2" />
+    </G>;
+  } else if (key === 'play' || key === 'resume') {
+    body = <G {...p}><Circle cx="14" cy="14" r="10" /><Path d="M12 9.8v8.4l6.4-4.2Z" /></G>;
+  } else if (key === 'upload' || key === 'import') {
+    body = <G {...p}>
+      <Path d="M14 18V5.5" />
+      <Polyline points="9,10.5 14,5.5 19,10.5" />
+      <Path d="M5.5 18.5v2.8a2.2 2.2 0 0 0 2.2 2.2h12.6a2.2 2.2 0 0 0 2.2-2.2v-2.8" />
+    </G>;
+  } else if (key === 'calculator') {
+    body = <G {...p}>
+      <Rect x="6.5" y="4" width="15" height="20" rx="2.6" />
+      <Rect x="9.4" y="7" width="9.2" height="4" rx="1" />
+      <Circle cx="10.6" cy="15" r="0.9" fill={color} stroke="none" />
+      <Circle cx="14" cy="15" r="0.9" fill={color} stroke="none" />
+      <Circle cx="17.4" cy="15" r="0.9" fill={color} stroke="none" />
+      <Circle cx="10.6" cy="19.2" r="0.9" fill={color} stroke="none" />
+      <Circle cx="14" cy="19.2" r="0.9" fill={color} stroke="none" />
+      <Circle cx="17.4" cy="19.2" r="0.9" fill={color} stroke="none" />
+    </G>;
+  } else if (key === 'expand' || key === 'detailed') {
+    body = <G {...p}><Path d="M5 10.5V5h5.5" /><Path d="M23 10.5V5h-5.5" /><Path d="M5 17.5V23h5.5" /><Path d="M23 17.5V23h-5.5" /></G>;
+  } else if (key === 'collapse' || key === 'compact') {
+    body = <G {...p}><Path d="M10.5 5v5.5H5" /><Path d="M17.5 5v5.5H23" /><Path d="M10.5 23v-5.5H5" /><Path d="M17.5 23v-5.5H23" /></G>;
+  } else if (key === 'flag' || key === 'action') {
+    body = <G {...p}><Line x1="7" y1="4.5" x2="7" y2="24" /><Path d="M7 5.5h12.6l-2.7 4.3 2.7 4.3H7" /></G>;
+  } else if (key === 'route' || key === 'journey') {
+    body = <G {...p}>
+      <Circle cx="7" cy="7" r="2.4" />
+      <Circle cx="21" cy="21" r="2.4" />
+      <Path d="M9.4 7H18a3.5 3.5 0 0 1 0 7h-8a3.5 3.5 0 0 0 0 7h8.6" />
+    </G>;
+  } else if (key === 'chart' || key === 'stats') {
+    body = <G {...p}>
+      <Line x1="4.5" y1="23.5" x2="23.5" y2="23.5" />
+      <Rect x="7" y="14" width="3.4" height="9.5" rx="0.9" />
+      <Rect x="12.3" y="9" width="3.4" height="14.5" rx="0.9" />
+      <Rect x="17.6" y="5" width="3.4" height="18.5" rx="0.9" />
+    </G>;
+  } else if (key === 'list') {
+    body = <G {...p}>
+      <Line x1="10.5" y1="8" x2="23" y2="8" />
+      <Line x1="10.5" y1="14" x2="23" y2="14" />
+      <Line x1="10.5" y1="20" x2="23" y2="20" />
+      <Circle cx="6" cy="8" r="1.2" fill={color} stroke="none" />
+      <Circle cx="6" cy="14" r="1.2" fill={color} stroke="none" />
+      <Circle cx="6" cy="20" r="1.2" fill={color} stroke="none" />
+    </G>;
+  } else if (key === 'tick' || key === 'done') {
+    body = <G {...p}><Polyline points="6,14.5 11.5,20 22,8.5" /></G>;
   } else {
     body = <G {...p}><Circle cx="14" cy="14" r="10" /><Path d="M9 14h10M14 9v10" /></G>;
   }

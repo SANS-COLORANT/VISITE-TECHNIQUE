@@ -236,6 +236,17 @@ Cela doit permettre progressivement :
 
 Les traitements lourds doivent rester chargés à la demande afin de préserver la fluidité tablette.
 
+## Fiche Mission modulable
+
+La fiche Mission (`MissionScreen.js`) est une pile de blocs déclarés une seule fois dans `missionSheetRegistry.js` : en-tête et action principale (verrouillés, toujours en tête), puis À traiter, Visites, Progression, Réserves, Avancement multi-sites, Outils épinglés, Mesures récentes, Documents attendus, Indicateurs et Livrables. Un bloc vide se replie en une ligne qui propose l'action pour le remplir.
+
+- **Reprise en un geste** : l'action principale reprend la visite brouillon / en cours la plus récente (`listerReprisesMissions`, `missionSheetQueries.js`) ; l'accueil Missions propose la même carte « Reprendre la visite ».
+- **Personnaliser** : bouton de l'en-tête ou appui long sur un titre de bloc. Monter, descendre, compact / détaillé, masquer, « Déplacer vers… » ; aucun glisser-déposer obligatoire (WCAG 2.5.7). Dispositions prêtes Terrain, Bureau, Minimal ; réglage d'usine ; mode gants (cibles de 56 dp).
+- **Héritage** : Mission → type → famille → réglage d'usine (`resolveSheetLayout`). « Terminer » enregistre pour cette Mission ou pour toutes les Missions du type ; « Annuler » pendant 6 s. Un bloc ajouté dans une version ultérieure prend sa place par défaut sans réinitialiser la disposition.
+- **Outils** : les 26 outils restent accessibles depuis « Tous les outils » (recherche, groupes, étoile pour épingler, 8 au maximum). Les épingles par défaut suivent le parcours recommandé du type. Un outil ouvert 3 fois en 7 jours est **proposé** à l'épinglage (Épingler / Plus tard / Ne plus proposer) : rien ne bouge sans accord.
+- **Stockage** : dispositions, usages et mode gants vivent dans la base de préférences d'interface (`uiPrefs.js`, via `missionSheetStore.js`) : aucune migration de la base métier, lecture synchrone, jamais exportés dans un Excel, un ZIP ou un rapport.
+- **Tests** : `tests/missionSheetLayout.test.mjs` (37 types, héritage, édition, suggestions) et `tests/missionSheetDb.test.mjs` (requêtes sur base migrée complète, préférences).
+
 ## Validation minimale
 
 Avant fusion d'une évolution Missions, vérifier au minimum :

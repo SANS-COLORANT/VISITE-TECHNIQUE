@@ -4,6 +4,8 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const CONTRACT_CHECKS = [
+  ['modular Mission sheet: blocks, inheritance, editing, pin suggestions', 'tests/missionSheetLayout.test.mjs'],
+  ['modular Mission sheet: SQLite reads and layout preferences', 'tests/missionSheetDb.test.mjs'],
   ['Play encrypted full backup and rollback safety', 'tests/backupPlaySecure.test.mjs'],
   ['long-press regulatory help sheets', '.github/scripts/test_aide_reglementaire.js'],
   ['equipment screen: exceptions, swipe, + menu', '.github/scripts/check_equipment_exception_ui.js'],
@@ -225,6 +227,15 @@ const JS_SYNTAX_FILES = [
   'MissionsHomeScreen.js',
   'MissionCreateScreen.js',
   'MissionScreen.js',
+  'MissionSheetBlocks.js',
+  'MissionSheetSheets.js',
+  'missionSheetUi.js',
+  'missionSheetRegistry.js',
+  'missionSheetLayout.js',
+  'missionSheetPrefs.js',
+  'missionSheetStore.js',
+  'missionSheetQueries.js',
+  'missionSheetDb.js',
   'MissionVisitScreen.js',
   'MissionReportScreen.js',
   'MissionTechnicalGraphScreen.js',
