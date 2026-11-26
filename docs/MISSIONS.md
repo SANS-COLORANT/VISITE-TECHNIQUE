@@ -247,6 +247,12 @@ La fiche Mission (`MissionScreen.js`) est une pile de blocs déclarés une seule
 - **Stockage** : dispositions, usages et mode gants vivent dans la base de préférences d'interface (`uiPrefs.js`, via `missionSheetStore.js`) : aucune migration de la base métier, lecture synchrone, jamais exportés dans un Excel, un ZIP ou un rapport.
 - **Tests** : `tests/missionSheetLayout.test.mjs` (37 types, héritage, édition, suggestions) et `tests/missionSheetDb.test.mjs` (requêtes sur base migrée complète, préférences).
 
+## Missions à la carte
+
+- **Briques** : chaque Mission part des outils de son type (`getMissionCapabilities`) puis peut **ajouter** un outil d'un autre type ou **retirer** ceux qu'elle n'utilise pas (« Tous les outils » › « Ajouter ou retirer des briques »). Seule la différence est stockée dans `missions.modules_json` (migration 052, additive) ; une brique retirée disparaît de la fiche, des outils et des épingles, ses données restent en base. La colonne suit l'Excel complet et le ZIP (export `SELECT *`, import par colonnes connues).
+- **Modèles** : « Enregistrer comme modèle » (Personnaliser › Ajouter et régler) garde type, briques et disposition dans `mission_models`. À la création, « Partir d'un de mes modèles » applique le tout ; les données d'une Mission ne sont jamais copiées.
+- Tests : `tests/missionModules.test.mjs`.
+
 ## Validation minimale
 
 Avant fusion d'une évolution Missions, vérifier au minimum :

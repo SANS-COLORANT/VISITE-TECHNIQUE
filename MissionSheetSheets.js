@@ -22,12 +22,13 @@ import {
   SHEET_TOOLS,
 } from './missionSheetRegistry.js';
 import { SHEET_TYPE, SheetButton, SheetChip, SheetIconButton, SheetRow, StatusPill, useSheetErgo } from './missionSheetUi.js';
+import { isMissionModuleOn, missionModuleState } from './missionModules.js';
 import { cleanActionLabel, isOverdue, pointMeta, POINT_TYPE_BY_KEY, VISIT_STATUS, visitMeta, visitTitle } from './MissionSheetBlocks.js';
 
 const normalize = (text) => String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** Tous les outils, groupés, avec recherche et étoile pour épingler. */
-export function AllToolsSheet({ visible, onClose, availableTools, pinnedTools, onOpenTool, onTogglePin }) {
+export function AllToolsSheet({ visible, onClose, availableTools, pinnedTools, onOpenTool, onTogglePin, onManageModules }) {
   const [query, setQuery] = useState('');
   useEffect(() => { if (!visible) setQuery(''); }, [visible]);
   const available = useMemo(() => new Set(availableTools), [availableTools]);
@@ -41,6 +42,7 @@ export function AllToolsSheet({ visible, onClose, availableTools, pinnedTools, o
         <TextInput value={query} onChangeText={setQuery} placeholder="Rechercher un outil" placeholderTextColor={COLORS.inkFaint} style={s.searchInput} accessibilityLabel="Rechercher un outil" returnKeyType="search" />
         {query ? <TouchableOpacity accessibilityLabel="Effacer la recherche" onPress={() => setQuery('')} style={s.clear}><CvcIcon name="close" size={16} color={COLORS.inkSoft} strokeWidth={2.2} /></TouchableOpacity> : null}
       </View>
+      {onManageModules && !q ? <SheetRow icon="layout" title="Ajouter ou retirer des briques" meta="Prends un outil d’un autre type de Mission, ou retire ceux qui ne servent pas." onPress={onManageModules} last /> : null}
       {SHEET_TOOL_GROUPS.map((group) => {
         const items = tools.filter((tool) => tool.group === group.key);
         if (!items.length) return null;
@@ -176,10 +178,14 @@ export function VisitsListSheet({ visible, onClose, visits, sitesById, onOpenVis
 }
 
 /** Galerie : blocs masqués à remettre, dispositions prêtes, mode gants, réglages. */
-export function CustomizeSheet({ visible, onClose, hidden, onShowBlock, onApplyPreset, onFactory, onForgetMission, hasMissionLayout, hasTypeLayout, onForgetType, typeLabel, gloves, onToggleGloves }) {
+export function CustomizeSheet({ visible, onClose, modulesSummary, onManageModules, onSaveModel, hidden, onShowBlock, onApplyPreset, onFactory, onForgetMission, hasMissionLayout, hasTypeLayout, onForgetType, typeLabel, gloves, onToggleGloves }) {
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Ajouter et régler" subtitle="Rien n’est supprimé : un bloc masqué se remet en un geste.">
-      <Text style={SHEET_TYPE.label}>Blocs masqués</Text>
+      <Text style={SHEET_TYPE.label}>Mission à la carte</Text>
+      <SheetRow icon="tools" title="Briques de la Mission" meta={modulesSummary} onPress={onManageModules} />
+      <SheetRow icon="copy" title="Enregistrer comme modèle" meta="Type, briques et disposition : pour créer les prochaines Missions en un geste." onPress={onSaveModel} last />
+
+      <Text style={[SHEET_TYPE.label, { marginTop: 18 }]}>Blocs masqués</Text>
       {hidden.length ? hidden.map((key, index) => {
         const block = SHEET_BLOCK_BY_KEY[key];
         if (!block) return null;
@@ -257,6 +263,72 @@ export function DeliverablesSheet({ visible, onClose, onExportFull, onImport, on
       <SheetRow icon="document" title="Rapport Word / PDF" meta="Éditer puis générer le rapport" onPress={onReport} />
       <SheetRow icon="export" title={busy.full ? 'Export en cours…' : 'Excel complet'} meta="Toutes les feuilles, réimportable dans METRA" onPress={busy.full ? null : onExportFull} />
       <SheetRow icon="upload" title={busy.import ? 'Import en cours…' : 'Importer un Excel'} meta="Classeur METRA ou classeur externe" onPress={busy.import ? null : onImport} last />
+    </BottomSheet>
+  );
+}
+
+/** Briques de la Mission : prendre un outil ailleurs, retirer ceux qui ne servent pas. */
+export function ModulesSheet({ visible, onClose, baseCapabilities, modules, onToggle, typeLabel }) {
+  return (
+    <BottomSheet visible={visible} onClose={onClose} title="Briques de la Mission" subtitle={`Base : ${typeLabel || 'type de Mission'}. Une brique retirée garde ses données.`}>
+      {SHEET_TOOL_GROUPS.map((group) => {
+        const items = SHEET_TOOLS.filter((tool) => tool.group === group.key);
+        return (
+          <View key={group.key} style={{ marginTop: 10 }}>
+            <Text style={SHEET_TYPE.label}>{group.label}</Text>
+            {items.map((tool, index) => {
+              const state = missionModuleState(tool.key, baseCapabilities, modules);
+              const on = isMissionModuleOn(state);
+              const pill = state === 'added' ? ['Ajoutée', 'accent'] : state === 'removed' ? ['Retirée', 'warning'] : state === 'type' ? ['Du type', 'neutral'] : null;
+              return (
+                <SheetRow
+                  key={tool.key}
+                  icon={tool.icon}
+                  iconTone={on ? 'accent' : 'neutral'}
+                  title={tool.title}
+                  meta={tool.subtitle}
+                  last={index === items.length - 1}
+                  right={(
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      {pill ? <StatusPill label={pill[0]} tone={pill[1]} /> : null}
+                      <SheetIconButton icon={on ? 'tick' : 'plus'} filled={on} tone={on ? 'accent' : 'neutral'} label={on ? `Retirer la brique ${tool.title}` : `Ajouter la brique ${tool.title}`} onPress={() => onToggle(tool.key, !on)} />
+                    </View>
+                  )}
+                />
+              );
+            })}
+          </View>
+        );
+      })}
+    </BottomSheet>
+  );
+}
+
+/** Enregistrer la Mission comme modèle réutilisable. */
+export function SaveModelSheet({ visible, onClose, defaultLabel, summary, saving, onSave }) {
+  const ergo = useSheetErgo();
+  const [label, setLabel] = useState('');
+  const [description, setDescription] = useState('');
+  useEffect(() => { if (visible) { setLabel(defaultLabel || ''); setDescription(''); } }, [visible, defaultLabel]);
+  const canSave = label.trim().length > 0 && !saving;
+  return (
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title="Enregistrer comme modèle"
+      subtitle={summary}
+      footer={(
+        <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: !canSave }} disabled={!canSave} onPress={() => onSave({ label: label.trim(), description: description.trim() })} style={[s.save, { minHeight: ergo.target + 4, opacity: canSave ? 1 : 0.45 }]}>
+          <CvcIcon name="tick" size={20} color="#FFFFFF" strokeWidth={2.4} />
+          <Text style={s.saveText}>{saving ? 'Enregistrement…' : 'Enregistrer le modèle'}</Text>
+        </TouchableOpacity>
+      )}
+    >
+      <Text style={SHEET_TYPE.label}>Nom du modèle</Text>
+      <TextInput value={label} onChangeText={setLabel} placeholder="Ex. Prise en charge P2 chaufferie" placeholderTextColor={COLORS.inkFaint} style={[s.input, { minHeight: ergo.target + 4 }]} accessibilityLabel="Nom du modèle" />
+      <Text style={[SHEET_TYPE.label, { marginTop: 12 }]}>Description (facultatif)</Text>
+      <TextInput value={description} onChangeText={setDescription} placeholder="Quand l’utiliser, ce qu’il contient" placeholderTextColor={COLORS.inkFaint} multiline style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]} accessibilityLabel="Description du modèle" />
+      <Text style={[SHEET_TYPE.meta, { marginTop: 12 }]}>Le modèle reprend le type, les briques et la disposition de la fiche. Les données de la Mission (points, photos, mesures) ne sont pas copiées.</Text>
     </BottomSheet>
   );
 }

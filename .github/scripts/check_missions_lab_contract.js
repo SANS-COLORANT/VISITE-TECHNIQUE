@@ -214,6 +214,10 @@ requireText(missionScreen, 'listerReprisesMissions', 'Mission sheet offers one-t
 requireText(missionSheet, 'Déplacer « ${label} » vers…', 'Mission sheet offers a single-pointer alternative to drag and drop');
 requireText(read('missionSheetStore.js'), "from './uiPrefs.js'", 'Mission sheet layouts live in UI preferences, never in the business database');
 requireText(read('MissionsHomeScreen.js'), 'Reprendre la visite', 'Missions home resumes the last visit in one tap');
+// Missions à la carte : briques par Mission et modèles enregistrés.
+requireText(missionScreen, 'resolveMissionCapabilities', 'Mission tools = type capabilities + per-mission added/removed modules');
+requireText(read('MissionCreateScreen.js'), 'Partir d’un de mes modèles', 'Mission creation from a saved model');
+requireText(read('database/migrations/052_mission_modules_models.js'), 'ALTER TABLE missions ADD COLUMN modules_json TEXT', 'additive per-mission modules column');
 if (/from ['"][^'"]*intranet[^'"]*['"]|require\(['"][^'"]*intranet/i.test(missionSheet + read('missionSheetQueries.js') + read('missionSheetLayout.js') + read('missionSheetDb.js'))) throw new Error('Mission sheet must not import Intranet modules');
 requireText(read('MissionActionsScreen.js'), 'Synthèse Excel', 'direct actions summary export UX');
 requireText(app, "MissionSubjects", 'persistent subject history route');

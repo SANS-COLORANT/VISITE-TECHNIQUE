@@ -25,6 +25,8 @@ import { getMissionFieldPlaybook } from './missionFieldPlaybooks.js';
 import { chargerExtrasFicheMission, listerReprisesMissions } from './missionSheetDb.js';
 import { missionSheetStore } from './missionSheetStore.js';
 import { SHEET_TOOL_BY_KEY } from './missionSheetRegistry.js';
+import { describeMissionModules, parseMissionModules, resolveMissionCapabilities, setMissionModule } from './missionModules.js';
+import { creerModeleMission, enregistrerBriquesMission, restaurerBriquesMission } from './missionModelsDb.js';
 import {
   applySheetPreset,
   availableSheetTools,
@@ -35,6 +37,7 @@ import {
   moveSheetBlockTo,
   pickSheetToolSuggestion,
   resolveSheetLayout,
+  serializeSheetLayout,
   sheetLayoutsEqual,
   showSheetBlock,
   splitSheetColumns,
@@ -42,7 +45,7 @@ import {
   togglePinnedSheetTool,
 } from './missionSheetLayout.js';
 import { SHEET_BLOCK_RENDERERS } from './MissionSheetBlocks.js';
-import { AllToolsSheet, CustomizeSheet, DeliverablesSheet, EditBlockBar, EditTopBar, MoveSheet, PointSheet, PointsListSheet, ScopeSheet, VisitsListSheet } from './MissionSheetSheets.js';
+import { AllToolsSheet, CustomizeSheet, DeliverablesSheet, EditBlockBar, EditTopBar, ModulesSheet, MoveSheet, PointSheet, PointsListSheet, SaveModelSheet, ScopeSheet, VisitsListSheet } from './MissionSheetSheets.js';
 import { SheetErgoProvider, sheetStyles, SHEET_TYPE } from './missionSheetUi.js';
 import { FadeUp } from './premiumChrome.js';
 import { CvcIcon } from './MetraCvcIcons.js';
@@ -83,6 +86,7 @@ export function MissionScreen({ navigation, route }) {
   const [pointPreset, setPointPreset] = useState(null);
   const [moveKey, setMoveKey] = useState(null);
   const [savingPoint, setSavingPoint] = useState(false);
+  const [savingModel, setSavingModel] = useState(false);
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
 
@@ -112,7 +116,10 @@ export function MissionScreen({ navigation, route }) {
   useEffect(() => { reload(); }, [reload]);
 
   const mission = data?.mission || null;
-  const capabilities = useMemo(() => getMissionCapabilities(mission?.family, mission?.type), [mission?.family, mission?.type]);
+  // Briques : celles du type (getMissionCapabilities), plus les ajouts, moins les retraits propres à cette Mission.
+  const baseCapabilities = useMemo(() => getMissionCapabilities(mission?.family, mission?.type), [mission?.family, mission?.type]);
+  const modules = useMemo(() => parseMissionModules(mission?.modules_json), [mission?.modules_json]);
+  const capabilities = useMemo(() => resolveMissionCapabilities(baseCapabilities, modules), [baseCapabilities, modules]);
   const playbook = useMemo(() => getMissionFieldPlaybook(mission?.type), [mission?.type]);
   const ctx = useMemo(() => buildSheetContext({ family: mission?.family, type: mission?.type, capabilities, playbook }), [mission?.family, mission?.type, capabilities, playbook]);
   const ids = useMemo(() => ({ missionId, type: mission?.type || null, family: mission?.family || null }), [missionId, mission?.type, mission?.family]);
@@ -341,6 +348,38 @@ export function MissionScreen({ navigation, route }) {
     });
   };
 
+  const toggleModule = async (toolKey, enabled) => {
+    const tool = SHEET_TOOL_BY_KEY[toolKey];
+    try {
+      hapticTick();
+      const previous = await enregistrerBriquesMission(missionId, setMissionModule(modules, toolKey, enabled, baseCapabilities));
+      await reload();
+      showToast(tool?.title || 'Brique', {
+        title: enabled ? 'Brique ajoutée' : 'Brique retirée',
+        tone: 'success',
+        duration: UNDO_MS,
+        action: { label: 'Annuler', onPress: () => restaurerBriquesMission(missionId, previous).then(reload).catch((e) => Alert.alert('Briques non modifiées', errorText(e))) },
+      });
+    } catch (e) {
+      Alert.alert('Briques non modifiées', errorText(e));
+    }
+  };
+
+  const saveModel = async ({ label, description }) => {
+    if (savingModel) return;
+    setSavingModel(true);
+    try {
+      await creerModeleMission({ label, description, family: mission?.family, type: mission?.type, modules, layoutJson: serializeSheetLayout(resolved.layout) });
+      setSheet(null);
+      hapticSuccess();
+      showToast('Disponible à la création d’une Mission.', { title: `Modèle « ${label} » enregistré`, tone: 'success' });
+    } catch (e) {
+      Alert.alert('Modèle non enregistré', errorText(e));
+    } finally {
+      if (mounted.current) setSavingModel(false);
+    }
+  };
+
   const toggleGloves = () => {
     const next = !gloves;
     missionSheetStore.setGloves(next);
@@ -464,7 +503,9 @@ export function MissionScreen({ navigation, route }) {
           ) : null}
         </ScrollView>
 
-        <AllToolsSheet visible={sheet === 'tools'} onClose={() => setSheet(null)} availableTools={toolsAvailable} pinnedTools={layout.pinnedTools} onOpenTool={openTool} onTogglePin={togglePin} />
+        <AllToolsSheet visible={sheet === 'tools'} onClose={() => setSheet(null)} availableTools={toolsAvailable} pinnedTools={layout.pinnedTools} onOpenTool={openTool} onTogglePin={togglePin} onManageModules={() => setSheet('modules')} />
+        <ModulesSheet visible={sheet === 'modules'} onClose={() => setSheet(null)} baseCapabilities={baseCapabilities} modules={modules} onToggle={toggleModule} typeLabel={TYPE_LABELS.get(mission.type) || null} />
+        <SaveModelSheet visible={sheet === 'model'} onClose={() => setSheet(null)} defaultLabel={TYPE_LABELS.get(mission.type) || mission.label || ''} summary={describeMissionModules(baseCapabilities, modules)} saving={savingModel} onSave={saveModel} />
         <PointSheet visible={sheet === 'point'} onClose={() => setSheet(null)} preset={pointPreset} presets={playbook.pointPresets || []} saving={savingPoint} onSave={savePoint} />
         <PointsListSheet visible={sheet === 'points'} onClose={() => setSheet(null)} points={points} today={today} onClosePoint={closePoint} onReopenPoint={reopenPoint} />
         <VisitsListSheet visible={sheet === 'visits'} onClose={() => setSheet(null)} visits={data.visits || []} sitesById={sitesById} onOpenVisit={sheetModel.openVisit} />
@@ -472,6 +513,9 @@ export function MissionScreen({ navigation, route }) {
         <CustomizeSheet
           visible={sheet === 'customize'}
           onClose={() => setSheet(null)}
+          modulesSummary={describeMissionModules(baseCapabilities, modules)}
+          onManageModules={() => setSheet('modules')}
+          onSaveModel={() => setSheet('model')}
           hidden={layout.hidden}
           onShowBlock={(key) => { if (!editing) enterEdit(); editDraft((current) => showSheetBlock(current, key, ctx)); }}
           onApplyPreset={(key) => { if (!editing) enterEdit(); editDraft((current) => applySheetPreset(current, key, ctx)); setSheet(null); }}
