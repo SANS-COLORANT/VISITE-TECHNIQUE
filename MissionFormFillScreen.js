@@ -9,7 +9,6 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import * as Location from 'expo-location';
 import { COLORS, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { CvcIcon } from './MetraCvcIcons.js';
@@ -101,28 +100,6 @@ function FieldInput({ field, value, onChange, lists, missionId, entry }) {
         <View style={{ gap: 8 }}>
           {photos.length ? <View style={s.wrap}>{photos.map((p) => <Image key={p.id} source={{ uri: p.uri }} style={s.thumb} accessibilityLabel={field.label} />)}</View> : null}
           <SheetButton icon="camera" label={busy ? 'Appareil photo…' : photos.length ? 'Ajouter une photo' : 'Prendre une photo'} onPress={take} />
-        </View>
-      );
-    }
-    case 'gps': {
-      const locate = async () => {
-        if (busy) return;
-        setBusy(true);
-        try {
-          const permission = await Location.requestForegroundPermissionsAsync();
-          if (!permission.granted) throw new Error('L’accès à la position est nécessaire.');
-          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-          onChange({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: Math.round(pos.coords.accuracy || 0), at: new Date().toISOString() });
-        } catch (e) {
-          Alert.alert('Position indisponible', errorText(e));
-        } finally {
-          setBusy(false);
-        }
-      };
-      return (
-        <View style={{ gap: 6 }}>
-          {value?.lat != null ? <Text style={SHEET_TYPE.body}>{formatFieldValue(field, value)}{value.accuracy ? ` · ± ${value.accuracy} m` : ''}</Text> : null}
-          <SheetButton icon="location" label={busy ? 'Recherche…' : value ? 'Relever à nouveau' : 'Relever la position'} onPress={locate} />
         </View>
       );
     }

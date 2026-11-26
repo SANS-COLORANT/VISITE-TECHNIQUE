@@ -34,7 +34,6 @@ export const FIELD_TYPES = Object.freeze([
   { key: 'multiselect', label: 'Choix multiples', icon: 'list', group: 'Choix' },
   { key: 'verdict', label: 'Avis (conforme / non conforme)', icon: 'control', group: 'Choix' },
   { key: 'photo', label: 'Photos', icon: 'camera', group: 'Terrain' },
-  { key: 'gps', label: 'Position GPS', icon: 'location', group: 'Terrain' },
   { key: 'calc', label: 'Calcul', icon: 'calculator', group: 'Avancé' },
 ]);
 
@@ -407,7 +406,6 @@ export function formatFieldValue(field, value) {
       return field.unit ? `${text} ${field.unit}` : text;
     }
     case 'photo': return `${asArray(value).length} photo(s)`;
-    case 'gps': return value?.lat != null ? `${Number(value.lat).toFixed(6)}, ${Number(value.lng).toFixed(6)}` : '';
     case 'date': return String(value).slice(0, 10).split('-').reverse().join('/');
     default: return String(value);
   }

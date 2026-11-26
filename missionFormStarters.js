@@ -1,7 +1,7 @@
 /**
  * Trames d'exemple, prêtes à copier puis adapter (rien n'est imposé).
  * Elles montrent ce que permet le constructeur : choix, nombres avec seuils,
- * calculs, avis qui créent des réserves, conditions, photos et GPS.
+ * calculs, avis qui créent des réserves, conditions et photos.
  */
 export const FORM_STARTERS = Object.freeze([
   {
@@ -43,7 +43,6 @@ export const FORM_STARTERS = Object.freeze([
       { type: 'text', label: 'Numéro de série' },
       { type: 'yesno', label: 'Plaque signalétique lisible', required: true },
       { type: 'photo', label: 'Photo de la plaque', required: true },
-      { type: 'gps', label: 'Position' },
       { type: 'longtext', label: 'Remarques' },
     ],
   },

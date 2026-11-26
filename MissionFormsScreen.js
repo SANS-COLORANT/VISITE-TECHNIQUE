@@ -183,7 +183,7 @@ export function MissionFormsScreen({ navigation, route }) {
         <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
           <View style={s.hero}>
             <Text style={SHEET_TYPE.title}>{missionId ? 'Trames de la Mission' : 'Trames & modèles'}</Text>
-            <Text style={SHEET_TYPE.meta}>Crée tes propres formulaires : champs, choix, nombres avec seuils, calculs, avis qui créent des réserves, photos, GPS. Ils sortent dans l’Excel et les modèles Word.</Text>
+            <Text style={SHEET_TYPE.meta}>Crée tes propres formulaires : champs, choix, nombres avec seuils, calculs, avis qui créent des réserves, photos. Ils sortent dans l’Excel et les modèles Word.</Text>
           </View>
 
           <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate('MissionFormBuilder', { missionId })} style={s.primary}>
