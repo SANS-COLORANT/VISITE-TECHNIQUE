@@ -50,6 +50,7 @@ import { migration049 } from './049_remar_dynamic_components.js';
 import { migration050 } from './050_ecs_loop_return_temperature.js';
 import { migration051 } from './051_ecs_storage_temperature.js';
 import { migration052 } from './052_mission_modules_models.js';
+import { migration053 } from './053_mission_forms.js';
 
 export const MIGRATIONS = Object.freeze([
   migration001, migration002, migration003, migration004, migration005,
@@ -61,5 +62,5 @@ export const MIGRATIONS = Object.freeze([
   migration031, migration032, migration033, migration034, migration035,
   migration036, migration037, migration038, migration039, migration040,
   migration041, migration042, migration043, migration044, migration045, migration046, migration047, migration048, migration049, migration050, migration051,
-  migration052,
+  migration052, migration053,
 ]);

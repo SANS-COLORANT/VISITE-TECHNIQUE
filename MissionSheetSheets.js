@@ -328,7 +328,7 @@ export function SaveModelSheet({ visible, onClose, defaultLabel, summary, saving
       <TextInput value={label} onChangeText={setLabel} placeholder="Ex. Prise en charge P2 chaufferie" placeholderTextColor={COLORS.inkFaint} style={[s.input, { minHeight: ergo.target + 4 }]} accessibilityLabel="Nom du modèle" />
       <Text style={[SHEET_TYPE.label, { marginTop: 12 }]}>Description (facultatif)</Text>
       <TextInput value={description} onChangeText={setDescription} placeholder="Quand l’utiliser, ce qu’il contient" placeholderTextColor={COLORS.inkFaint} multiline style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]} accessibilityLabel="Description du modèle" />
-      <Text style={[SHEET_TYPE.meta, { marginTop: 12 }]}>Le modèle reprend le type, les briques et la disposition de la fiche. Les données de la Mission (points, photos, mesures) ne sont pas copiées.</Text>
+      <Text style={[SHEET_TYPE.meta, { marginTop: 12 }]}>Le modèle reprend le type, les briques, les trames rattachées et la disposition de la fiche. Les données de la Mission (points, photos, mesures) ne sont pas copiées.</Text>
     </BottomSheet>
   );
 }

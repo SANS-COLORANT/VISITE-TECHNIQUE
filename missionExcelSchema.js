@@ -70,6 +70,10 @@ export const MISSION_EXCEL_SHEETS = Object.freeze([
   ['65_Revue_Doc', 'mission_document_review_items'],
   ['66_Campagnes_Mesures', 'mission_measure_campaigns'],
   ['67_Points_Campagnes', 'mission_measure_campaign_points'],
+  ['68_Trames', 'mission_forms'],
+  ['69_Trames_Mission', 'mission_form_links'],
+  ['70_Fiches_Trames', 'mission_form_entries'],
+  ['71_Listes_Ref', 'mission_ref_lists'],
 ]);
 
 export const MISSION_TABLE_BY_SHEET = Object.freeze(
@@ -146,6 +150,10 @@ export const MISSION_TABLE_IMPORT_ORDER = Object.freeze([
   'mission_document_review_items',
   'mission_measure_campaigns',
   'mission_measure_campaign_points',
+  'mission_ref_lists',
+  'mission_forms',
+  'mission_form_links',
+  'mission_form_entries',
 ]);
 
 export function sheetForTable(tableName) {

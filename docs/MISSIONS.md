@@ -253,6 +253,17 @@ La fiche Mission (`MissionScreen.js`) est une pile de blocs déclarés une seule
 - **Modèles** : « Enregistrer comme modèle » (Personnaliser › Ajouter et régler) garde type, briques et disposition dans `mission_models`. À la création, « Partir d'un de mes modèles » applique le tout ; les données d'une Mission ne sont jamais copiées.
 - Tests : `tests/missionModules.test.mjs`.
 
+## Trames maison, listes, modèles Word et partage
+
+- **Constructeur de trames** (`MissionFormBuilderScreen`, moteur pur `missionFormEngine.js`) : texte, texte long, nombre (unité, seuils, décimales), date, oui/non, choix unique ou multiple (saisis ou liste de référence), avis Conforme / À surveiller / Non conforme / Sans objet, photos (`capturerPhotoMission`), position GPS, calcul (`{clé}`, + − × ÷, min, max, abs, round, sqrt ; aucune évaluation de code), titre de section. Obligatoire, aide, condition « afficher si » sur un champ placé au-dessus. Une fiche par Mission, site, local, équipement, ou fiches libres. Les erreurs de conception sont signalées sans bloquer.
+- **Saisie** (`MissionFormFillScreen`) : enregistrement automatique à chaque modification (règle 10), conditions et calculs en direct, seuils et champs obligatoires signalés sans bloquer. « Terminer » crée une réserve (`mission_points`, `source_type='form_entry'`) pour chaque avis non conforme qui le demande, une seule fois.
+- **Versions** : modifier les champs d'une trame incrémente sa version ; une fiche garde ses valeurs et la version avec laquelle elle a été remplie. Une trame déjà remplie est archivée, jamais supprimée.
+- **Listes de référence** (`mission_ref_lists`) : saisies ou importées d'une colonne Excel, utilisées par les champs « choix ».
+- **Modèles Word à balises** (`docxTemplateEngine.js`, `missionTemplateContext.js`) : `{{mission.nom}}`, répétitions `{{#reserves}}…{{/reserves}}` (ligne de tableau répétée), `{{^liste}}` si vide, `{{#trame_<nom>}}{{<clé>}}{{/trame_<nom>}}`. Les balises coupées par Word sont recollées. Corps, en-têtes et pieds de page.
+- **Exports** : feuilles 68 à 71 de l'Excel complet (réimportables, schéma v43 inchangé), un onglet par trame dans l'Excel client. Correctif : les feuilles 66-67 (campagnes) n'avaient pas de requête d'export, ce qui faisait échouer l'Excel complet et le ZIP.
+- **Partage par fichier** (`missionPackCore.js`) : un `.metra.json` contient trames, listes, modèles de Mission et modèles Word, jamais de données de Mission. À l'import rien n'est écrasé : doublons ignorés, homonymes renommés « (importé) », liens recâblés.
+- Migration 053 (additive). Tests : `tests/missionForms.test.mjs`, `tests/missionExcelRoundtrip.test.mjs`.
+
 ## Validation minimale
 
 Avant fusion d'une évolution Missions, vérifier au minimum :

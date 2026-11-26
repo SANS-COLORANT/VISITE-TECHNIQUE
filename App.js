@@ -51,7 +51,7 @@ if (Platform.OS === 'android') {
 import { ButtonGlow } from './ButtonGlow.js';
 
 const SPLASH_BG = '#FBF0E1';
-const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard', 'MissionReceptionBoard', 'MissionExpertise', 'MissionCampaignDashboard', 'MissionAmoDashboard', 'MissionControlBoard']);
+const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard', 'MissionReceptionBoard', 'MissionExpertise', 'MissionCampaignDashboard', 'MissionAmoDashboard', 'MissionControlBoard', 'MissionForms', 'MissionFormBuilder', 'MissionFormFill', 'MissionRefLists', 'MissionReportTemplates']);
 const TAB_BAR_HIDDEN_ROUTES = new Set(['Visite', 'Report', 'Lab3D', 'HydraulicSchema']);
 const CLIENT_TAB_ROUTES = new Set(['MetraDirectory', 'ClientSites', 'SiteLocals', 'SiteVisites', 'ClientMap', 'ClientPilotage', 'ClientDocuments', 'ClientPatrimoine', 'ClientTechnicalMatrix', 'IntranetStructure']);
 const BACK_SWIPE_ROUTES = new Set(['MetraDirectory', 'ClientSites', 'SiteLocals', 'SiteVisites', 'ClientPilotage', 'ClientDocuments', 'ClientPatrimoine', 'ClientTechnicalMatrix', 'IntranetStructure', 'Parametres']);
@@ -85,6 +85,11 @@ const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MissionCalculation: () => require('./MissionCalculationScreen.js').MissionCalculationScreen,
   MissionTests: () => require('./MissionTestsScreen.js').MissionTestsScreen,
   MissionScenarios: () => require('./MissionScenarioScreen.js').MissionScenarioScreen,
+  MissionForms: () => require('./MissionFormsScreen.js').MissionFormsScreen,
+  MissionFormBuilder: () => require('./MissionFormBuilderScreen.js').MissionFormBuilderScreen,
+  MissionFormFill: () => require('./MissionFormFillScreen.js').MissionFormFillScreen,
+  MissionRefLists: () => require('./MissionRefListsScreen.js').MissionRefListsScreen,
+  MissionReportTemplates: () => require('./MissionReportTemplatesScreen.js').MissionReportTemplatesScreen,
   MissionExcelMapping: () => require('./MissionExcelMappingScreen.js').MissionExcelMappingScreen,
   MissionPhotoAnnotations: () => require('./MissionPhotoAnnotationScreen.js').MissionPhotoAnnotationScreen,
   MissionActions: () => require('./MissionActionsScreen.js').MissionActionsScreen,
@@ -480,6 +485,11 @@ function AppContent({ phoneIntegralMode = false }) {
     {current.name === 'MissionCalculation' && missionsVisible ? <><MissionHeader title="Calculs Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionCalculation" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionTests' && missionsVisible ? <><MissionHeader title="Essais · Commissioning" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionTests" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionScenarios' && missionsVisible ? <><MissionHeader title="Scénarios" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionScenarios" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionForms' && missionsVisible ? <><MissionHeader title="Trames & formulaires" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionForms" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionFormBuilder' && missionsVisible ? <><MissionHeader title="Constructeur de trame" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionFormBuilder" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionFormFill' && missionsVisible ? <><MissionHeader title="Fiche" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionFormFill" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionRefLists' && missionsVisible ? <><MissionHeader title="Listes de référence" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionRefLists" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionReportTemplates' && missionsVisible ? <><MissionHeader title="Modèles Word" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionReportTemplates" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionExcelMapping' && missionsVisible ? <><MissionHeader title="Mapping Excel" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionExcelMapping" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionPhotoAnnotations' && missionsVisible ? <><MissionHeader title="Annotations photo" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionPhotoAnnotations" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionActions' && missionsVisible ? <><MissionHeader title="Actions Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionActions" navigation={navigation} route={route} /></> : null}

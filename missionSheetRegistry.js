@@ -43,6 +43,11 @@ export const SHEET_BLOCKS = Object.freeze([
     description: 'Visites de la Mission, brouillon en tête pour reprendre vite.',
   },
   {
+    key: 'forms', label: 'Trames', icon: 'control', column: 'left',
+    description: 'Trames rattachées à la Mission : nouvelle fiche, reprise d’un brouillon.',
+    requires: (ctx) => ctx?.hasForms === true,
+  },
+  {
     key: 'progress', label: 'Progression', icon: 'route', column: 'left',
     description: 'Une seule frise : phases de la Mission et étapes du parcours recommandé.',
   },
@@ -86,6 +91,7 @@ export const SHEET_DEFAULT_SIZES = Object.freeze({
   primary: 'detailed',
   todo: 'detailed',
   visits: 'compact',
+  forms: 'detailed',
   progress: 'compact',
   reserves: 'detailed',
   sites: 'detailed',
@@ -98,23 +104,23 @@ export const SHEET_DEFAULT_SIZES = Object.freeze({
 
 /** Ordre par défaut des blocs (hors blocs verrouillés), par famille de Mission. */
 export const SHEET_FAMILY_DEFAULTS = Object.freeze({
-  etude_audit: ['todo', 'visits', 'progress', 'tools', 'measures', 'indicators', 'deliverables'],
-  travaux_chantier: ['todo', 'reserves', 'visits', 'progress', 'expectedDocuments', 'tools', 'indicators', 'deliverables'],
-  suivi_ponctuel: ['todo', 'visits', 'tools', 'progress', 'measures', 'deliverables'],
-  campagne_multisites: ['sites', 'todo', 'visits', 'tools', 'measures', 'progress', 'deliverables'],
-  conformite_reglementaire: ['todo', 'visits', 'tools', 'progress', 'measures', 'deliverables'],
-  default: ['todo', 'visits', 'progress', 'tools', 'indicators', 'deliverables'],
+  etude_audit: ['todo', 'visits', 'forms', 'progress', 'tools', 'measures', 'indicators', 'deliverables'],
+  travaux_chantier: ['todo', 'reserves', 'visits', 'forms', 'progress', 'expectedDocuments', 'tools', 'indicators', 'deliverables'],
+  suivi_ponctuel: ['todo', 'visits', 'forms', 'tools', 'progress', 'measures', 'deliverables'],
+  campagne_multisites: ['sites', 'todo', 'visits', 'forms', 'tools', 'measures', 'progress', 'deliverables'],
+  conformite_reglementaire: ['todo', 'visits', 'forms', 'tools', 'progress', 'measures', 'deliverables'],
+  default: ['todo', 'visits', 'forms', 'progress', 'tools', 'indicators', 'deliverables'],
 });
 
 /** Ordres propres à certains types, plus parlants que celui de leur famille. */
 export const SHEET_TYPE_DEFAULTS = Object.freeze({
-  opr_reception: ['reserves', 'todo', 'visits', 'expectedDocuments', 'tools', 'progress', 'deliverables'],
-  levee_reserves: ['reserves', 'todo', 'visits', 'tools', 'progress', 'deliverables'],
-  passation_travaux_exploitant: ['todo', 'expectedDocuments', 'reserves', 'visits', 'tools', 'progress', 'deliverables'],
-  commissioning: ['todo', 'visits', 'progress', 'tools', 'expectedDocuments', 'indicators', 'deliverables'],
-  assistance_p2_p3: ['todo', 'visits', 'indicators', 'tools', 'progress', 'deliverables'],
-  expertise_sinistre: ['todo', 'visits', 'indicators', 'tools', 'progress', 'deliverables'],
-  campagne_mesures: ['sites', 'measures', 'todo', 'visits', 'tools', 'progress', 'deliverables'],
+  opr_reception: ['reserves', 'todo', 'visits', 'forms', 'expectedDocuments', 'tools', 'progress', 'deliverables'],
+  levee_reserves: ['reserves', 'todo', 'visits', 'forms', 'tools', 'progress', 'deliverables'],
+  passation_travaux_exploitant: ['todo', 'expectedDocuments', 'reserves', 'visits', 'forms', 'tools', 'progress', 'deliverables'],
+  commissioning: ['todo', 'visits', 'forms', 'progress', 'tools', 'expectedDocuments', 'indicators', 'deliverables'],
+  assistance_p2_p3: ['todo', 'visits', 'forms', 'indicators', 'tools', 'progress', 'deliverables'],
+  expertise_sinistre: ['todo', 'visits', 'forms', 'indicators', 'tools', 'progress', 'deliverables'],
+  campagne_mesures: ['sites', 'measures', 'todo', 'visits', 'forms', 'tools', 'progress', 'deliverables'],
 });
 
 /** Dispositions prêtes à l'emploi : un appui pour les appliquer, puis on ajuste. */
@@ -151,10 +157,11 @@ export const SHEET_TOOL_GROUPS = Object.freeze([
 ]);
 
 /**
- * Les 26 outils de la Mission. La clé est celle des capacités
+ * Les 27 outils de la Mission. La clé est celle des capacités
  * (`getMissionCapabilities`) : un outil n'est proposé que si le type le permet.
  */
 export const SHEET_TOOLS = Object.freeze([
+  { key: 'forms', route: 'MissionForms', title: 'Trames & formulaires', subtitle: 'Champs · conditions · calculs · avis', icon: 'control', group: 'terrain' },
   { key: 'measurements', route: 'MissionMeasurements', title: 'Mesures', subtitle: 'Références · séries · instruments', icon: 'gauge', group: 'terrain' },
   { key: 'plans', route: 'MissionPlan', title: 'Plans / PDF / SIG', subtitle: 'Mesures · calques · GeoPackage', icon: 'map', group: 'terrain' },
   { key: 'photoAnnotations', route: 'MissionPhotoAnnotations', title: 'Photos annotées', subtitle: 'Flèches · zones · texte', icon: 'camera', group: 'terrain' },

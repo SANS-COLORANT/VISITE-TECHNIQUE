@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { getDb } from './db.js';
+import { entriesToRows, excelSheetName, normalizeFormFields } from './missionFormEngine.js';
 import { creerFichierSaf, garantirCheminMetra, nettoyerSegment } from './metraStorage.js';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -607,6 +608,17 @@ export async function construireClasseurClientMission(missionId, { photoPathById
       Relecteur: row.reviewer_company || row.reviewer_name || '',
       Commentaire: row.comment || '',
     })), [22,42,24,24,30,70]);
+  }
+
+  // Trames : un onglet par trame remplie, une ligne par fiche, une colonne par champ.
+  const db = await getDb();
+  const forms = await db.getAllAsync(
+    `SELECT DISTINCT f.* FROM mission_forms f JOIN mission_form_entries e ON e.form_id=f.id WHERE e.mission_id=? ORDER BY f.label`,
+    [missionId]
+  );
+  for (const [index, form] of forms.entries()) {
+    const entries = await db.getAllAsync('SELECT * FROM mission_form_entries WHERE mission_id=? AND form_id=? ORDER BY target_label, created_at', [missionId, form.id]);
+    addSheet(wb, excelSheetName(`T${String(index + 1).padStart(2, '0')}`, form.label), entriesToRows(normalizeFormFields(form.fields_json), entries));
   }
 
   return { wb, data };

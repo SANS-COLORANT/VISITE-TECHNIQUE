@@ -218,6 +218,15 @@ requireText(read('MissionsHomeScreen.js'), 'Reprendre la visite', 'Missions home
 requireText(missionScreen, 'resolveMissionCapabilities', 'Mission tools = type capabilities + per-mission added/removed modules');
 requireText(read('MissionCreateScreen.js'), 'Partir d’un de mes modèles', 'Mission creation from a saved model');
 requireText(read('database/migrations/052_mission_modules_models.js'), 'ALTER TABLE missions ADD COLUMN modules_json TEXT', 'additive per-mission modules column');
+// Trames maison, listes de référence, modèles Word, partage par fichier (migration 053).
+requireText(read('database/migrations/053_mission_forms.js'), 'CREATE TABLE IF NOT EXISTS mission_form_entries', 'custom form entries table');
+requireText(read('MissionFormFillScreen.js'), 'enregistrerFiche', 'form entries autosave (rule 10: resumable without loss)');
+requireText(read('missionFormsQueries.js'), "'form_entry'", 'non-conform verdicts create traceable reserves');
+requireText(excelSchema, "['70_Fiches_Trames', 'mission_form_entries']", 'form entries in the relational Excel round-trip');
+requireText(read('missionPackCore.js'), 'Aucune donnée de\n * Mission', 'sharing files never contain Mission data');
+for (const file of ['missionFormEngine.js', 'missionFormsQueries.js', 'missionPackCore.js', 'docxTemplateEngine.js', 'missionTemplateContext.js', 'MissionFormsScreen.js', 'MissionFormFillScreen.js']) {
+  if (/from ['"][^'"]*intranet/i.test(read(file))) throw new Error(`${file} must not import Intranet modules`);
+}
 if (/from ['"][^'"]*intranet[^'"]*['"]|require\(['"][^'"]*intranet/i.test(missionSheet + read('missionSheetQueries.js') + read('missionSheetLayout.js') + read('missionSheetDb.js'))) throw new Error('Mission sheet must not import Intranet modules');
 requireText(read('MissionActionsScreen.js'), 'Synthèse Excel', 'direct actions summary export UX');
 requireText(app, "MissionSubjects", 'persistent subject history route');

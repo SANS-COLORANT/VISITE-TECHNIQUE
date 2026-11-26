@@ -56,10 +56,10 @@ export async function queryMissionResumes(db, { limit = 3, missionId = null } = 
  * instantanée même sur une campagne de plusieurs centaines de sites.
  */
 export async function queryMissionSheetExtras(db, missionId, { measuresLimit = 6, documentsLimit = 4, now = Date.now() } = {}) {
-  if (!missionId) return { measures: [], documents: { pending: 0, late: 0, done: 0, total: 0, next: [] }, sites: { todo: 0, progress: 0, done: 0, total: 0 } };
+  if (!missionId) return { measures: [], documents: { pending: 0, late: 0, done: 0, total: 0, next: [] }, sites: { todo: 0, progress: 0, done: 0, total: 0 }, forms: [] };
   const today = todayIso(now);
   const doneList = SHEET_DOCUMENT_DONE_STATUSES.map((status) => `'${status}'`).join(',');
-  const [measures, documentCounts, nextDocuments, siteRows] = await Promise.all([
+  const [measures, documentCounts, nextDocuments, siteRows, forms] = await Promise.all([
     db.getAllAsync(
       `SELECT m.id, m.type, m.value_number, m.value_text, m.unit, m.site_id, m.equipment_id,
               COALESCE(d.measured_at, m.created_at) AS measured_at, d.anomaly_status
@@ -98,6 +98,15 @@ export async function queryMissionSheetExtras(db, missionId, { measuresLimit = 6
         WHERE l.mission_id=?`,
       [missionId, missionId, missionId, missionId, missionId]
     ),
+    db.getAllAsync(
+      `SELECT f.id, f.label, f.target_type,
+              (SELECT COUNT(*) FROM mission_form_entries e WHERE e.form_id=f.id AND e.mission_id=l.mission_id) AS entry_count,
+              (SELECT COUNT(*) FROM mission_form_entries e WHERE e.form_id=f.id AND e.mission_id=l.mission_id AND e.status='done') AS done_count,
+              (SELECT e.id FROM mission_form_entries e WHERE e.form_id=f.id AND e.mission_id=l.mission_id AND e.status='draft' ORDER BY e.updated_at DESC LIMIT 1) AS draft_entry_id
+         FROM mission_form_links l JOIN mission_forms f ON f.id=l.form_id
+        WHERE l.mission_id=? ORDER BY l.sort_order, l.created_at`,
+      [missionId]
+    ),
   ]);
   const sites = { todo: 0, progress: 0, done: 0, total: siteRows.length };
   for (const row of siteRows) sites[siteSheetState(row)] += 1;
@@ -111,6 +120,7 @@ export async function queryMissionSheetExtras(db, missionId, { measuresLimit = 6
       next: nextDocuments.map((row) => ({ ...row, is_late: Number(row.is_late) === 1 })),
     },
     sites,
+    forms,
   };
 }
 

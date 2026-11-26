@@ -11,7 +11,8 @@ import {
   listerMissionClients,
   listerMissionSites,
 } from './missionsDb.js';
-import { enregistrerBriquesMission, listerModelesMission, marquerModeleMissionUtilise, supprimerModeleMission } from './missionModelsDb.js';
+import { enregistrerBriquesMission, listerModelesMission, marquerModeleMissionUtilise, modelFormIds, supprimerModeleMission } from './missionModelsDb.js';
+import { rattacherTrame } from './missionFormsDb.js';
 import { parseMissionModules } from './missionModules.js';
 import { missionSheetStore } from './missionSheetStore.js';
 import { SHEET_PREF_KEYS } from './missionSheetPrefs.js';
@@ -22,7 +23,7 @@ const TYPE_LABELS = new Map(MISSION_FAMILIES.flatMap((f) => f.types.map(([key, l
 
 function ModelCard({ model, selected, onPress, onDelete }) {
   const modules = parseMissionModules(model.modules_json);
-  const meta = [TYPE_LABELS.get(model.type) || 'Type libre', modules.added.length ? `+${modules.added.length} brique(s)` : null, modules.removed.length ? `−${modules.removed.length} brique(s)` : null, model.use_count ? `utilisé ${model.use_count} fois` : null].filter(Boolean).join(' · ');
+  const meta = [TYPE_LABELS.get(model.type) || 'Type libre', modules.added.length ? `+${modules.added.length} brique(s)` : null, modules.removed.length ? `−${modules.removed.length} brique(s)` : null, modelFormIds(model).length ? `${modelFormIds(model).length} trame(s)` : null, model.use_count ? `utilisé ${model.use_count} fois` : null].filter(Boolean).join(' · ');
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
       <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`Partir du modèle ${model.label}`} onPress={onPress} activeOpacity={0.8}
@@ -142,6 +143,7 @@ export function MissionCreateScreen({ navigation }) {
       if (model) {
         await enregistrerBriquesMission(missionId, parseMissionModules(model.modules_json));
         if (model.layout_json) missionSheetStore.restoreRaw(SHEET_PREF_KEYS.layout('mission', missionId), model.layout_json);
+        for (const formId of modelFormIds(model)) await rattacherTrame(missionId, formId).catch(() => {});
         await marquerModeleMissionUtilise(model.id);
       }
       navigation.navigate('Mission', { missionId });

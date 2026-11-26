@@ -47,7 +47,7 @@ test('migration 052 additive et déclarée', async () => {
   const cols = sqlite.prepare('PRAGMA table_info(missions)').all().map((c) => c.name);
   assert.ok(cols.includes('modules_json'));
   assert.ok(sqlite.prepare("SELECT name FROM sqlite_master WHERE name='mission_models'").get());
-  assert.match(readFileSync(new URL('../database/constants.js', import.meta.url), 'utf8'), /DATABASE_SCHEMA_VERSION = 52/);
+  assert.match(readFileSync(new URL('../database/constants.js', import.meta.url), 'utf8'), /DATABASE_SCHEMA_VERSION = 5[2-9]/);
   const src = readFileSync(new URL('../database/migrations/052_mission_modules_models.js', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /DROP\s+TABLE|DELETE\s+FROM|UPDATE\s+missions/i, 'aucune donnée existante touchée');
   await migrateDatabase(db); // relancer ne casse rien
@@ -69,7 +69,7 @@ test('prendre un outil ailleurs, retirer ceux qui ne servent pas, état minimal'
   assert.equal(caps.scenarios, false);
   assert.ok(availableSheetTools(caps).includes('signature') && !availableSheetTools(caps).includes('scenarios'));
   assert.equal(countActiveModules(base, m), countActiveModules(base, null));
-  assert.equal(describeMissionModules(base, m), '16 briques · 1 ajoutée · 1 retirée');
+  assert.equal(describeMissionModules(base, m), '17 briques · 1 ajoutée · 1 retirée');
   // Revenir à l'état du type efface la différence.
   m = setMissionModule(setMissionModule(m, 'signature', false, base), 'scenarios', true, base);
   assert.equal(serializeMissionModules(m), null);

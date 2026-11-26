@@ -55,7 +55,7 @@ import { hapticSuccess, hapticTick } from './fieldFeedback.js';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) UIManager.setLayoutAnimationEnabledExperimental(true);
 
-const EMPTY_EXTRAS = Object.freeze({ measures: [], documents: { pending: 0, late: 0, done: 0, total: 0, next: [] }, sites: { todo: 0, progress: 0, done: 0, total: 0 } });
+const EMPTY_EXTRAS = Object.freeze({ measures: [], documents: { pending: 0, late: 0, done: 0, total: 0, next: [] }, sites: { todo: 0, progress: 0, done: 0, total: 0 }, forms: [] });
 const UNDO_MS = 6000;
 // Dernière fiche affichée par Mission : le retour depuis un outil est instantané, la base est relue en arrière-plan.
 const SHEET_CACHE = new Map();
@@ -121,7 +121,8 @@ export function MissionScreen({ navigation, route }) {
   const modules = useMemo(() => parseMissionModules(mission?.modules_json), [mission?.modules_json]);
   const capabilities = useMemo(() => resolveMissionCapabilities(baseCapabilities, modules), [baseCapabilities, modules]);
   const playbook = useMemo(() => getMissionFieldPlaybook(mission?.type), [mission?.type]);
-  const ctx = useMemo(() => buildSheetContext({ family: mission?.family, type: mission?.type, capabilities, playbook }), [mission?.family, mission?.type, capabilities, playbook]);
+  const hasForms = capabilities.forms !== false && (extras.forms?.length || 0) > 0;
+  const ctx = useMemo(() => buildSheetContext({ family: mission?.family, type: mission?.type, capabilities, playbook, hasForms }), [mission?.family, mission?.type, capabilities, playbook, hasForms]);
   const ids = useMemo(() => ({ missionId, type: mission?.type || null, family: mission?.family || null }), [missionId, mission?.type, mission?.family]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const stored = useMemo(() => missionSheetStore.readStoredLayouts(ids), [ids, prefsTick]);
@@ -369,7 +370,7 @@ export function MissionScreen({ navigation, route }) {
     if (savingModel) return;
     setSavingModel(true);
     try {
-      await creerModeleMission({ label, description, family: mission?.family, type: mission?.type, modules, layoutJson: serializeSheetLayout(resolved.layout) });
+      await creerModeleMission({ label, description, family: mission?.family, type: mission?.type, modules, layoutJson: serializeSheetLayout(resolved.layout), formIds: (extras.forms || []).map((form) => form.id) });
       setSheet(null);
       hapticSuccess();
       showToast('Disponible à la création d’une Mission.', { title: `Modèle « ${label} » enregistré`, tone: 'success' });
@@ -433,6 +434,9 @@ export function MissionScreen({ navigation, route }) {
     openAllVisits: () => setSheet('visits'),
     openTool,
     openAllTools: () => setSheet('tools'),
+    openForm: (form) => (form.draft_entry_id
+      ? navigation.navigate('MissionFormFill', { missionId, entryId: form.draft_entry_id })
+      : navigation.navigate('MissionForms', { missionId, newEntryFormId: form.id })),
     onSuggestion,
     openWorkflow: () => (capabilities.workflow !== false ? openTool('workflow') : null),
     openReport: () => { setSheet(null); navigation.navigate('MissionReport', { missionId }); },

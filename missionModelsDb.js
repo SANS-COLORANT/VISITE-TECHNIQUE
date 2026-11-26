@@ -18,5 +18,6 @@ export const enregistrerBriquesMission = async (missionId, modules) => saveMissi
 export const restaurerBriquesMission = async (missionId, raw) => restoreMissionModulesRaw(await getDb(), missionId, raw);
 export const listerModelesMission = async () => queryMissionModels(await getDb());
 export const creerModeleMission = async (model) => insertMissionModel(await getDb(), model);
+export { modelFormIds } from './missionModelsQueries.js';
 export const supprimerModeleMission = async (modelId) => removeMissionModel(await getDb(), modelId);
 export const marquerModeleMissionUtilise = async (modelId) => markMissionModelUsed(await getDb(), modelId);

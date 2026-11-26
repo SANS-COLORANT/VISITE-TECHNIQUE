@@ -292,6 +292,16 @@ export function MissionsHomeScreen({ navigation }) {
         </GlassCard>
       ) : null}
 
+      <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate('MissionForms', {})} activeOpacity={0.85}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, borderRadius: 18, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: 'rgba(255,255,255,0.86)', padding: 14, marginBottom: 14 }}>
+        <IconOrb accent={MISSION_COLORS.accent} light={MISSION_COLORS.accentLight} size={42}><CvcIcon name="control" size={21} color={MISSION_COLORS.accentDark} strokeWidth={2} /></IconOrb>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: COLORS.ink, fontFamily: FONTS.bold, fontSize: 15 }}>Trames & modèles</Text>
+          <Text style={{ color: COLORS.inkSoft, fontFamily: FONTS.bodyMedium, fontSize: 12.5, marginTop: 2 }}>Tes formulaires, listes, modèles Word et partage</Text>
+        </View>
+        <CvcIcon name="chevron-right" size={18} color={MISSION_COLORS.accent} strokeWidth={2.2} />
+      </TouchableOpacity>
+
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
         <SummaryCard value={stats.active} label="En cours" emphasis />
         <SummaryCard value={stats.draft} label="Brouillons" />

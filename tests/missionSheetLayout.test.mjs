@@ -63,11 +63,11 @@ const ctxFor = ({ family, type }) => buildSheetContext({
   playbook: getMissionFieldPlaybook(type),
 });
 
-test('le registre couvre les 26 outils de l’ancienne grille, sans doublon', () => {
+test('le registre couvre les 26 outils de l’ancienne grille + les trames, sans doublon', () => {
   const screen = source('MissionScreen.js');
-  assert.equal(SHEET_TOOLS.length, 26);
-  assert.equal(new Set(SHEET_TOOLS.map((tool) => tool.key)).size, 26);
-  assert.equal(new Set(SHEET_TOOLS.map((tool) => tool.route)).size, 26);
+  assert.equal(SHEET_TOOLS.length, 27);
+  assert.equal(new Set(SHEET_TOOLS.map((tool) => tool.key)).size, 27);
+  assert.equal(new Set(SHEET_TOOLS.map((tool) => tool.route)).size, 27);
   const groups = new Set(SHEET_TOOL_GROUPS.map((group) => group.key));
   for (const tool of SHEET_TOOLS) {
     assert.ok(groups.has(tool.group), `${tool.key} sans groupe`);
@@ -108,7 +108,7 @@ test('disposition d’usine propre pour les 37 types : 4 à 6 outils épinglés,
 test('l’ancienne grille affichait près de 30 boutons, la nouvelle fiche en garde moins de 10 avant les visites', () => {
   const ctx = ctxFor({ family: 'etude_audit', type: 'diagnostic_chaufferie_ss' });
   const legacyTiles = availableSheetTools(ctx.capabilities).length;
-  assert.equal(legacyTiles, 16);
+  assert.equal(legacyTiles, 17);
   const layout = defaultSheetLayout(ctx);
   // En-tête (0 bouton) + action principale (2) + « À traiter » compte pour 1
   // accès + les visites arrivent en 2e bloc : au plus 2 + 1 + 1 éléments avant elles.

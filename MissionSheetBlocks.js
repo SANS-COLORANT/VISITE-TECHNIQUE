@@ -222,6 +222,33 @@ function VisitsBlock({ sheet, size }) {
   );
 }
 
+const TARGET_LABELS = { mission: 'Mission', site: 'par site', location: 'par local', equipment: 'par équipement', free: 'fiches libres' };
+
+function FormsBlock({ sheet, size }) {
+  const forms = sheet.extras.forms || [];
+  const shown = forms.slice(0, size === 'detailed' ? 6 : 3);
+  return (
+    <SheetCard title="Trames" icon="control" count={forms.length || null} onLongPressTitle={sheet.onLongPress} action={{ label: 'Gérer', accessibilityLabel: 'Gérer les trames de la Mission', onPress: () => sheet.openTool('forms') }}>
+      {shown.map((form, index) => {
+        const total = Number(form.entry_count || 0);
+        const done = Number(form.done_count || 0);
+        return (
+          <SheetRow
+            key={form.id}
+            icon="control"
+            title={form.label}
+            meta={[TARGET_LABELS[form.target_type] || '', total ? `${done}/${total} fiche${total > 1 ? 's' : ''} terminée${done > 1 ? 's' : ''}` : 'aucune fiche'].filter(Boolean).join(' · ')}
+            onPress={() => sheet.openForm(form)}
+            accessibilityLabel={form.draft_entry_id ? `Reprendre la fiche ${form.label}` : `Nouvelle fiche ${form.label}`}
+            right={<StatusPill label={form.draft_entry_id ? 'Reprendre' : 'Remplir'} tone={form.draft_entry_id ? 'warning' : 'accent'} />}
+            last={index === shown.length - 1}
+          />
+        );
+      })}
+    </SheetCard>
+  );
+}
+
 function ProgressBlock({ sheet, size }) {
   const { phases, phaseProgress, playbook } = sheet;
   const current = phases.find((phase) => phase.status === 'active') || phases.find((phase) => phase.status === 'planned');
@@ -449,6 +476,7 @@ export const SHEET_BLOCK_RENDERERS = Object.freeze({
   primary: PrimaryBlock,
   todo: TodoBlock,
   visits: VisitsBlock,
+  forms: FormsBlock,
   progress: ProgressBlock,
   reserves: ReservesBlock,
   sites: SitesBlock,

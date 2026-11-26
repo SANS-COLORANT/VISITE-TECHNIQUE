@@ -33,8 +33,9 @@ import {
 const unique = (items) => [...new Set(items)];
 
 /** Contexte figé d'une Mission : famille, type, capacités et parcours recommandé. */
-export function buildSheetContext({ family = null, type = null, capabilities = null, playbook = null } = {}) {
+export function buildSheetContext({ family = null, type = null, capabilities = null, playbook = null, hasForms = false } = {}) {
   return {
+    hasForms: hasForms === true,
     family: family || null,
     type: type || null,
     capabilities: capabilities || {},

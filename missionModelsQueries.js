@@ -39,15 +39,15 @@ export async function queryMissionModels(db) {
 }
 
 /** Crée un modèle depuis une Mission (famille, type, briques, disposition). */
-export async function insertMissionModel(db, { label, description = null, family = null, type = null, modules = null, layoutJson = null }) {
+export async function insertMissionModel(db, { label, description = null, family = null, type = null, modules = null, layoutJson = null, formIds = [] }) {
   const name = text(label);
   if (!name) throw new Error('Nom du modèle requis.');
   const id = newId('mmod');
   const now = new Date().toISOString();
   await db.runAsync(
-    `INSERT INTO mission_models(id,label,description,family,type,modules_json,layout_json,created_at,updated_at)
-     VALUES(?,?,?,?,?,?,?,?,?)`,
-    [id, name, text(description), text(family), text(type), serializeMissionModules(modules), layoutJson || null, now, now]
+    `INSERT INTO mission_models(id,label,description,family,type,modules_json,layout_json,forms_json,created_at,updated_at)
+     VALUES(?,?,?,?,?,?,?,?,?,?)`,
+    [id, name, text(description), text(family), text(type), serializeMissionModules(modules), layoutJson || null, formIds?.length ? JSON.stringify([...new Set(formIds)]) : null, now, now]
   );
   return id;
 }
@@ -58,4 +58,14 @@ export async function removeMissionModel(db, modelId) {
 
 export async function markMissionModelUsed(db, modelId) {
   await db.runAsync('UPDATE mission_models SET use_count=use_count+1, last_used_at=? WHERE id=?', [new Date().toISOString(), modelId]);
+}
+
+/** Trames d'un modèle (identifiants), tolérant aux valeurs anciennes. */
+export function modelFormIds(model) {
+  try {
+    const list = JSON.parse(model?.forms_json || '[]');
+    return Array.isArray(list) ? list.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
 }
