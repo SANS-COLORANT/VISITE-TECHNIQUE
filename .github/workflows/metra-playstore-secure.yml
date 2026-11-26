@@ -61,6 +61,9 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          # The dedicated release branch can reuse its own successfully populated cache.
+          cache-read-only: ${{ github.ref_name != github.event.repository.default_branch && github.ref_name != 'feat/metra-mission-modulable-20261126' }}
 
       - name: Check source for embedded credentials and insecure Android defaults
         run: python3 .github/scripts/verify_play_security.py
@@ -87,6 +90,7 @@ jobs:
 
       - name: Check JS syntax, SQLite model, REMAR and local reports
         run: |
+          bash .github/scripts/test_gradle_retry.sh
           npm run verify:metra
           node --test tests/activationQr.test.mjs
           node --test .github/scripts/test_metra_settings_safe_area.cjs
@@ -185,7 +189,7 @@ jobs:
           cp android/app/debug.keystore android/app/metra-release.keystore
           python3 .github/scripts/configure_android_release_signing.py
           cd android
-          ./gradlew assembleRelease --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
+          bash ../.github/scripts/gradle_retry.sh ./gradlew assembleRelease --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
           cd ..
           mkdir -p release
           cp android/app/build/outputs/apk/release/app-release.apk release/METRA-API36-QA.apk
@@ -228,7 +232,7 @@ jobs:
             exit 1
           fi
           cd android
-          ./gradlew clean bundleRelease --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
+          bash ../.github/scripts/gradle_retry.sh ./gradlew clean bundleRelease --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
           cd ..
           test -s android/app/build/outputs/bundle/release/app-release.aab
           cp android/app/build/outputs/bundle/release/app-release.aab release/METRA-PlayStore.aab
@@ -280,7 +284,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario: [roundtrip, bulk, recovery, interface, report, pilotage]
+        scenario: ${{ fromJSON(github.ref_name == 'feat/metra-mission-modulable-20261126' && '["roundtrip","bulk","recovery","interface","report","pilotage","missions"]' || '["roundtrip","bulk","recovery","interface","report","pilotage"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -295,7 +299,7 @@ jobs:
       - name: Install independent ZIP and media verification tools
         run: |
           python -m pip install 'pyzipper==0.3.6' 'Pillow==11.3.0' 'pypdf==5.9.0'
-          python -m py_compile .github/scripts/android_aab_restore_retention.py .github/scripts/android_backup_smoke.py .github/scripts/android_restore_recovery.py .github/scripts/android_legacy_bulk_restore.py .github/scripts/android_candidate_scenario.py .github/scripts/android_mobile_layout.py .github/scripts/android_report_benchmark.py .github/scripts/android_pilotage_canvas.py
+          python -m py_compile .github/scripts/android_aab_restore_retention.py .github/scripts/android_backup_smoke.py .github/scripts/android_restore_recovery.py .github/scripts/android_legacy_bulk_restore.py .github/scripts/android_candidate_scenario.py .github/scripts/android_mobile_layout.py .github/scripts/android_report_benchmark.py .github/scripts/android_pilotage_canvas.py .github/scripts/android_missions_native.py
       - name: Download previous signed AAB 44
         uses: actions/download-artifact@v4
         with:
