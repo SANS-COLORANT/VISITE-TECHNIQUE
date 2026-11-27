@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, PanResponder, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
 import { COLORS, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
@@ -211,17 +211,6 @@ export function MissionsHomeScreen({ navigation }) {
     });
   }, [missions, query, filter]);
 
-  const technicalVisitSwipeResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, gesture) => (
-      gesture.dx < -22
-      && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.45
-    ),
-    onPanResponderTerminationRequest: () => true,
-    onPanResponderRelease: (_, gesture) => {
-      if (gesture.dx < -85) navigation.goHome();
-    },
-  }), [navigation]);
-
   const header = (
     <>
       <View style={{ backgroundColor: MISSION_COLORS.accentStrong, borderRadius: 22, padding: 18, marginBottom: 14, overflow: 'hidden' }}>
@@ -342,7 +331,7 @@ export function MissionsHomeScreen({ navigation }) {
   );
 
   return (
-    <View style={[{ flex: 1 }, missionStyles.screen]} {...technicalVisitSwipeResponder.panHandlers}>
+    <View style={[{ flex: 1 }, missionStyles.screen]}>
       <FlatList
         data={visible}
         keyExtractor={(item) => item.id}
@@ -354,9 +343,6 @@ export function MissionsHomeScreen({ navigation }) {
           ? <View style={{ padding: 40, alignItems: 'center' }}><ActivityIndicator color={MISSION_COLORS.accent}/></View>
           : <View style={{ padding: 34, alignItems: 'center' }}><Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.black, fontSize: 15.5 }}>Aucune Mission dans cette vue</Text><Text style={{ color: COLORS.inkSoft, fontSize: 13, lineHeight: 18, fontFamily: FONTS.bodyMedium, marginTop: 6, textAlign: 'center' }}>Change le filtre ou crée une Mission. Une Mission peut rester incomplète et être reprise plus tard.</Text></View>}
       />
-      <View pointerEvents="none" style={{ position: 'absolute', left: 14, bottom: 18, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: 'rgba(31,95,67,0.10)' }}>
-        <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 12, fontFamily: FONTS.bodySemi }}>Glisser vers la gauche · Visites techniques</Text>
-      </View>
     </View>
   );
 }

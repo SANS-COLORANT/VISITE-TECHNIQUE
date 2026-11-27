@@ -336,7 +336,7 @@ function AppContent({ phoneIntegralMode = false }) {
     tabGestureActive.current=false;
     tabSwipeProgress.stopAnimation();
     const key=ROUTE_ROOT_TABS[currentName]||(CLIENT_TAB_ROUTES.has(currentName)?'clients':null);
-    tabSwipeProgress.setValue(Math.max(0,ROOT_TAB_KEYS.indexOf(key)));
+    tabSwipeProgress.setValue(currentName === 'Missions' ? ROOT_TAB_KEYS.length : Math.max(0,ROOT_TAB_KEYS.indexOf(key)));
     setTabPreview(null);
   },[currentName,rootPageWidth,visualRevision,tabSwipeProgress]);
   useEffect(()=>{
@@ -345,15 +345,14 @@ function AppContent({ phoneIntegralMode = false }) {
     tabGestureActive.current=false;
     tabSwipeProgress.stopAnimation();
     const key=ROUTE_ROOT_TABS[currentName]||(CLIENT_TAB_ROUTES.has(currentName)?'clients':null);
-    tabSwipeProgress.setValue(Math.max(0,ROOT_TAB_KEYS.indexOf(key)));
+    tabSwipeProgress.setValue(currentName === 'Missions' ? ROOT_TAB_KEYS.length : Math.max(0,ROOT_TAB_KEYS.indexOf(key)));
     setTabPreview(null);
   },[tabSwipeEnabled,currentName,tabSwipeProgress]);
 
   const goMissionsHome = useCallback(() => {
     if (!missionsVisible) return goHome();
-    Keyboard.dismiss();
-    setTimeout(() => setStack([{ name: 'Home', params: {} }, { name: 'Missions', params: { enteredBySwipe: true } }]), 0);
-  }, [goHome, missionsVisible]);
+    resetToTab('Missions');
+  }, [goHome, missionsVisible, resetToTab]);
 
   const handleVisualPackChanged = useCallback((pack) => {
     setRuntimeVisualPalette(pack?.colors);
@@ -398,8 +397,10 @@ function AppContent({ phoneIntegralMode = false }) {
   const hasSite = !!currentParams.siteId;
   const hasVisit = !!currentParams.visiteId;
 
-  const showTabBar = !spiralActive && !missionMode && !r1Visible && !TAB_BAR_HIDDEN_ROUTES.has(current.name);
-  const activeTab = current.name === 'Home' ? 'home' : current.name === 'Parametres' ? 'settings' : CLIENT_TAB_ROUTES.has(current.name) ? 'clients' : null;
+  // Missions is a tap-only root tab. Keep the common dock on its dashboard;
+  // its dedicated detail/field screens keep their existing compact return control.
+  const showTabBar = !spiralActive && (!missionMode || (current.name === 'Missions' && missionsVisible)) && !r1Visible && !TAB_BAR_HIDDEN_ROUTES.has(current.name);
+  const activeTab = current.name === 'Missions' && missionsVisible ? 'missions' : current.name === 'Home' ? 'home' : current.name === 'Parametres' ? 'settings' : CLIENT_TAB_ROUTES.has(current.name) ? 'clients' : null;
   const tabs = [
     { key: 'home', label: 'Accueil', icon: 'home', onPress: () => resetToTab('Home') },
     { key: 'clients', label: 'Clients', icon: 'local', onPress: () => resetToTab('MetraDirectory') },
@@ -426,14 +427,14 @@ function AppContent({ phoneIntegralMode = false }) {
     { icon: '⌂', label: 'Accueil', caption: 'Tableau de bord', onPress: goHome },
     { icon: '⌕', label: 'Recherche', caption: 'Tout retrouver', onPress: () => navigate('MetraDirectory', {}) },
     stack.length > 1 ? { icon: '←', label: 'Retour', caption: 'Écran précédent', onPress: goBack } : { icon: '⚙', label: 'Réglages', caption: 'Apparence', onPress: () => navigate('Parametres') },
-    { icon: '⚙', label: 'Réglages', caption: 'Packs visuels', onPress: () => navigate('Parametres') },
+    missionsVisible ? { icon: '▣', label: 'Missions', caption: 'Dossiers ponctuels', onPress: goMissionsHome } : { icon: '⚙', label: 'Réglages', caption: 'Packs visuels', onPress: () => navigate('Parametres') },
   ];
 
   const rootPagerActive=Boolean(tabSwipeKey&&!spiralActive);
   const rootPagerTranslate=tabSwipeProgress.interpolate({inputRange:[0,ROOT_TAB_KEYS.length-1],outputRange:[0,-rootPageWidth*(ROOT_TAB_KEYS.length-1)],extrapolate:'clamp'});
   const renderRootPage=(key)=>{
     const pageRoute=key===tabSwipeKey?route:{params:{}};
-    if(key==='home')return <HomeScreen navigation={navigation} route={pageRoute} spiralPreview={false} onR1LongPress={()=>setR1Visible(true)} missionsEnabled={missionsVisible} onCreditsLongPress={()=>setCreditsVisible(true)}/>;
+    if(key==='home')return <HomeScreen navigation={navigation} route={pageRoute} spiralPreview={false} onR1LongPress={()=>setR1Visible(true)} onCreditsLongPress={()=>setCreditsVisible(true)}/>;
     if(key==='clients')return <><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="MetraDirectory" navigation={navigation} route={pageRoute}/></>;
     return <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack}/><SettingsErrorBoundary onBack={goHome}><DeferredScreen name="Parametres" visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged}/></SettingsErrorBoundary></>;
   };
@@ -454,7 +455,7 @@ function AppContent({ phoneIntegralMode = false }) {
         </View>:null)}
       </Animated.View>
     </View>:null}
-    {!rootPagerActive && current.name === 'Home' ? <>{spiralActive ? <SimpleHeader title="Visite Technique" visualPack={visualPack} onCreditsLongPress={() => setCreditsVisible(true)} /> : null}<HomeScreen navigation={navigation} route={route} spiralPreview={spiralActive} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} onCreditsLongPress={() => setCreditsVisible(true)} /></> : null}
+    {!rootPagerActive && current.name === 'Home' ? <>{spiralActive ? <SimpleHeader title="Visite Technique" visualPack={visualPack} onCreditsLongPress={() => setCreditsVisible(true)} /> : null}<HomeScreen navigation={navigation} route={route} spiralPreview={spiralActive} onR1LongPress={() => setR1Visible(true)} onCreditsLongPress={() => setCreditsVisible(true)} /></> : null}
     {!rootPagerActive && current.name === 'MetraDirectory' ? <><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MetraDirectory" navigation={navigation} route={route} /></> : null}
     {current.name === 'ClientSites' ? <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientSites" navigation={navigation} route={route} /></> : null}
     {current.name === 'SiteLocals' ? <><SimpleHeader title={current.params?.nomSite || 'Locaux'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="SiteLocals" navigation={navigation} route={route} /></> : null}
@@ -510,7 +511,7 @@ function AppContent({ phoneIntegralMode = false }) {
     {current.name === 'MissionControlBoard' && missionsVisible ? <><MissionHeader title="Contrôle ciblé" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionControlBoard" navigation={navigation} route={route} /></> : null}
 
     {missionMode && current.name !== 'Missions' && !spiralActive ? <GlobalHomeButton compact={phoneIntegralMode} missionMode onPress={goMissionsHome} /> : null}
-    {showTabBar ? <BottomTabBar tabs={tabs} activeKey={activeTab} swipeProgress={tabSwipeProgress} dense={current.name === 'ClientPilotage'} /> : null}
+    {showTabBar ? <BottomTabBar tabs={tabs} activeKey={activeTab} swipeProgress={tabSwipeProgress} accent={missionMode ? MISSION_COLORS.accent : COLORS.orange} accentDark={missionMode ? MISSION_COLORS.accentDark : COLORS.orangeDark} dense={current.name === 'ClientPilotage'} /> : null}
     <QuickVisitSheet
       visible={quickVisitVisible}
       onClose={() => setQuickVisitVisible(false)}

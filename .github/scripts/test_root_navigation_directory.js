@@ -26,6 +26,15 @@ assert.equal(rootSwipeProgress(-180,360), .5, 'indicator and screen follow half 
 assert.equal(rootSwipeProgress(180,360), -.5, 'reverse page displacement');
 assert.equal(rootSwipeProgress(-720,360), 1, 'clamp to one page');
 assert.equal(rootSwipeTarget('clients',-80,.8),null,'reverse flick cancels');
+for (const direction of [-1, 1]) {
+  assert.equal(canStartRootSwipe('missions', direction * 100, 0), false, 'Missions is tap-only');
+  assert.equal(rootSwipeTarget('missions', direction * 100, direction), null, 'no swipe out of Missions');
+}
+for (const key of ['home', 'clients', 'settings']) {
+  for (const direction of [-1, 1]) {
+    assert.notEqual(rootSwipeTarget(key, direction * 100, direction), 'missions', 'no swipe into Missions');
+  }
+}
 
 const app = read('App.js'), nav = read('BottomTabBar.js');
 assert.ok(app.includes('gesture.dx > 18') && app.includes('gesture.dx > 82'), 'back swipe needs left-to-right direction');
