@@ -45,7 +45,8 @@ test('pager and dock driven by the same absolute animated value',()=>{
  const a=source('App.js'),b=source('BottomTabBar.js');
  assert.ok(a.includes('transform:[{translateX:rootPagerTranslate}]'));
  assert.ok(a.includes('swipeProgress={tabSwipeProgress}'));
- assert.ok(b.includes('inputRange:[0,1,2]'));
+ assert.ok(b.includes('inputRange:missionSelected?[0,1,2,3]:[0,1,2]'),'three swipe positions plus a tap-only Missions position');
+ assert.ok(b.includes("indicatorKeys=missionSelected?[...ROOT_TAB_KEYS,'missions']:ROOT_TAB_KEYS"));
  assert.ok(!b.includes('deltaToNext'));
 });
 
