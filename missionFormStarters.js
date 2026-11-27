@@ -1,0 +1,78 @@
+/**
+ * Trames d'exemple, prêtes à copier puis adapter (rien n'est imposé).
+ * Elles montrent ce que permet le constructeur : choix, nombres avec seuils,
+ * calculs, avis qui créent des réserves, conditions et photos.
+ */
+export const FORM_STARTERS = Object.freeze([
+  {
+    key: 'p2_chaufferie',
+    label: 'Contrôle chaufferie (prise en charge P2)',
+    description: 'Une fiche par site : générateurs, hydraulique, sécurité, documents.',
+    target: 'site',
+    fields: [
+      { type: 'section', label: 'Générateurs' },
+      { type: 'select', label: 'Énergie', options: ['Gaz', 'Fioul', 'Bois', 'Électricité', 'Réseau de chaleur'], required: true },
+      { type: 'number', label: 'Puissance totale', unit: 'kW', min: 0 },
+      { type: 'number', label: 'Année de mise en service', min: 1950, max: 2100, decimals: 0 },
+      { type: 'verdict', label: 'État général des générateurs', reserveOnNok: true },
+      { type: 'section', label: 'Hydraulique' },
+      { type: 'number', label: 'Température départ', key: 't_depart', unit: '°C', min: 30, max: 95 },
+      { type: 'number', label: 'Température retour', key: 't_retour', unit: '°C', min: 20, max: 85 },
+      { type: 'calc', label: 'Écart départ / retour', unit: 'K', formula: '{t_depart} - {t_retour}', decimals: 1 },
+      { type: 'number', label: 'Pression réseau', unit: 'bar', min: 0.5, max: 4, decimals: 1 },
+      { type: 'verdict', label: 'Pompes et circulateurs', reserveOnNok: true },
+      { type: 'verdict', label: 'Vase d’expansion', reserveOnNok: true },
+      { type: 'section', label: 'Sécurité' },
+      { type: 'verdict', label: 'Ventilations haute et basse', reserveOnNok: true },
+      { type: 'verdict', label: 'Détection gaz', reserveOnNok: true, showIf: { field: 'energie', op: 'eq', value: 'Gaz' } },
+      { type: 'yesno', label: 'Carnet de chaufferie présent' },
+      { type: 'longtext', label: 'Observations' },
+      { type: 'photo', label: 'Photos' },
+    ],
+  },
+  {
+    key: 'cee_inventaire',
+    label: 'Inventaire CEE — équipement',
+    description: 'Une fiche par équipement, avec la preuve photo de la plaque.',
+    target: 'equipment',
+    fields: [
+      { type: 'text', label: 'Fiche CEE visée', help: 'Code de l’opération standardisée' },
+      { type: 'text', label: 'Désignation' },
+      { type: 'number', label: 'Puissance', unit: 'kW', min: 0 },
+      { type: 'number', label: 'Année de pose', decimals: 0, min: 1950, max: 2100 },
+      { type: 'text', label: 'Numéro de série' },
+      { type: 'yesno', label: 'Plaque signalétique lisible', required: true },
+      { type: 'photo', label: 'Photo de la plaque', required: true },
+      { type: 'longtext', label: 'Remarques' },
+    ],
+  },
+  {
+    key: 'releve_cctp',
+    label: 'Relevé avant CCTP',
+    description: 'Une fiche par local : existant, décision et préconisation.',
+    target: 'location',
+    fields: [
+      { type: 'text', label: 'Équipement concerné' },
+      { type: 'longtext', label: 'Caractéristiques relevées' },
+      { type: 'select', label: 'Décision', options: ['À conserver', 'À remplacer', 'À déposer', 'À compléter'], required: true },
+      { type: 'longtext', label: 'Préconisation', showIf: { field: 'decision', op: 'eq', value: 'À remplacer' } },
+      { type: 'longtext', label: 'Contraintes d’accès et de dépose' },
+      { type: 'photo', label: 'Photos' },
+    ],
+  },
+  {
+    key: 'visite_chantier',
+    label: 'Visite de chantier',
+    description: 'Une fiche par visite : avancement, sécurité, points abordés.',
+    target: 'free',
+    fields: [
+      { type: 'date', label: 'Date de la visite', required: true },
+      { type: 'multiselect', label: 'Lots présents', options: ['CVC', 'Plomberie', 'Électricité', 'Gros œuvre', 'Autre'] },
+      { type: 'number', label: 'Effectif sur site', decimals: 0, min: 0 },
+      { type: 'verdict', label: 'Avancement conforme au planning' },
+      { type: 'verdict', label: 'Propreté et sécurité du chantier', reserveOnNok: true },
+      { type: 'longtext', label: 'Points abordés' },
+      { type: 'photo', label: 'Photos' },
+    ],
+  },
+]);

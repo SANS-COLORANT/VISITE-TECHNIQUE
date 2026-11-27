@@ -11,6 +11,35 @@ import {
   listerMissionClients,
   listerMissionSites,
 } from './missionsDb.js';
+import { enregistrerBriquesMission, listerModelesMission, marquerModeleMissionUtilise, modelFormIds, supprimerModeleMission } from './missionModelsDb.js';
+import { rattacherTrame } from './missionFormsDb.js';
+import { parseMissionModules } from './missionModules.js';
+import { missionSheetStore } from './missionSheetStore.js';
+import { SHEET_PREF_KEYS } from './missionSheetPrefs.js';
+import { CvcIcon } from './MetraCvcIcons.js';
+import { confirmer } from './VisitKit.js';
+
+const TYPE_LABELS = new Map(MISSION_FAMILIES.flatMap((f) => f.types.map(([key, label]) => [key, label])));
+
+function ModelCard({ model, selected, onPress, onDelete }) {
+  const modules = parseMissionModules(model.modules_json);
+  const meta = [TYPE_LABELS.get(model.type) || 'Type libre', modules.added.length ? `+${modules.added.length} brique(s)` : null, modules.removed.length ? `−${modules.removed.length} brique(s)` : null, modelFormIds(model).length ? `${modelFormIds(model).length} trame(s)` : null, model.use_count ? `utilisé ${model.use_count} fois` : null].filter(Boolean).join(' · ');
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+      <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`Partir du modèle ${model.label}`} onPress={onPress} activeOpacity={0.8}
+        style={{ flex: 1, minHeight: 56, borderRadius: 16, borderWidth: selected ? 2 : 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : 'rgba(255,255,255,0.9)', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <CvcIcon name={selected ? 'check' : 'copy'} size={22} color={MISSION_COLORS.accentDark} strokeWidth={2} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: COLORS.ink, fontFamily: FONTS.bold, fontSize: 14.5 }} numberOfLines={2}>{model.label}</Text>
+          <Text style={{ color: COLORS.inkSoft, fontFamily: FONTS.bodyMedium, fontSize: 12.5, marginTop: 2 }} numberOfLines={2}>{model.description || meta}</Text>
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Supprimer le modèle ${model.label}`} onPress={onDelete} style={{ width: 48, height: 48, borderRadius: 14, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' }}>
+        <CvcIcon name="trash" size={20} color={COLORS.inkSoft} strokeWidth={2} />
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 function Choice({ selected, label, onPress }) {
   return (
@@ -38,6 +67,29 @@ export function MissionCreateScreen({ navigation }) {
   const [newClient, setNewClient] = useState('');
   const [newSite, setNewSite] = useState('');
   const [saving, setSaving] = useState(false);
+  const [models, setModels] = useState([]);
+  const [modelId, setModelId] = useState(null);
+  const reloadModels = useCallback(async () => setModels(await listerModelesMission()), []);
+  useEffect(() => { reloadModels().catch(() => setModels([])); }, [reloadModels]);
+  const model = useMemo(() => models.find((item) => item.id === modelId) || null, [models, modelId]);
+
+  const pickModel = (item) => {
+    if (modelId === item.id) { setModelId(null); return; }
+    setModelId(item.id);
+    setFamily(item.family || null);
+    setType(item.type || null);
+    if (!label.trim()) setLabel(item.label);
+  };
+
+  const deleteModel = (item) => confirmer({
+    title: `Supprimer « ${item.label} » ?`,
+    message: 'Les Missions déjà créées avec ce modèle ne changent pas.',
+    onConfirm: async () => {
+      await supprimerModeleMission(item.id);
+      if (modelId === item.id) setModelId(null);
+      await reloadModels();
+    },
+  });
 
   const reloadClients = useCallback(async () => setClients(await listerMissionClients()), []);
   useEffect(() => { reloadClients().catch(() => {}); }, [reloadClients]);
@@ -88,6 +140,12 @@ export function MissionCreateScreen({ navigation }) {
         siteIds: siteId ? [siteId] : [],
         startDate: new Date().toISOString().slice(0, 10),
       });
+      if (model) {
+        await enregistrerBriquesMission(missionId, parseMissionModules(model.modules_json));
+        if (model.layout_json) missionSheetStore.restoreRaw(SHEET_PREF_KEYS.layout('mission', missionId), model.layout_json);
+        for (const formId of modelFormIds(model)) await rattacherTrame(missionId, formId).catch(() => {});
+        await marquerModeleMissionUtilise(model.id);
+      }
       navigation.navigate('Mission', { missionId });
     } catch (e) {
       Alert.alert('Mission non créée', String(e.message || e));
@@ -104,6 +162,12 @@ export function MissionCreateScreen({ navigation }) {
           Tu peux créer un brouillon immédiatement. Aucun champ ci-dessous n’est exigé pour enregistrer la Mission.
         </Text>
       </View>
+
+      {models.length ? <>
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Partir d’un de mes modèles</Text>
+        {models.map((item) => <ModelCard key={item.id} model={item} selected={modelId === item.id} onPress={() => pickModel(item)} onDelete={() => deleteModel(item)} />)}
+        <Text style={{ color: COLORS.inkSoft, fontFamily: FONTS.bodyMedium, fontSize: 12.5, marginBottom: 14 }}>{model ? 'Briques et disposition du modèle seront appliquées. Tu peux encore changer le type ci-dessous.' : 'Ou choisis une famille et un type :'}</Text>
+      </> : null}
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>1 · Famille proposée</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>

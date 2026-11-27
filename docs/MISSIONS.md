@@ -236,6 +236,34 @@ Cela doit permettre progressivement :
 
 Les traitements lourds doivent rester chargés à la demande afin de préserver la fluidité tablette.
 
+## Fiche Mission modulable
+
+La fiche Mission (`MissionScreen.js`) est une pile de blocs déclarés une seule fois dans `missionSheetRegistry.js` : en-tête et action principale (verrouillés, toujours en tête), puis À traiter, Visites, Progression, Réserves, Avancement multi-sites, Outils épinglés, Mesures récentes, Documents attendus, Indicateurs et Livrables. Un bloc vide se replie en une ligne qui propose l'action pour le remplir.
+
+- **Reprise en un geste** : l'action principale reprend la visite brouillon / en cours la plus récente (`listerReprisesMissions`, `missionSheetQueries.js`) ; l'accueil Missions propose la même carte « Reprendre la visite ».
+- **Personnaliser** : bouton de l'en-tête ou appui long sur un titre de bloc. Monter, descendre, compact / détaillé, masquer, « Déplacer vers… » ; aucun glisser-déposer obligatoire (WCAG 2.5.7). Dispositions prêtes Terrain, Bureau, Minimal ; réglage d'usine ; mode gants (cibles de 56 dp).
+- **Héritage** : Mission → type → famille → réglage d'usine (`resolveSheetLayout`). « Terminer » enregistre pour cette Mission ou pour toutes les Missions du type ; « Annuler » pendant 6 s. Un bloc ajouté dans une version ultérieure prend sa place par défaut sans réinitialiser la disposition.
+- **Outils** : les 26 outils restent accessibles depuis « Tous les outils » (recherche, groupes, étoile pour épingler, 8 au maximum). Les épingles par défaut suivent le parcours recommandé du type. Un outil ouvert 3 fois en 7 jours est **proposé** à l'épinglage (Épingler / Plus tard / Ne plus proposer) : rien ne bouge sans accord.
+- **Stockage** : dispositions, usages et mode gants vivent dans la base de préférences d'interface (`uiPrefs.js`, via `missionSheetStore.js`) : aucune migration de la base métier, lecture synchrone, jamais exportés dans un Excel, un ZIP ou un rapport.
+- **Tests** : `tests/missionSheetLayout.test.mjs` (37 types, héritage, édition, suggestions) et `tests/missionSheetDb.test.mjs` (requêtes sur base migrée complète, préférences).
+
+## Missions à la carte
+
+- **Briques** : chaque Mission part des outils de son type (`getMissionCapabilities`) puis peut **ajouter** un outil d'un autre type ou **retirer** ceux qu'elle n'utilise pas (« Tous les outils » › « Ajouter ou retirer des briques »). Seule la différence est stockée dans `missions.modules_json` (migration 052, additive) ; une brique retirée disparaît de la fiche, des outils et des épingles, ses données restent en base. La colonne suit l'Excel complet et le ZIP (export `SELECT *`, import par colonnes connues).
+- **Modèles** : « Enregistrer comme modèle » (Personnaliser › Ajouter et régler) garde type, briques et disposition dans `mission_models`. À la création, « Partir d'un de mes modèles » applique le tout ; les données d'une Mission ne sont jamais copiées.
+- Tests : `tests/missionModules.test.mjs`.
+
+## Trames maison, listes, modèles Word et partage
+
+- **Constructeur de trames** (`MissionFormBuilderScreen`, moteur pur `missionFormEngine.js`) : texte, texte long, nombre (unité, seuils, décimales), date, oui/non, choix unique ou multiple (saisis ou liste de référence), avis Conforme / À surveiller / Non conforme / Sans objet, photos (`capturerPhotoMission`), calcul (`{clé}`, + − × ÷, min, max, abs, round, sqrt ; aucune évaluation de code), titre de section. Pas de champ GPS : la permission de localisation est bloquée dans la version Play. Obligatoire, aide, condition « afficher si » sur un champ placé au-dessus. Une fiche par Mission, site, local, équipement, ou fiches libres. Les erreurs de conception sont signalées sans bloquer.
+- **Saisie** (`MissionFormFillScreen`) : enregistrement automatique à chaque modification (règle 10), conditions et calculs en direct, seuils et champs obligatoires signalés sans bloquer. « Terminer » crée une réserve (`mission_points`, `source_type='form_entry'`) pour chaque avis non conforme qui le demande, une seule fois.
+- **Versions** : modifier les champs d'une trame incrémente sa version ; une fiche garde ses valeurs et la version avec laquelle elle a été remplie. Une trame déjà remplie est archivée, jamais supprimée.
+- **Listes de référence** (`mission_ref_lists`) : saisies ou importées d'une colonne Excel, utilisées par les champs « choix ».
+- **Modèles Word à balises** (`docxTemplateEngine.js`, `missionTemplateContext.js`) : `{{mission.nom}}`, répétitions `{{#reserves}}…{{/reserves}}` (ligne de tableau répétée), `{{^liste}}` si vide, `{{#trame_<nom>}}{{<clé>}}{{/trame_<nom>}}`. Les balises coupées par Word sont recollées. Corps, en-têtes et pieds de page.
+- **Exports** : feuilles 68 à 71 de l'Excel complet (réimportables, schéma v43 inchangé), un onglet par trame dans l'Excel client. Correctif : les feuilles 66-67 (campagnes) n'avaient pas de requête d'export, ce qui faisait échouer l'Excel complet et le ZIP.
+- **Partage par fichier** (`missionPackCore.js`) : un `.metra.json` contient trames, listes, modèles de Mission et modèles Word, jamais de données de Mission. À l'import rien n'est écrasé : doublons ignorés, homonymes renommés « (importé) », liens recâblés.
+- Migration 053 (additive). Tests : `tests/missionForms.test.mjs`, `tests/missionExcelRoundtrip.test.mjs`.
+
 ## Validation minimale
 
 Avant fusion d'une évolution Missions, vérifier au minimum :

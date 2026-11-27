@@ -1,7 +1,8 @@
 /**
  * Barre de navigation METRA : un seul indicateur partagé (la « bulle »).
  * Le mouvement du doigt fait glisser l'indicateur entre Accueil / Clients /
- * Réglages avec un parcours court ; le bouton + et Missions restent séparés.
+ * Réglages avec un parcours court ; Missions partage la bulle mais n'est
+ * accessible que par appui. Le bouton + reste une action indépendante.
  *
  * Effet « boule d'eau », une seule forme, tout en transform/opacity piloté par
  * le driver natif (aucun état React par image, rien ne tourne au repos) :
@@ -65,7 +66,12 @@ function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, 
     const next=Math.ceil(w);
     setContentWidths(prev=>prev[key]===next?prev:{...prev,[key]:next});
   };
-  const orderIndex=Math.max(0,ROOT_TAB_KEYS.indexOf(activeKey));
+  // The pager still has only three swipeable pages. The dock adds a fourth
+  // logical position only while Missions is selected (no swipe or tap travel
+  // across the unrelated technical pages to get there).
+  const missionSelected=activeKey==='missions';
+  const indicatorKeys=missionSelected?[...ROOT_TAB_KEYS,'missions']:ROOT_TAB_KEYS;
+  const orderIndex=Math.max(0,indicatorKeys.indexOf(activeKey));
   const idleProgress=useRef(new Animated.Value(orderIndex)).current;
   const rawProgress=swipeProgress||idleProgress;
   // Tap travel: the route change sets the shared progress straight to the new
@@ -82,7 +88,7 @@ function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, 
   const air=useRef(AIR.map(()=>new Animated.Value(0))).current;
   const swirl=useRef(new Animated.Value(0)).current;
   // Started once the ball is on screen, so the loops drive views that exist.
-  const ballVisible=measuredWidth>0&&ROOT_TAB_KEYS.includes(activeKey)&&tabs.some(tab=>tab.key===activeKey);
+  const ballVisible=measuredWidth>0&&indicatorKeys.includes(activeKey)&&tabs.some(tab=>tab.key===activeKey);
   const [appActive,setAppActive]=useState(AppState.currentState!=='background');
   useEffect(()=>{
     const sub=AppState.addEventListener?.('change',state=>setAppActive(state==='active'));
@@ -126,16 +132,25 @@ function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, 
   useLayoutEffect(()=>{
     const from=tapFrom.current;
     tapFrom.current=null;
-    const changed=prevKey.current!==activeKey;
+    const previous=prevKey.current;
+    const changed=previous!==activeKey;
     prevKey.current=activeKey;
-    if(!changed||!ROOT_TAB_KEYS.includes(activeKey))return;
+    if(!changed)return;
+    if(previous==='missions'||missionSelected){
+      // Do not carry a previous spring into or out of the tap-only tab.
+      tapOffset.stopAnimation();
+      tapOffset.setValue(0);
+      land(0);
+      return;
+    }
+    if(!ROOT_TAB_KEYS.includes(activeKey))return;
     if(from!==null&&from!==orderIndex){
       tapOffset.stopAnimation();
       tapOffset.setValue(from-orderIndex);
       Animated.spring(tapOffset,{toValue:0,friction:7,tension:50,useNativeDriver:true}).start();
       land(TAP_LANDING_MS);
     }else land(0); // a swipe has already arrived when the route changes
-  },[orderIndex,activeKey,tapOffset]);
+  },[orderIndex,activeKey,missionSelected,tapOffset]);
   const turnPlus=()=>{
     plusTurn.stopAnimation();
     plusTurn.setValue(0);
@@ -144,7 +159,7 @@ function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, 
   const compact=width/Math.max(1,tabs.length)<112 || dense;
   const horizontalPadding=dense?8:10;
   const slotWidth=Math.max(1,(measuredWidth-horizontalPadding*2)/Math.max(1,tabs.length));
-  const activeIndex=tabs.findIndex(tab=>tab.key===activeKey&&ROOT_TAB_KEYS.includes(tab.key));
+  const activeIndex=tabs.findIndex(tab=>tab.key===activeKey&&indicatorKeys.includes(tab.key));
   const centerFor=idx=>horizontalPadding+(idx+.5)*slotWidth;
   const bubbleWidth=Math.min(Math.max(1,slotWidth-6),dense?44:compact?48:118);
   const bubbleHeight=dense?28:compact?32:40;
@@ -163,23 +178,31 @@ function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, 
     const raw=w?w+orbPad:bubbleWidth;
     return Math.max(orbH*.95,Math.min(raw,slotWidth-2));
   };
-  const tabWidths=ROOT_TAB_KEYS.map(fitWidth);
+  const tabWidths=indicatorKeys.map(fitWidth);
   const orbW=Math.max(...tabWidths);
   // Every animated node is built once per geometry instead of on each render,
   // so re-renders (navigation, measurements) reuse the same native graph.
-  const geometryKey=[orbW,orbH,orbTop,slotWidth,horizontalPadding,tabs.map(t=>t.key).join(','),tabWidths.join(',')].join('|');
+  const geometryKey=[orbW,orbH,orbTop,slotWidth,horizontalPadding,indicatorKeys.join(','),tabs.map(t=>t.key).join(','),tabWidths.join(',')].join('|');
   const fx=useMemo(()=>{
     // Absolute page index, not a relative delta whose base changes on navigation.
-    const bubbleTranslate=progress.interpolate({inputRange:[0,1,2],outputRange:ROOT_TAB_KEYS.map(key=>centerFor(tabs.findIndex(tab=>tab.key===key))-orbW/2),extrapolate:'clamp'});
+    const bubbleTranslate=progress.interpolate({inputRange:missionSelected?[0,1,2,3]:[0,1,2],outputRange:indicatorKeys.map(key=>centerFor(tabs.findIndex(tab=>tab.key===key))-orbW/2),extrapolate:'clamp'});
     // 0 when resting on a tab, 1 halfway between two tabs.
-    const travel=progress.interpolate({inputRange:[0,.5,1,1.5,2],outputRange:[0,1,0,1,0],extrapolate:'clamp'});
+    const travel=progress.interpolate({inputRange:missionSelected?[0,.5,1,1.5,2,2.5,3]:[0,.5,1,1.5,2],outputRange:missionSelected?[0,1,0,1,0,1,0]:[0,1,0,1,0],extrapolate:'clamp'});
     // Flat drop at rest -> round ball while rolling (width shrinks to about the
     // height, slightly longer than tall) -> squashed against an edge on overshoot.
     const ball=Math.min(1,(Math.min(orbH,44)*1.12)/orbW);
     const fit=tabWidths.map(w=>w/orbW);
-    const shapeIn=[-.35,0,.14,.5,.86,1,1.14,1.5,1.86,2,2.35];
-    const stretchX=progress.interpolate({inputRange:shapeIn,outputRange:[.8*fit[0],fit[0],ball*1.12,ball*1.05,ball*1.12,fit[1],ball*1.12,ball*1.05,ball*1.12,fit[2],.8*fit[2]],extrapolate:'clamp'});
-    const stretchY=progress.interpolate({inputRange:shapeIn,outputRange:[1.18,1,1.1,1.04,1.1,1,1.1,1.04,1.1,1,1.18],extrapolate:'clamp'});
+    const shapeIn=[-.35,0],shapeX=[.8*fit[0],fit[0]],shapeY=[1.18,1];
+    for(let i=1;i<indicatorKeys.length;i++){
+      shapeIn.push(i-.86,i-.5,i-.14,i);
+      shapeX.push(ball*1.12,ball*1.05,ball*1.12,fit[i]);
+      shapeY.push(1.1,1.04,1.1,1);
+    }
+    shapeIn.push(indicatorKeys.length-1+.35);
+    shapeX.push(.8*fit[fit.length-1]);
+    shapeY.push(1.18);
+    const stretchX=progress.interpolate({inputRange:shapeIn,outputRange:shapeX,extrapolate:'clamp'});
+    const stretchY=progress.interpolate({inputRange:shapeIn,outputRange:shapeY,extrapolate:'clamp'});
     const lift=travel.interpolate({inputRange:[0,.25,1],outputRange:[0,-3,-4]});
     const splashX=splash.interpolate({inputRange:[-1,0,1],outputRange:[.9,1,1.14]});
     const splashY=splash.interpolate({inputRange:[-1,0,1],outputRange:[1.1,1,.86]});
@@ -219,7 +242,7 @@ function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, 
     const airY=air.map(v=>v.interpolate({ inputRange: [0, 1], outputRange: [orbH * .32, -orbH * .34] }));
     const glossBack=Animated.multiply(glossDrift,-0.6);
     // Per root tab: word fades/magnifies under the sphere, icon tilts on arrival.
-    const tabFx=ROOT_TAB_KEYS.map((_k,index)=>{
+    const tabFx=indicatorKeys.map((_k,index)=>{
       const whiteOpacity=progress.interpolate({inputRange:[index-1,index-.25,index,index+.25,index+1],outputRange:[0,0,1,0,0],extrapolate:'clamp'});
       return {
         whiteOpacity,
@@ -244,7 +267,7 @@ function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, 
       pointerEvents="none"
       style={[outerStyle, { zIndex: 0 }]}
     >
-      <Animated.View style={{ position: 'absolute', left: '10%', right: '10%', bottom: -6, height: 8, borderRadius: 8, backgroundColor: '#3A1A08', opacity: shadowOpacity, transform: [{ scaleX: shadowScale }] }} />
+      <Animated.View style={{ position: 'absolute', left: '10%', right: '10%', bottom: -6, height: 8, borderRadius: 8, backgroundColor: missionSelected ? accentDark : '#3A1A08', opacity: shadowOpacity, transform: [{ scaleX: shadowScale }] }} />
       <Animated.View style={{ position: 'absolute', left: -7, right: -7, top: -6, bottom: -6, borderRadius: R + 7, backgroundColor: accent, opacity: glowOpacity, transform: [{ scaleX: stretchX }] }} />
       <Animated.View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: R, borderWidth: 1.5, borderColor: accent, opacity: rippleOpacity, transform: [{ scaleX: rippleScaleX }, { scaleY: rippleScaleY }] }} />
       <Animated.View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, transform: bodyTransform }}>
@@ -268,8 +291,8 @@ function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, 
           </LinearGradient>
         </TouchableOpacity>
       </View>;
-      const root=ROOT_TAB_KEYS.includes(tab.key);
-      const index=ROOT_TAB_KEYS.indexOf(tab.key);
+      const root=indicatorKeys.includes(tab.key);
+      const index=indicatorKeys.indexOf(tab.key);
       const { whiteOpacity=null, greyOpacity=null, lensScale=null, iconScale=null, iconRotate=null }=root?tabFx[index]:{};
       return <TouchableOpacity key={tab.key} accessibilityRole="tab" accessibilityState={{selected:active}} accessibilityLabel={tab.label}
         onPress={()=>{if(root&&active){land(0);hapticTick();}else{if(root)tapFrom.current=orderIndex;hapticTick();}tab.onPress?.();}} activeOpacity={0.8} style={[styles.slot,{height:slotHeight,gap}]}>

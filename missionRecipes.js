@@ -771,6 +771,8 @@ function mergeSections(baseSections, extraSections) {
 }
 
 const BASE_CAPABILITIES = Object.freeze({
+  // Trames & formulaires maison : disponibles pour toutes les Missions.
+  forms: true,
   workflow: true,
   structure: true,
   technicalStructure: true,

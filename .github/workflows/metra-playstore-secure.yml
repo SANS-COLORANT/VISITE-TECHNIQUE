@@ -19,6 +19,7 @@ on:
       - fix/metra-play-secure-backup-restore-20261123
       - fix/metra-restore-recovery-release-20261124
       - feat/metra-activation-qr-20261124
+      - feat/metra-mission-modulable-20261126
   workflow_dispatch:
 
 permissions:
@@ -60,12 +61,15 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          # The dedicated release branch can reuse its own successfully populated cache.
+          cache-read-only: ${{ github.ref_name != github.event.repository.default_branch && github.ref_name != 'feat/metra-mission-modulable-20261126' }}
 
       - name: Check source for embedded credentials and insecure Android defaults
         run: python3 .github/scripts/verify_play_security.py
 
       - name: Upgrade Expo to API36-capable SDK 54 and resolve compatible dependencies
-        if: (github.ref_name != 'fix/metra-restore-recovery-release-20261124' && github.ref_name != 'feat/metra-activation-qr-20261124')
+        if: (github.ref_name != 'fix/metra-restore-recovery-release-20261124' && github.ref_name != 'feat/metra-activation-qr-20261124' && github.ref_name != 'feat/metra-mission-modulable-20261126')
         run: |
           set -euo pipefail
           npm install --save expo@~54.0.38 react@19.1.0 react-native@0.81.5 --ignore-scripts --no-audit --no-fund
@@ -78,7 +82,7 @@ jobs:
           node --check app.config.js
 
       - name: Install exact committed dependencies for restoration candidate
-        if: (github.ref_name == 'fix/metra-restore-recovery-release-20261124' || github.ref_name == 'feat/metra-activation-qr-20261124')
+        if: (github.ref_name == 'fix/metra-restore-recovery-release-20261124' || github.ref_name == 'feat/metra-activation-qr-20261124' || github.ref_name == 'feat/metra-mission-modulable-20261126')
         run: |
           npm ci --no-audit --no-fund --prefer-offline
           npx expo install --check
@@ -86,6 +90,7 @@ jobs:
 
       - name: Check JS syntax, SQLite model, REMAR and local reports
         run: |
+          bash .github/scripts/test_gradle_retry.sh
           npm run verify:metra
           node --test tests/activationQr.test.mjs
           node --test .github/scripts/test_metra_settings_safe_area.cjs
@@ -111,7 +116,7 @@ jobs:
           node --check plugins/withMetraPlaySecurity.js
 
       - name: Commit resolved dependency lock and legacy FS migration as real source
-        if: (github.ref_name != 'fix/metra-restore-recovery-release-20261124' && github.ref_name != 'feat/metra-activation-qr-20261124')
+        if: (github.ref_name != 'fix/metra-restore-recovery-release-20261124' && github.ref_name != 'feat/metra-activation-qr-20261124' && github.ref_name != 'feat/metra-mission-modulable-20261126')
         run: |
           set -euo pipefail
           git add package.json package-lock.json
@@ -128,14 +133,14 @@ jobs:
           fi
 
       - name: Audit exact restoration runtime before compiling
-        if: (github.ref_name == 'fix/metra-restore-recovery-release-20261124' || github.ref_name == 'feat/metra-activation-qr-20261124')
+        if: (github.ref_name == 'fix/metra-restore-recovery-release-20261124' || github.ref_name == 'feat/metra-activation-qr-20261124' || github.ref_name == 'feat/metra-mission-modulable-20261126')
         run: |
           node --test tests/backupPlaySecure.test.mjs tests/restoreRecovery.test.mjs tests/mobileLayout.test.mjs tests/reportPdfFragments.test.mjs tests/reportPerformance.test.mjs tests/reportFidelity.test.mjs
           grep -qx 'export const METRA_PLAY_SECURE_BUILD = true;' playSecurityRuntime.generated.js
           node .github/scripts/metra_full_audit_runner.cjs --generated-play
           git diff --exit-code -- '*.js' '*.jsx' '*.ts' '*.tsx' package.json package-lock.json ':!playSecurityRuntime.generated.js' ':!googleMapsRuntime.generated.js'
       - name: Preserve source audit evidence
-        if: always() && (github.ref_name == 'fix/metra-restore-recovery-release-20261124' || github.ref_name == 'feat/metra-activation-qr-20261124')
+        if: always() && (github.ref_name == 'fix/metra-restore-recovery-release-20261124' || github.ref_name == 'feat/metra-activation-qr-20261124' || github.ref_name == 'feat/metra-mission-modulable-20261126')
         uses: actions/upload-artifact@v4
         with:
           name: METRA-RESTORE-SOURCE-AUDIT-${{ github.run_number }}
@@ -184,7 +189,7 @@ jobs:
           cp android/app/debug.keystore android/app/metra-release.keystore
           python3 .github/scripts/configure_android_release_signing.py
           cd android
-          ./gradlew assembleRelease --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
+          bash ../.github/scripts/gradle_retry.sh ./gradlew assembleRelease --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
           cd ..
           mkdir -p release
           cp android/app/build/outputs/apk/release/app-release.apk release/METRA-API36-QA.apk
@@ -227,7 +232,7 @@ jobs:
             exit 1
           fi
           cd android
-          ./gradlew clean bundleRelease --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
+          bash ../.github/scripts/gradle_retry.sh ./gradlew clean bundleRelease --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
           cd ..
           test -s android/app/build/outputs/bundle/release/app-release.aab
           cp android/app/build/outputs/bundle/release/app-release.aab release/METRA-PlayStore.aab
@@ -257,7 +262,7 @@ jobs:
 
       - name: Archive signed AAB only when a genuine upload key was supplied
         uses: actions/upload-artifact@v4
-        if: steps.signing.outputs.ready == 'true' && (github.ref_name != 'fix/metra-restore-recovery-release-20261124' && github.ref_name != 'feat/metra-activation-qr-20261124')
+        if: steps.signing.outputs.ready == 'true' && (github.ref_name != 'fix/metra-restore-recovery-release-20261124' && github.ref_name != 'feat/metra-activation-qr-20261124' && github.ref_name != 'feat/metra-mission-modulable-20261126')
         with:
           name: METRA-PlayStore-AAB-${{ github.run_number }}
           path: release/METRA-PlayStore.aab*
@@ -265,7 +270,7 @@ jobs:
           retention-days: 30
 
       - name: Stage new signed AAB for native qualification (not yet approved)
-        if: steps.signing.outputs.ready == 'true' && (github.ref_name == 'fix/metra-restore-recovery-release-20261124' || github.ref_name == 'feat/metra-activation-qr-20261124')
+        if: steps.signing.outputs.ready == 'true' && (github.ref_name == 'fix/metra-restore-recovery-release-20261124' || github.ref_name == 'feat/metra-activation-qr-20261124' || github.ref_name == 'feat/metra-mission-modulable-20261126')
         uses: actions/upload-artifact@v4
         with:
           name: METRA-PlayStore-AAB-UNQUALIFIED-${{ github.run_number }}
@@ -274,12 +279,12 @@ jobs:
           retention-days: 14
 
   qualify-restore:
-    if: (github.ref_name == 'fix/metra-restore-recovery-release-20261124' || github.ref_name == 'feat/metra-activation-qr-20261124')
+    if: (github.ref_name == 'fix/metra-restore-recovery-release-20261124' || github.ref_name == 'feat/metra-activation-qr-20261124' || github.ref_name == 'feat/metra-mission-modulable-20261126')
     needs: secure-android
     strategy:
       fail-fast: false
       matrix:
-        scenario: [roundtrip, bulk, recovery, interface, report, pilotage]
+        scenario: ${{ fromJSON(github.ref_name == 'feat/metra-mission-modulable-20261126' && '["roundtrip","bulk","recovery","interface","report","pilotage","missions"]' || '["roundtrip","bulk","recovery","interface","report","pilotage"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -294,7 +299,7 @@ jobs:
       - name: Install independent ZIP and media verification tools
         run: |
           python -m pip install 'pyzipper==0.3.6' 'Pillow==11.3.0' 'pypdf==5.9.0'
-          python -m py_compile .github/scripts/android_aab_restore_retention.py .github/scripts/android_backup_smoke.py .github/scripts/android_restore_recovery.py .github/scripts/android_legacy_bulk_restore.py .github/scripts/android_candidate_scenario.py .github/scripts/android_mobile_layout.py .github/scripts/android_report_benchmark.py .github/scripts/android_pilotage_canvas.py
+          python -m py_compile .github/scripts/android_aab_restore_retention.py .github/scripts/android_backup_smoke.py .github/scripts/android_restore_recovery.py .github/scripts/android_legacy_bulk_restore.py .github/scripts/android_candidate_scenario.py .github/scripts/android_mobile_layout.py .github/scripts/android_report_benchmark.py .github/scripts/android_pilotage_canvas.py .github/scripts/android_missions_native.py
       - name: Download previous signed AAB 44
         uses: actions/download-artifact@v4
         with:
@@ -366,7 +371,7 @@ jobs:
           retention-days: 14
 
   qualified-play-artifact:
-    if: (github.ref_name == 'fix/metra-restore-recovery-release-20261124' || github.ref_name == 'feat/metra-activation-qr-20261124')
+    if: (github.ref_name == 'fix/metra-restore-recovery-release-20261124' || github.ref_name == 'feat/metra-activation-qr-20261124' || github.ref_name == 'feat/metra-mission-modulable-20261126')
     needs: [secure-android, qualify-restore]
     runs-on: ubuntu-latest
     permissions:

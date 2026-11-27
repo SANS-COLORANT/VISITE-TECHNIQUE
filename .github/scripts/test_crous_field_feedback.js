@@ -30,7 +30,7 @@ assert.ok(source('database/migrations/index.js').includes('migration050'));
 assert.ok(source('database/migrations/index.js').includes('migration051'));
 assert.ok(source('database/migrations/051_ecs_storage_temperature.js').includes('ALTER TABLE reseaux ADD COLUMN t_stockage_ecs_c TEXT'));
 assert.ok(source('database/migrations/051_ecs_storage_temperature.js').includes('ALTER TABLE observations_reseau ADD COLUMN t_stockage_ecs_c TEXT'));
-assert.ok(source('database/constants.js').includes('DATABASE_SCHEMA_VERSION = 51'));
+assert.ok(Number(source('database/constants.js').match(/DATABASE_SCHEMA_VERSION = (\d+)/)[1]) >= 51);
 assert.ok(source('visitCarryForwardDb.js').includes('row.t_stockage_ecs_c ?? null'));
 assert.ok(source('visitCarryForwardDb.js').includes('row.t_retour_ecs_c ?? null'));
 const reg=source('OptimizedRegulationPanel.js');

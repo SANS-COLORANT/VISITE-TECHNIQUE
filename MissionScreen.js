@@ -1,181 +1,237 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { MetraSpinner as ActivityIndicator } from './MetraSpinner.js';
-import { COLORS, styles, FONTS } from './styles.js';
+/**
+ * Fiche Mission — écran modulable.
+ *
+ * La fiche est une pile de blocs (missionSheetRegistry.js) dont l'ordre, la
+ * taille, la visibilité et les outils épinglés se règlent en mode
+ * « Personnaliser » : boutons monter / descendre / masquer / compact-détaillé
+ * et « Déplacer vers… » (aucun glisser-déposer obligatoire). La disposition
+ * s'enregistre pour cette Mission ou pour toutes celles du même type, avec
+ * « Annuler » pendant 6 s. En-tête et action principale restent toujours en
+ * tête : reprendre la visite en cours se fait en un geste.
+ *
+ * Indépendant de l'Intranet (règle 9) : seules les tables Missions sont lues.
+ */
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, LayoutAnimation, Platform, RefreshControl, ScrollView, StyleSheet, Text, UIManager, View, useWindowDimensions } from 'react-native';
+import { styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
-import { creerPointMission, creerVisiteMission, getMissionDashboard, mettreAJourMission, mettreAJourStatutPoint } from './missionsDb.js';
+import { creerPointMission, creerVisiteMission, getMissionDashboard, MISSION_FAMILIES, mettreAJourMission, mettreAJourStatutPoint } from './missionsDb.js';
 import { exporterMissionExcel } from './missionExcelExport.js';
 import { exporterMissionExcelClient } from './missionClientExcelExport.js';
 import { choisirEtImporterMissionExcel } from './missionExcelImport.js';
 import { getMissionDomainSummary } from './missionDomainDb.js';
 import { getMissionCapabilities } from './missionRecipes.js';
 import { getMissionFieldPlaybook } from './missionFieldPlaybooks.js';
+import { chargerExtrasFicheMission, listerReprisesMissions } from './missionSheetDb.js';
+import { missionSheetStore } from './missionSheetStore.js';
+import { SHEET_TOOL_BY_KEY } from './missionSheetRegistry.js';
+import { describeMissionModules, parseMissionModules, resolveMissionCapabilities, setMissionModule } from './missionModules.js';
+import { creerModeleMission, enregistrerBriquesMission, restaurerBriquesMission } from './missionModelsDb.js';
+import {
+  applySheetPreset,
+  availableSheetTools,
+  buildSheetContext,
+  defaultSheetLayout,
+  hideSheetBlock,
+  moveSheetBlock,
+  moveSheetBlockTo,
+  pickSheetToolSuggestion,
+  resolveSheetLayout,
+  serializeSheetLayout,
+  sheetLayoutsEqual,
+  showSheetBlock,
+  splitSheetColumns,
+  toggleSheetBlockSize,
+  togglePinnedSheetTool,
+} from './missionSheetLayout.js';
+import { SHEET_BLOCK_RENDERERS } from './MissionSheetBlocks.js';
+import { AllToolsSheet, CustomizeSheet, DeliverablesSheet, EditBlockBar, EditTopBar, ModulesSheet, MoveSheet, PointSheet, PointsListSheet, SaveModelSheet, ScopeSheet, VisitsListSheet } from './MissionSheetSheets.js';
+import { SheetErgoProvider, sheetStyles, SHEET_TYPE } from './missionSheetUi.js';
+import { FadeUp } from './premiumChrome.js';
 import { CvcIcon } from './MetraCvcIcons.js';
-import { ButtonGlow } from './ButtonGlow.js';
+import { SkeletonList } from './Skeleton.js';
+import { showToast } from './PremiumDialogs.js';
+import { hapticSuccess, hapticTick } from './fieldFeedback.js';
 
-const POINT_TYPES = Object.freeze([
-  ['reserve', 'Réserve'],
-  ['action', 'Action'],
-  ['request', 'Demande'],
-  ['control', 'Contrôle'],
-  ['decision', 'Décision'],
-  ['information', 'Information'],
-]);
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) UIManager.setLayoutAnimationEnabledExperimental(true);
 
-const POINT_STATUS = Object.freeze({
-  open: 'Ouvert',
-  in_progress: 'En cours',
-  waiting: 'En attente',
-  to_check: 'À contrôler',
-  closed: 'Clôturé',
-  no_follow_up: 'Sans suite',
-});
+const EMPTY_EXTRAS = Object.freeze({ measures: [], documents: { pending: 0, late: 0, done: 0, total: 0, next: [] }, sites: { todo: 0, progress: 0, done: 0, total: 0 }, forms: [] });
+const UNDO_MS = 6000;
+// Dernière fiche affichée par Mission : le retour depuis un outil est instantané, la base est relue en arrière-plan.
+const SHEET_CACHE = new Map();
 
-function Pill({ active, label, onPress }) {
-  return <TouchableOpacity onPress={onPress} style={{ borderRadius: 12, borderWidth: 1, borderColor: active ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: active ? MISSION_COLORS.accentLight : COLORS.white, paddingHorizontal: 11, paddingVertical: 8, marginRight: 7, marginBottom: 7 }}><Text style={{ color: active ? MISSION_COLORS.accentDark : COLORS.ink, fontSize: 10.5, fontFamily: FONTS.bold }}>{label}</Text></TouchableOpacity>;
-}
+const TYPE_LABELS = new Map(MISSION_FAMILIES.flatMap((family) => family.types.map(([key, label]) => [key, label])));
 
-function PhaseRail({ phases = [] }) {
-  if (!phases.length) return <Text style={{ color: COLORS.inkFaint, fontSize: 10.5 }}>Aucune phase imposée. La Mission reste libre.</Text>;
-  return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 6 }}>
-    {phases.map((phase, index) => <View key={phase.id} style={{ flexDirection: 'row', alignItems: 'center' }}>
-      <View style={{ minWidth: 96, borderRadius: 12, borderWidth: 1, borderColor: phase.status === 'done' ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: phase.status === 'done' ? MISSION_COLORS.accentLight : COLORS.white, paddingHorizontal: 10, paddingVertical: 9 }}>
-        <Text style={{ color: phase.status === 'done' ? MISSION_COLORS.accentDark : COLORS.ink, fontFamily: FONTS.bold, fontSize: 10.5 }} numberOfLines={2}>{phase.label}</Text>
-      </View>
-      {index < phases.length - 1 ? <CvcIcon name="chevron-right" size={16} color={MISSION_COLORS.accentLineStrong} strokeWidth={2.1} /> : null}
-    </View>)}
-  </ScrollView>;
-}
+const animate = () => LayoutAnimation.configureNext(LayoutAnimation.create(220, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity));
+const errorText = (e) => String(e?.message || e || 'Erreur inconnue');
 
 export function MissionScreen({ navigation, route }) {
   const missionId = route?.params?.missionId;
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [pointModal, setPointModal] = useState(false);
-  const [pointType, setPointType] = useState('information');
-  const [pointLabel, setPointLabel] = useState('');
-  const [pointDescription, setPointDescription] = useState('');
-  const [pointDueText, setPointDueText] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [exportingClient, setExportingClient] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [domainSummary, setDomainSummary] = useState({});
+  const cached = SHEET_CACHE.get(missionId);
+  const { width } = useWindowDimensions();
+  const wide = width >= 600;
+
+  const [data, setData] = useState(cached?.data || null);
+  const [summary, setSummary] = useState(cached?.summary || {});
+  const [extras, setExtras] = useState(cached?.extras || EMPTY_EXTRAS);
+  const [resume, setResume] = useState(cached?.resume || null);
+  const [loading, setLoading] = useState(!cached);
+  const [refreshing, setRefreshing] = useState(false);
+  const [prefsTick, setPrefsTick] = useState(0);
+  const [gloves, setGloves] = useState(() => missionSheetStore.getGloves());
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(null);
+  const [busy, setBusy] = useState({ visit: false, client: false, full: false, import: false });
+  const [sheet, setSheet] = useState(null); // 'tools' | 'point' | 'points' | 'visits' | 'customize' | 'scope' | 'move' | 'deliverables'
+  const [pointPreset, setPointPreset] = useState(null);
+  const [moveKey, setMoveKey] = useState(null);
+  const [savingPoint, setSavingPoint] = useState(false);
+  const [savingModel, setSavingModel] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
 
   const reload = useCallback(async () => {
     if (!missionId) return;
-    setLoading(true);
     try {
-      const [dashboard, summary] = await Promise.all([getMissionDashboard(missionId), getMissionDomainSummary(missionId)]);
-      setData(dashboard);
-      setDomainSummary(summary || {});
+      const [dashboard, domain, more, resumes] = await Promise.all([
+        getMissionDashboard(missionId),
+        getMissionDomainSummary(missionId).catch(() => ({})),
+        chargerExtrasFicheMission(missionId).catch(() => EMPTY_EXTRAS),
+        listerReprisesMissions({ missionId, limit: 1 }).catch(() => []),
+      ]);
+      if (!mounted.current) return;
+      const next = { data: dashboard, summary: domain || {}, extras: more || EMPTY_EXTRAS, resume: resumes?.[0] || null };
+      SHEET_CACHE.set(missionId, next);
+      setData(next.data);
+      setSummary(next.summary);
+      setExtras(next.extras);
+      setResume(next.resume);
+    } catch (e) {
+      if (mounted.current && !SHEET_CACHE.get(missionId)) Alert.alert('Fiche Mission indisponible', errorText(e));
+    } finally {
+      if (mounted.current) { setLoading(false); setRefreshing(false); }
     }
-    finally { setLoading(false); }
   }, [missionId]);
 
   useEffect(() => { reload(); }, [reload]);
 
-  const openPoints = useMemo(() => (data?.points || []).filter((p) => !['closed', 'no_follow_up'].includes(p.status)), [data?.points]);
-  const capabilities = useMemo(
-    () => getMissionCapabilities(data?.mission?.family, data?.mission?.type),
-    [data?.mission?.family, data?.mission?.type]
-  );
-  const playbook = useMemo(
-    () => getMissionFieldPlaybook(data?.mission?.type),
-    [data?.mission?.type]
-  );
+  const mission = data?.mission || null;
+  // Briques : celles du type (getMissionCapabilities), plus les ajouts, moins les retraits propres à cette Mission.
+  const baseCapabilities = useMemo(() => getMissionCapabilities(mission?.family, mission?.type), [mission?.family, mission?.type]);
+  const modules = useMemo(() => parseMissionModules(mission?.modules_json), [mission?.modules_json]);
+  const capabilities = useMemo(() => resolveMissionCapabilities(baseCapabilities, modules), [baseCapabilities, modules]);
+  const playbook = useMemo(() => getMissionFieldPlaybook(mission?.type), [mission?.type]);
+  const hasForms = capabilities.forms !== false && (extras.forms?.length || 0) > 0;
+  const ctx = useMemo(() => buildSheetContext({ family: mission?.family, type: mission?.type, capabilities, playbook, hasForms }), [mission?.family, mission?.type, capabilities, playbook, hasForms]);
+  const ids = useMemo(() => ({ missionId, type: mission?.type || null, family: mission?.family || null }), [missionId, mission?.type, mission?.family]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stored = useMemo(() => missionSheetStore.readStoredLayouts(ids), [ids, prefsTick]);
+  const resolved = useMemo(() => resolveSheetLayout({ stored, ctx }), [stored, ctx]);
+  const layout = editing && draft ? draft : resolved.layout;
+  const toolsAvailable = useMemo(() => availableSheetTools(capabilities), [capabilities]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const suggestion = useMemo(() => (editing ? null : pickSheetToolSuggestion({ usage: missionSheetStore.readUsage(missionId), pinnedTools: layout.pinnedTools, capabilities })), [missionId, layout.pinnedTools, capabilities, editing, prefsTick]);
 
-  const createVisit = async () => {
+  const firstSiteId = data?.sites?.[0]?.id || null;
+  const today = new Date().toISOString().slice(0, 10);
+
+  // ------------------------------------------------------------------ actions
+  const openTool = useCallback((toolKey) => {
+    const tool = SHEET_TOOL_BY_KEY[toolKey];
+    if (!tool) return;
+    setSheet(null);
+    missionSheetStore.recordToolOpen(missionId, toolKey);
+    navigation.navigate(tool.route, { missionId, siteId: firstSiteId });
+  }, [missionId, firstSiteId, navigation]);
+
+  const startVisit = async () => {
+    if (busy.visit) return;
+    setBusy((b) => ({ ...b, visit: true }));
     try {
-      const visitId = await creerVisiteMission({
-        missionId,
-        siteId: data?.sites?.[0]?.id || null,
-        visitType: playbook.defaultVisitType || 'visite terrain',
-      });
-      await mettreAJourMission(missionId, { status: 'active' });
-      await reload();
+      const visitId = await creerVisiteMission({ missionId, siteId: firstSiteId, visitType: playbook.defaultVisitType || 'visite terrain' });
+      if (mission?.status !== 'active') await mettreAJourMission(missionId, { status: 'active' });
+      SHEET_CACHE.delete(missionId);
       navigation.navigate('MissionVisit', { missionId, visitId });
-    } catch (e) { Alert.alert('Visite non créée', String(e.message || e)); }
-  };
-
-  const openPlaybookPoint = (preset) => {
-    setPointType(preset?.pointType || 'information');
-    setPointLabel(preset?.label || '');
-    setPointDescription(preset?.description || preset?.requestedAction || '');
-    setPointDueText(preset?.due || '');
-    setPointModal(true);
-  };
-
-  const openPlaybookAction = (item) => {
-    if (!item) return;
-    if (item.kind === 'navigate' && item.route) {
-      navigation.navigate(item.route, { missionId, siteId: data?.sites?.[0]?.id || null });
-      return;
-    }
-    if (item.kind === 'point') {
-      openPlaybookPoint(item.preset);
-      return;
-    }
-    if (item.kind === 'measure') {
-      navigation.navigate('MissionMeasurements', { missionId });
-      return;
-    }
-    if (item.kind === 'document') {
-      navigation.navigate('MissionDocuments', { missionId });
+    } catch (e) {
+      Alert.alert('Visite non créée', errorText(e));
+    } finally {
+      if (mounted.current) setBusy((b) => ({ ...b, visit: false }));
     }
   };
 
-  const createPoint = async () => {
-    if (saving) return;
-    setSaving(true);
+  const openPointSheet = (preset) => { setPointPreset(preset || null); setSheet('point'); };
+
+  const savePoint = async ({ type, label, description, dueText }) => {
+    if (savingPoint) return;
+    setSavingPoint(true);
     try {
-      await creerPointMission({ missionId, siteId: data?.sites?.[0]?.id || null, type: pointType, label: pointLabel, description: pointDescription, dueText: pointDueText });
-      setPointModal(false);
-      setPointLabel('');
-      setPointDescription('');
-      setPointDueText('');
-      setPointType('information');
+      await creerPointMission({ missionId, siteId: firstSiteId, type, label, description, dueText });
+      setSheet(null);
+      hapticSuccess();
+      showToast(label, { title: 'Point ajouté', tone: 'success' });
       await reload();
-    } catch (e) { Alert.alert('Point non créé', String(e.message || e)); }
-    finally { setSaving(false); }
+    } catch (e) {
+      Alert.alert('Point non créé', errorText(e));
+    } finally {
+      if (mounted.current) setSavingPoint(false);
+    }
+  };
+
+  const setPointStatus = async (point, status, comment) => {
+    await mettreAJourStatutPoint(point.id, status, { comment });
+    await reload();
   };
 
   const closePoint = async (point) => {
+    const previous = point.status;
     try {
-      await mettreAJourStatutPoint(point.id, 'closed', { comment: 'Clôture depuis la fiche Mission' });
-      await reload();
-    } catch (e) { Alert.alert('Point non modifié', String(e.message || e)); }
+      animate();
+      await setPointStatus(point, 'closed', 'Clôture depuis la fiche Mission');
+      hapticSuccess();
+      showToast(point.label || 'Point', {
+        title: 'Point clôturé',
+        tone: 'success',
+        duration: UNDO_MS,
+        action: { label: 'Annuler', onPress: () => setPointStatus(point, previous, 'Clôture annulée depuis la fiche Mission').catch((e) => Alert.alert('Point non modifié', errorText(e))) },
+      });
+    } catch (e) {
+      Alert.alert('Point non modifié', errorText(e));
+    }
   };
 
-  const exportExcel = async () => {
-    if (exporting) return;
-    setExporting(true);
+  const reopenPoint = (point) => setPointStatus(point, 'open', 'Réouvert depuis la fiche Mission').then(() => showToast(point.label || 'Point', { title: 'Point rouvert' })).catch((e) => Alert.alert('Point non modifié', errorText(e)));
+
+  const exportClientExcel = async () => {
+    if (busy.client) return;
+    setBusy((b) => ({ ...b, client: true }));
+    try {
+      const result = await exporterMissionExcelClient(missionId);
+      Alert.alert('Excel client créé', `${result.name}\n\nSynthèse, sites, actions, réserves, inventaire, mesures, visites, photos, documents et scénarios sont présentés dans des feuilles directement exploitables.`);
+    } catch (e) {
+      Alert.alert('Export client impossible', errorText(e));
+    } finally {
+      if (mounted.current) setBusy((b) => ({ ...b, client: false }));
+    }
+  };
+
+  const exportFullExcel = async () => {
+    if (busy.full) return;
+    setSheet(null);
+    setBusy((b) => ({ ...b, full: true }));
     try {
       const result = await exporterMissionExcel(missionId);
       Alert.alert('Export Mission créé', `${result.name}\n\nLes données sont structurées par feuilles et les médias restent référencés séparément.`);
-    } catch (e) { Alert.alert('Export impossible', String(e.message || e)); }
-    finally { setExporting(false); }
-  };
-
-  const exportClientExcel = async () => {
-    if (exportingClient) return;
-    setExportingClient(true);
-    try {
-      const result = await exporterMissionExcelClient(missionId);
-      Alert.alert(
-        'Excel client créé',
-        result.name + '\n\nSynthèse, sites, actions, réserves, inventaire, mesures, visites, photos, documents et scénarios sont présentés dans des feuilles directement exploitables.'
-      );
     } catch (e) {
-      Alert.alert('Export client impossible', String(e?.message || e));
+      Alert.alert('Export impossible', errorText(e));
     } finally {
-      setExportingClient(false);
+      if (mounted.current) setBusy((b) => ({ ...b, full: false }));
     }
   };
 
   const importExcel = async () => {
-    if (importing) return;
-    setImporting(true);
+    if (busy.import) return;
+    setSheet(null);
+    setBusy((b) => ({ ...b, import: true }));
     try {
       const result = await choisirEtImporterMissionExcel({ targetMissionId: missionId });
       if (!result) return;
@@ -187,188 +243,316 @@ export function MissionScreen({ navigation, route }) {
           : `${result.rows || 0} ligne(s) ont été conservées intégralement comme source Excel de cette Mission.`
       );
     } catch (e) {
-      Alert.alert('Import impossible', String(e?.message || e));
+      Alert.alert('Import impossible', errorText(e));
     } finally {
-      setImporting(false);
+      if (mounted.current) setBusy((b) => ({ ...b, import: false }));
     }
   };
 
-  if (loading && !data) return <View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center' }, missionStyles.screen]}><ActivityIndicator color={MISSION_COLORS.accent} /></View>;
-  if (!data?.mission) return <View style={styles.center}><Text style={styles.errorTitle}>Mission introuvable</Text></View>;
+  // ------------------------------------------------------- disposition (prefs)
+  const pinScope = resolved.source === 'mission' ? 'mission' : 'type';
 
-  const { mission, sites, phases, visits, points, documents } = data;
+  /** Enregistre `next` dans `scope` et propose « Annuler » ; un enregistrement « type » libère la Mission. */
+  const persistLayout = (next, scope, title, message) => {
+    const undo = [];
+    const saved = missionSheetStore.saveLayout(scope, ids, next);
+    undo.push(saved);
+    if (scope === 'type' && stored.mission) undo.push(missionSheetStore.clearLayout('mission', ids));
+    setPrefsTick((t) => t + 1);
+    showToast(message, {
+      title,
+      tone: 'success',
+      duration: UNDO_MS,
+      action: {
+        label: 'Annuler',
+        onPress: () => {
+          for (const entry of undo.reverse()) missionSheetStore.restoreRaw(entry.key, entry.previous);
+          animate();
+          setPrefsTick((t) => t + 1);
+        },
+      },
+    });
+  };
+
+  const togglePin = (toolKey) => {
+    const tool = SHEET_TOOL_BY_KEY[toolKey];
+    if (editing) {
+      setDraft((current) => togglePinnedSheetTool(current, toolKey, capabilities));
+      return;
+    }
+    const next = togglePinnedSheetTool(resolved.layout, toolKey, capabilities);
+    if (next === resolved.layout) return;
+    hapticTick();
+    animate();
+    const pinned = next.pinnedTools.includes(toolKey);
+    persistLayout(next, pinScope, pinned ? 'Outil épinglé' : 'Outil retiré', `${tool?.title || 'Outil'} · ${pinScope === 'mission' ? 'cette Mission' : 'toutes les Missions de ce type'}`);
+  };
+
+  const onSuggestion = (choice) => {
+    if (!suggestion) return;
+    if (choice === 'accept') {
+      missionSheetStore.setSuggestionState(missionId, suggestion.toolKey, 'later');
+      togglePin(suggestion.toolKey);
+      return;
+    }
+    missionSheetStore.setSuggestionState(missionId, suggestion.toolKey, choice === 'never' ? 'never' : 'later');
+    animate();
+    setPrefsTick((t) => t + 1);
+  };
+
+  const enterEdit = () => {
+    if (editing) return;
+    hapticTick();
+    animate();
+    setDraft(resolved.layout);
+    setEditing(true);
+    if (!missionSheetStore.customizeHintSeen()) {
+      missionSheetStore.markCustomizeHintSeen();
+      showToast('Monte, descends, masque ou agrandis chaque bloc. Rien n’est supprimé.', { title: 'Personnaliser la fiche', duration: 4200 });
+    }
+  };
+
+  const editDraft = (fn) => {
+    hapticTick();
+    animate();
+    setDraft((current) => fn(current || resolved.layout));
+  };
+
+  const dirty = editing && draft ? !sheetLayoutsEqual(draft, resolved.layout) : false;
+
+  const cancelEdit = () => { animate(); setEditing(false); setDraft(null); setSheet(null); };
+
+  const finishEdit = () => {
+    if (!dirty) { cancelEdit(); return; }
+    setSheet('scope');
+  };
+
+  const saveDraft = (scope) => {
+    const next = draft;
+    setSheet(null);
+    animate();
+    setEditing(false);
+    setDraft(null);
+    hapticSuccess();
+    persistLayout(next, scope, 'Disposition enregistrée', scope === 'mission' ? 'Pour cette Mission uniquement' : `Pour toutes les Missions « ${TYPE_LABELS.get(mission?.type) || 'de ce type'} »`);
+  };
+
+  const forget = (scope) => {
+    const entry = missionSheetStore.clearLayout(scope, ids);
+    setSheet(null);
+    cancelEdit();
+    setPrefsTick((t) => t + 1);
+    showToast(scope === 'mission' ? 'La Mission reprend la disposition de son type.' : 'Le type reprend le réglage d’usine.', {
+      title: 'Disposition oubliée',
+      duration: UNDO_MS,
+      action: { label: 'Annuler', onPress: () => { missionSheetStore.restoreRaw(entry.key, entry.previous); setPrefsTick((t) => t + 1); } },
+    });
+  };
+
+  const toggleModule = async (toolKey, enabled) => {
+    const tool = SHEET_TOOL_BY_KEY[toolKey];
+    try {
+      hapticTick();
+      const previous = await enregistrerBriquesMission(missionId, setMissionModule(modules, toolKey, enabled, baseCapabilities));
+      await reload();
+      showToast(tool?.title || 'Brique', {
+        title: enabled ? 'Brique ajoutée' : 'Brique retirée',
+        tone: 'success',
+        duration: UNDO_MS,
+        action: { label: 'Annuler', onPress: () => restaurerBriquesMission(missionId, previous).then(reload).catch((e) => Alert.alert('Briques non modifiées', errorText(e))) },
+      });
+    } catch (e) {
+      Alert.alert('Briques non modifiées', errorText(e));
+    }
+  };
+
+  const saveModel = async ({ label, description }) => {
+    if (savingModel) return;
+    setSavingModel(true);
+    try {
+      await creerModeleMission({ label, description, family: mission?.family, type: mission?.type, modules, layoutJson: serializeSheetLayout(resolved.layout), formIds: (extras.forms || []).map((form) => form.id) });
+      setSheet(null);
+      hapticSuccess();
+      showToast('Disponible à la création d’une Mission.', { title: `Modèle « ${label} » enregistré`, tone: 'success' });
+    } catch (e) {
+      Alert.alert('Modèle non enregistré', errorText(e));
+    } finally {
+      if (mounted.current) setSavingModel(false);
+    }
+  };
+
+  const toggleGloves = () => {
+    const next = !gloves;
+    missionSheetStore.setGloves(next);
+    hapticTick();
+    animate();
+    setGloves(next);
+  };
+
+  // ------------------------------------------------------------------- rendu
+  if (loading && !data) {
+    return <View style={[st.root, missionStyles.screen]}><View style={{ padding: 16 }}><SkeletonList count={5} /></View></View>;
+  }
+  if (!mission) return <View style={styles.center}><Text style={styles.errorTitle}>Mission introuvable</Text></View>;
+
+  const phases = data.phases || [];
+  const counted = phases.filter((phase) => phase.status !== 'skipped');
+  const done = counted.filter((phase) => phase.status === 'done').length;
+  const sitesById = Object.fromEntries((data.sites || []).map((site) => [site.id, site]));
+  const points = data.points || [];
+  const sheetModel = {
+    mission,
+    phases,
+    phaseProgress: { done, total: counted.length, pct: counted.length ? done / counted.length : 0 },
+    typeLabel: TYPE_LABELS.get(mission.type) || null,
+    clientName: mission.client_name || null,
+    siteLine: data.sites?.length > 1 ? `${data.sites.length} sites` : data.sites?.[0]?.name || null,
+    sitesById,
+    visits: data.visits || [],
+    points,
+    openPoints: points.filter((point) => !['closed', 'no_follow_up'].includes(point.status)),
+    summary,
+    extras,
+    resume,
+    today,
+    playbook,
+    capabilities,
+    wide,
+    busy,
+    layoutSource: resolved.source,
+    pinnedTools: layout.pinnedTools,
+    availableToolCount: toolsAvailable.length,
+    suggestion,
+    onCustomize: editing ? () => setSheet('customize') : enterEdit,
+    onLongPress: enterEdit,
+    startVisit,
+    resumeVisit: (row) => navigation.navigate('MissionVisit', { missionId, visitId: row.visit_id }),
+    openVisit: (visit) => { setSheet(null); navigation.navigate('MissionVisit', { missionId, visitId: visit.id }); },
+    openPointSheet,
+    closePoint,
+    openAllPoints: () => setSheet('points'),
+    openAllVisits: () => setSheet('visits'),
+    openTool,
+    openAllTools: () => setSheet('tools'),
+    openForm: (form) => (form.draft_entry_id
+      ? navigation.navigate('MissionFormFill', { missionId, entryId: form.draft_entry_id })
+      : navigation.navigate('MissionForms', { missionId, newEntryFormId: form.id })),
+    onSuggestion,
+    openWorkflow: () => (capabilities.workflow !== false ? openTool('workflow') : null),
+    openReport: () => { setSheet(null); navigation.navigate('MissionReport', { missionId }); },
+    exportClientExcel,
+    openDeliverablesMenu: () => setSheet('deliverables'),
+  };
+
+  const renderBlock = (key, size) => {
+    const Block = SHEET_BLOCK_RENDERERS[key];
+    return Block ? <Block sheet={sheetModel} size={size} /> : null;
+  };
+
+  const blocks = layout.blocks;
+  const columns = !editing && wide ? splitSheetColumns(blocks) : null;
+
   return (
-    <View style={[{ flex: 1 }, missionStyles.screen]}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
-        <View style={[{ backgroundColor: 'rgba(255,255,255,0.82)', borderRadius: 18, borderWidth: 1, padding: 16 }, missionStyles.card]}>
-          <Text style={[{ fontFamily: FONTS.black, fontSize: 20 }, missionStyles.title]}>{mission.label || 'Mission sans titre'}</Text>
-          <Text style={{ color: COLORS.inkSoft, marginTop: 4, fontSize: 11.5 }}>{[mission.client_name, sites?.[0]?.name].filter(Boolean).join(' · ') || 'Contexte à compléter'}</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13 }}>
-            <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 10.5, fontFamily: FONTS.bodyBold }}>{visits.length} visite(s)</Text>
-            <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 10.5, fontFamily: FONTS.bodyBold }}>{openPoints.length} point(s) ouvert(s)</Text>
-            <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 10.5, fontFamily: FONTS.bodyBold }}>{documents.length} document(s)</Text>
-          </View>
-        </View>
-
-        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Pilotage du dossier</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {[
-            [domainSummary.open_actions || 0, 'actions ouvertes'],
-            [domainSummary.observations || 0, 'constats'],
-            [domainSummary.hypotheses || 0, 'hypothèses'],
-            [domainSummary.tests || 0, 'essais'],
-            [domainSummary.scenarios || 0, 'scénarios'],
-            [domainSummary.expected_documents || 0, 'documents attendus'],
-            [domainSummary.calculations || 0, 'calculs 🧮'],
-          ].map(([value, label]) => (
-            <View key={label} style={[{ minWidth: 104, flexGrow: 1, borderRadius: 13, padding: 10 }, missionStyles.statBox]}>
-              <Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.black, fontSize: 16 }}>{value}</Text>
-              <Text style={{ color: COLORS.inkSoft, fontSize: 9.2, marginTop: 2 }}>{label}</Text>
-            </View>
-          ))}
-        </View>
-
-        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Frise de la Mission</Text>
-        <PhaseRail phases={phases} />
-
-        <View style={[{ marginTop: 16, borderRadius: 14, padding: 13 }, missionStyles.infoBox]}>
-          <Text style={[{ fontFamily: FONTS.black, fontSize: 12 }, missionStyles.accentText]}>Saisie non bloquante</Text>
-          <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15, marginTop: 4 }}>Pendant une visite, tu peux laisser n’importe quelle rubrique vide, quitter l’application et reprendre plus tard. La progression est informative uniquement.</Text>
-        </View>
-
-        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Parcours recommandé · {playbook.label}</Text>
-        <View style={[missionStyles.card, { padding: 13 }]}>
-          <Text style={{ color: COLORS.inkSoft, fontSize: 10.2, lineHeight: 15 }}>{playbook.objective}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 39, marginTop: 9 }}>
-            {(playbook.steps || []).map((step, index) => <View key={step} style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View style={{ minHeight: 29, borderRadius: 9, backgroundColor: MISSION_COLORS.accentSoft, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 8.6, fontFamily: FONTS.black }}>{index + 1} · {step}</Text>
-              </View>
-              {index < playbook.steps.length - 1 ? <CvcIcon name="chevron-right" size={16} color={MISSION_COLORS.accentLineStrong} strokeWidth={2.1} /> : null}
-            </View>)}
-          </ScrollView>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 }}>
-            {(playbook.quickActions || [])
-              .filter((item) => ['navigate','point','measure','document'].includes(item.kind))
-              .slice(0, 6)
-              .map((item) => <TouchableOpacity
-                key={item.key}
-                style={[styles.btnSecondary, missionStyles.secondaryButton]}
-                onPress={() => openPlaybookAction(item)}
-              >
-                <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{item.label}</Text>
-              </TouchableOpacity>)}
-          </View>
-        </View>
-
-        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Aujourd’hui</Text>
-        <View style={{ flexDirection: 'row', gap: 9 }}>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { flex: 1, alignItems: 'center' }]} onPress={createVisit}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Démarrer une visite</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} onPress={() => setPointModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Point libre</Text></TouchableOpacity>
-        </View>
-
-        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 20 }]}>Outils Mission</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {[
-            ['workflow', 'MissionWorkflow', 'Workflow', 'Phases · volets · occurrences'],
-            ['structure', 'MissionStructure', 'Patrimoine', 'Site · bâtiment · niveau · local'],
-            ['technicalStructure', 'MissionTechnicalStructure', 'Architecture technique', 'Installation · système · réseau · équipement'],
-            ['equipment', 'MissionEquipment', 'Inventaire', 'Équipements · composants · OCR'],
-            ['measurements', 'MissionMeasurements', 'Mesures', 'Références · séries · instruments'],
-            ['plans', 'MissionPlan', 'Plans / PDF / SIG', 'Mesures · calques · GeoPackage'],
-            ['map', 'MissionMap', 'Cartographie', 'Multi-sites · progression · SIG'],
-            ['campaignDashboard', 'MissionCampaignDashboard', 'Cockpit multi-sites', 'À faire · en cours · terminés · accès'],
-            ['actions', 'MissionActions', 'Actions', 'Responsables · échéances · coûts'],
-            ['controlBoard', 'MissionControlBoard', 'Contrôles ciblés', 'Référence → preuve → action → recontrôle'],
-            ['subjects', 'MissionSubjects', 'Sujets & décisions', 'Constat → décision → action → historique'],
-            ['p3Dashboard', 'MissionP3Dashboard', 'Projection P2 / P3', 'Âge · coût · échéance · renouvellement'],
-            ['amoDashboard', 'MissionAmoDashboard', 'Pilotage AMO', 'Volets · année · actions · P3 · livrables'],
-            ['receptionBoard', 'MissionReceptionBoard', 'Réception / mise en service', 'Ouvrages · essais · réserves · documents'],
-            ['expertiseBoard', 'MissionExpertise', 'Expertise / sinistre', 'Faits → hypothèses → investigations → conclusion'],
-            ['reserveClearance', 'MissionReserveClearance', 'Levée de réserves', 'Avant / après · levée · maintien · partielle'],
-            ['tests', 'MissionTests', 'Essais', 'Protocoles · commissioning'],
-            ['calculations', 'MissionCalculation', 'Calculs 🧮', 'Formules · hypothèses · résultats'],
-            ['scenarios', 'MissionScenarios', 'Scénarios', 'Étude · investissement · gains'],
-            ['documents', 'MissionDocuments', 'Documents / VISA', 'Attendus · validation'],
-            ['inbox', 'MissionDocumentInbox', 'Inbox documents', 'Extraction locale · revue'],
-            ['excelMapping', 'MissionExcelMapping', 'Mapping Excel', 'Colonnes externes → METRA'],
-            ['photoAnnotations', 'MissionPhotoAnnotations', 'Photos annotées', 'Flèches · zones · texte'],
-            ['synoptic', 'MissionTechnicalGraph', 'Synoptique', 'Relations techniques visuelles'],
-            ['signature', 'MissionSignature', 'Signature', 'Passation · OPR · réception'],
-            ['package', 'MissionPackage', 'Dossier complet', 'ZIP configurable'],
-          ].filter(([capability]) => capabilities?.[capability] !== false).map(([capability, routeName, title, subtitle]) => (
-            <TouchableOpacity
-              key={routeName}
-              activeOpacity={0.82}
-              onPress={() => navigation.navigate(routeName, { missionId })}
-              style={[missionStyles.card, { width: '48%', minHeight: 76, padding: 11, justifyContent: 'center' }]}
-            >
-              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 10.8, fontFamily: FONTS.black }}>{title}</Text>
-              <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, lineHeight: 12, marginTop: 3 }}>{subtitle}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <TouchableOpacity
-          style={[styles.btnPrimary, missionStyles.primaryButton, { marginTop: 9, alignItems: 'center' }]}
-          onPress={() => navigation.navigate('MissionReport', { missionId })}
-        ><ButtonGlow tone="mission" />
-          <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Rapport · éditer / Word / PDF</Text>
-        </TouchableOpacity>
-        <View style={{ flexDirection: 'row', gap: 9, marginTop: 9 }}>
-          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} disabled={importing} onPress={importExcel}>
-            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{importing ? 'Import…' : '⇧ Importer Excel'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} disabled={exporting} onPress={exportExcel}>
-            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{exporting ? 'Export…' : '⇩ Excel complet'}</Text>
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity
-          style={[styles.btnSecondary, missionStyles.secondaryButton, { marginTop: 8, alignItems: 'center' }]}
-          disabled={exportingClient}
-          onPress={exportClientExcel}
+    <SheetErgoProvider gloves={gloves}>
+      <View style={[st.root, missionStyles.screen]}>
+        {editing ? <EditTopBar dirty={dirty} onCancel={cancelEdit} onDone={finishEdit} onAdd={() => setSheet('customize')} /> : null}
+        <ScrollView
+          contentContainerStyle={[st.content, wide && st.contentWide, { gap: gloves ? 16 : 12 }]}
+          refreshControl={editing ? undefined : <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); reload(); }} colors={[MISSION_COLORS.accent]} tintColor={MISSION_COLORS.accent} />}
+          keyboardShouldPersistTaps="handled"
         >
-          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>
-            {exportingClient ? 'Création Excel client…' : '⇩ Excel client simplifié'}
-          </Text>
-        </TouchableOpacity>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 9, lineHeight: 13, marginTop: 6, textAlign: 'center' }}>
-          Excel complet = réimportable dans METRA. Excel client = lecture directe : synthèse, actions, réserves, inventaire, mesures et documents.
-        </Text>
-
-        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 20 }]}>Points à suivre</Text>
-        {points.length ? points.map((point) => (
-          <View key={point.id} style={[{ backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderRadius: 14, padding: 13, marginBottom: 9 }, missionStyles.card]}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+          {editing ? (
+            <View style={st.lockStrip} accessible accessibilityLabel="En-tête et action principale : toujours en tête de la fiche">
+              <CvcIcon name="lock" size={20} color={MISSION_COLORS.accentDark} strokeWidth={2} />
               <View style={{ flex: 1 }}>
-                <Text style={{ color: COLORS.ink, fontFamily: FONTS.black, fontSize: 12.5 }}>{point.label || point.description || 'Point sans titre'}</Text>
-                <Text style={{ color: COLORS.inkSoft, fontSize: 10, marginTop: 4 }}>{POINT_STATUS[point.status] || point.status} · {point.type || 'information'}{point.due_text ? ` · ${point.due_text}` : ''}</Text>
+                <Text style={SHEET_TYPE.bodyStrong}>En-tête et action principale</Text>
+                <Text style={SHEET_TYPE.meta}>Toujours en tête : reprendre la visite reste à un geste.</Text>
               </View>
-              {!['closed', 'no_follow_up'].includes(point.status) ? <TouchableOpacity onPress={() => closePoint(point)} style={{ paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, backgroundColor: MISSION_COLORS.accentLight }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, fontFamily: FONTS.black }}>Clôturer</Text></TouchableOpacity> : null}
             </View>
-          </View>
-        )) : <Text style={{ color: COLORS.inkFaint, fontSize: 10.5 }}>Aucun point. Tu peux en ajouter à tout moment, même s’il n’était pas prévu dans la trame.</Text>}
+          ) : (
+            <>
+              {renderBlock('header', 'detailed')}
+              <FadeUp delay={40}>{renderBlock('primary', 'detailed')}</FadeUp>
+            </>
+          )}
 
-        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 20 }]}>Visites</Text>
-        {visits.length ? visits.map((visit) => <TouchableOpacity key={visit.id} onPress={() => navigation.navigate('MissionVisit', { missionId, visitId: visit.id })} style={[{ backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderRadius: 13, padding: 12, marginBottom: 8 }, missionStyles.card]}><Text style={{ color: COLORS.ink, fontFamily: FONTS.bold, fontSize: 11.5 }}>{visit.visit_date || 'Date à préciser'} · {visit.visit_type || 'Visite'}</Text><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, marginTop: 3 }}>{visit.status === 'draft' ? 'Brouillon — reprise possible' : visit.status}</Text></TouchableOpacity>) : <Text style={{ color: COLORS.inkFaint, fontSize: 10.5 }}>Aucune visite créée.</Text>}
-      </ScrollView>
+          {editing ? blocks.map((block, index) => (
+            <View key={block.key} style={st.editCard}>
+              <EditBlockBar
+                blockKey={block.key}
+                index={index}
+                count={blocks.length}
+                size={block.size}
+                onMove={(delta) => editDraft((current) => moveSheetBlock(current, block.key, delta))}
+                onToggleSize={() => editDraft((current) => toggleSheetBlockSize(current, block.key))}
+                onHide={() => editDraft((current) => hideSheetBlock(current, block.key))}
+                onMoveTo={() => { setMoveKey(block.key); setSheet('move'); }}
+              />
+              <View pointerEvents="none" style={st.preview}>{renderBlock(block.key, block.size)}</View>
+            </View>
+          )) : columns ? (
+            <View style={st.columns}>
+              <View style={st.column}>{columns.left.map((block) => <View key={block.key}>{renderBlock(block.key, block.size)}</View>)}</View>
+              <View style={st.column}>{columns.right.map((block) => <View key={block.key}>{renderBlock(block.key, block.size)}</View>)}</View>
+            </View>
+          ) : blocks.map((block, index) => (
+            <FadeUp key={block.key} delay={80 + Math.min(index, 6) * 35}>{renderBlock(block.key, block.size)}</FadeUp>
+          ))}
 
-      <Modal visible={pointModal} transparent animationType="fade" onRequestClose={() => setPointModal(false)}>
-        <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
-          <Text style={[styles.modalTitle, missionStyles.title]}>Nouveau point libre</Text>
-          <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, marginBottom: 10 }}>Un point ajouté librement a la même valeur qu’un point proposé par une recette.</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 5 }}>
-            {POINT_TYPES.map(([key, labelText]) => <Pill key={key} active={pointType === key} label={labelText} onPress={() => setPointType(key)} />)}
-          </View>
-          <TextInput style={[styles.input, missionStyles.input, { marginTop: 6 }]} value={pointLabel} onChangeText={setPointLabel} placeholder="Titre / constat (peut rester vide)" />
-          <TextInput style={[styles.input, missionStyles.input, { marginTop: 9, minHeight: 72, textAlignVertical: 'top' }]} multiline value={pointDescription} onChangeText={setPointDescription} placeholder="Description libre" />
-          <TextInput style={[styles.input, missionStyles.input, { marginTop: 9 }]} value={pointDueText} onChangeText={setPointDueText} placeholder="Échéance libre : fin octobre, prochaine visite…" />
-          <View style={styles.modalActions}>
-            <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setPointModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createPoint}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{saving ? 'Ajout…' : 'Ajouter'}</Text></TouchableOpacity>
-          </View>
-        </View></View>
-      </Modal>
-    </View>
+          {editing && layout.hidden.length ? (
+            <View style={st.hiddenTray}>
+              <Text style={SHEET_TYPE.label}>{layout.hidden.length} bloc(s) masqué(s)</Text>
+              <Text style={SHEET_TYPE.meta}>Touche « + » en haut pour les remettre, ou choisir une disposition prête.</Text>
+            </View>
+          ) : null}
+        </ScrollView>
+
+        <AllToolsSheet visible={sheet === 'tools'} onClose={() => setSheet(null)} availableTools={toolsAvailable} pinnedTools={layout.pinnedTools} onOpenTool={openTool} onTogglePin={togglePin} onManageModules={() => setSheet('modules')} />
+        <ModulesSheet visible={sheet === 'modules'} onClose={() => setSheet(null)} baseCapabilities={baseCapabilities} modules={modules} onToggle={toggleModule} typeLabel={TYPE_LABELS.get(mission.type) || null} />
+        <SaveModelSheet visible={sheet === 'model'} onClose={() => setSheet(null)} defaultLabel={TYPE_LABELS.get(mission.type) || mission.label || ''} summary={describeMissionModules(baseCapabilities, modules)} saving={savingModel} onSave={saveModel} />
+        <PointSheet visible={sheet === 'point'} onClose={() => setSheet(null)} preset={pointPreset} presets={playbook.pointPresets || []} saving={savingPoint} onSave={savePoint} />
+        <PointsListSheet visible={sheet === 'points'} onClose={() => setSheet(null)} points={points} today={today} onClosePoint={closePoint} onReopenPoint={reopenPoint} />
+        <VisitsListSheet visible={sheet === 'visits'} onClose={() => setSheet(null)} visits={data.visits || []} sitesById={sitesById} onOpenVisit={sheetModel.openVisit} />
+        <DeliverablesSheet visible={sheet === 'deliverables'} onClose={() => setSheet(null)} onExportFull={exportFullExcel} onImport={importExcel} onReport={sheetModel.openReport} busy={busy} />
+        <CustomizeSheet
+          visible={sheet === 'customize'}
+          onClose={() => setSheet(null)}
+          modulesSummary={describeMissionModules(baseCapabilities, modules)}
+          onManageModules={() => setSheet('modules')}
+          onSaveModel={() => setSheet('model')}
+          hidden={layout.hidden}
+          onShowBlock={(key) => { if (!editing) enterEdit(); editDraft((current) => showSheetBlock(current, key, ctx)); }}
+          onApplyPreset={(key) => { if (!editing) enterEdit(); editDraft((current) => applySheetPreset(current, key, ctx)); setSheet(null); }}
+          onFactory={() => { if (!editing) enterEdit(); editDraft(() => defaultSheetLayout(ctx)); setSheet(null); }}
+          hasMissionLayout={Boolean(stored.mission)}
+          hasTypeLayout={Boolean(stored.type)}
+          onForgetMission={() => forget('mission')}
+          onForgetType={() => forget('type')}
+          typeLabel={TYPE_LABELS.get(mission.type) || null}
+          gloves={gloves}
+          onToggleGloves={toggleGloves}
+        />
+        <ScopeSheet visible={sheet === 'scope'} onClose={() => setSheet(null)} typeLabel={TYPE_LABELS.get(mission.type) || null} defaultScope={pinScope} onChoose={saveDraft} />
+        <MoveSheet
+          visible={sheet === 'move'}
+          onClose={() => setSheet(null)}
+          blockKey={moveKey}
+          blocks={blocks}
+          onMove={(target) => { setSheet(null); editDraft((current) => moveSheetBlockTo(current, moveKey, target)); }}
+        />
+      </View>
+    </SheetErgoProvider>
   );
 }
+
+const st = StyleSheet.create({
+  root: { flex: 1 },
+  content: { padding: 16, paddingBottom: 132 },
+  contentWide: { paddingHorizontal: 24, maxWidth: 1180, width: '100%', alignSelf: 'center' },
+  columns: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  column: { flex: 1, gap: 12 },
+  lockStrip: { ...sheetStyles.surface, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, backgroundColor: MISSION_COLORS.accentSoft },
+  editCard: { ...sheetStyles.surface, padding: 12, borderStyle: 'dashed', borderWidth: 1, borderColor: MISSION_COLORS.accentLineStrong },
+  preview: { opacity: 0.55, maxHeight: 150, overflow: 'hidden' },
+  hiddenTray: { ...sheetStyles.surface, padding: 14, gap: 4, backgroundColor: MISSION_COLORS.accentSoft },
+});

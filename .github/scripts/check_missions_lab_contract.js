@@ -30,6 +30,8 @@ const importFile = read('missionExcelImport.js');
 const excelSchema = read('missionExcelSchema.js');
 const recipes = read('missionRecipes.js');
 const missionScreen = read('MissionScreen.js');
+// Fiche Mission modulable : l'écran assemble des blocs rendus dans MissionSheetBlocks.js.
+const missionSheet = missionScreen + read('MissionSheetBlocks.js') + read('MissionSheetSheets.js');
 const fieldPlaybooks = read('missionFieldPlaybooks.js');
 const reportRecipes = read('missionReportRecipes.js');
 const visitAutofill = read('missionVisitAutofillDb.js');
@@ -87,10 +89,22 @@ requireText(settingsScreen, "import { LabMetraPanel } from '../../LabMetraPanel.
 requireText(settingsScreen, '<LabMetraPanel />', 'LAB rendered only inside Settings');
 forbidText(home, 'LAB METRA', 'LAB must not be visible on home');
 forbidText(home, "navigation.navigate('LabMetra')", 'home must not route to LAB');
-requireText(home, 'PanResponder.create', 'home swipe responder');
-requireText(home, "navigation.navigate('Missions', { enteredBySwipe: true })", 'right swipe opens Missions');
+forbidText(home, 'missionsSwipeResponder', 'Missions must not be opened by swipe');
+forbidText(home, 'Glisser vers la droite → Missions', 'obsolete Missions swipe hint');
 requireText(missionsHome, 'Piloter les dossiers ponctuels', 'mission-specific dashboard');
-requireText(missionsHome, 'technicalVisitSwipeResponder', 'reverse swipe from Missions');
+forbidText(missionsHome, 'technicalVisitSwipeResponder', 'Missions must not be exited by swipe');
+forbidText(missionsHome, 'Glisser vers la gauche · Visites techniques', 'obsolete technical-visit swipe hint');
+forbidText(app, 'enteredBySwipe', 'Missions route must not use swipe state');
+requireText(app, "resetToTab('Missions')", 'Missions opens through the same root-tab reset');
+requireText(app, "(!missionMode || (current.name === 'Missions' && missionsVisible))", 'common dock stays visible on Missions dashboard');
+requireText(app, "current.name === 'Missions' && missionsVisible ? 'missions'", 'Missions tab is selected');
+requireText(app, "currentName === 'Missions' ? ROOT_TAB_KEYS.length", 'dock position on Missions');
+requireText(app, 'accent={missionMode ? MISSION_COLORS.accent : COLORS.orange}', 'green Missions dock');
+requireText(app, 'accentDark={missionMode ? MISSION_COLORS.accentDark : COLORS.orangeDark}', 'green Missions dock shading');
+const missionDock = read('BottomTabBar.js');
+requireText(missionDock, "missionSelected?[...ROOT_TAB_KEYS,'missions']:ROOT_TAB_KEYS", 'one shared liquid indicator with a tap-only Missions position');
+requireText(missionDock, 'indicatorKeys.map(key=>centerFor', 'indicator targets the actual Missions slot');
+requireText(missionDock, 'indicatorKeys.includes(activeKey)', 'Missions indicator is visible');
 requireText(theme, "accent: '#2F7D58'", 'dedicated green Missions palette');
 requireText(app, 'getMissionsVisible()', 'runtime Missions flag');
 requireText(app, "current.name === 'Missions' && missionsVisible", 'guarded Missions route');
@@ -146,7 +160,7 @@ requireText(read('missionVisitMemoryDb.js'), 'chargerMemoireVisiteMission', 'pre
 requireText(read('MissionVisitScreen.js'), 'MÉMOIRE · VISITE PRÉCÉDENTE', 'previous visit summary UX');
 requireText(read('MissionVisitScreen.js'), 'REPRENDRE', 'explicit one-tap reuse of previous value');
 requireText(read('MissionVisitScreen.js'), 'METRA ne les recopie jamais automatiquement', 'no stale auto-copy rule');
-requireText(read('MissionScreen.js'), 'Parcours recommandé · {playbook.label}', 'mission-specific dossier guidance');
+requireText(missionSheet, 'Parcours recommandé · {playbook.label}', 'mission-specific dossier guidance');
 requireText(reportRecipes, 'getMissionReportRecipe', 'mission-specific report recipe API');
 requireText(read('missionReportDb.js'), "key: 'inventaire'", 'automatic inventory report section');
 requireText(read('missionReportDb.js'), "key: 'architecture'", 'automatic technical architecture report section');
@@ -205,7 +219,27 @@ requireText(read('missionClientExcelExport.js'), 'preparerSyntheseActionsMission
 requireText(read('missionClientExcelExport.js'), "'04_Reserves'", 'dedicated reserve worksheet');
 requireText(read('missionClientExcelExport.js'), "'05_Inventaire'", 'client inventory worksheet');
 requireText(read('missionClientExcelExport.js'), "'06_Mesures'", 'client measures worksheet');
-requireText(read('MissionScreen.js'), 'Excel client simplifié', 'direct client Excel export UX');
+requireText(missionSheet, 'Excel client simplifié', 'direct client Excel export UX');
+// Fiche Mission modulable (docs/MISSIONS.md § Fiche Mission modulable).
+requireText(missionScreen, 'resolveSheetLayout', 'Mission sheet layout inherits mission → type → family → factory');
+requireText(missionScreen, 'listerReprisesMissions', 'Mission sheet offers one-tap resume of the current visit');
+requireText(missionSheet, 'Déplacer « ${label} » vers…', 'Mission sheet offers a single-pointer alternative to drag and drop');
+requireText(read('missionSheetStore.js'), "from './uiPrefs.js'", 'Mission sheet layouts live in UI preferences, never in the business database');
+requireText(read('MissionsHomeScreen.js'), 'Reprendre la visite', 'Missions home resumes the last visit in one tap');
+// Missions à la carte : briques par Mission et modèles enregistrés.
+requireText(missionScreen, 'resolveMissionCapabilities', 'Mission tools = type capabilities + per-mission added/removed modules');
+requireText(read('MissionCreateScreen.js'), 'Partir d’un de mes modèles', 'Mission creation from a saved model');
+requireText(read('database/migrations/052_mission_modules_models.js'), 'ALTER TABLE missions ADD COLUMN modules_json TEXT', 'additive per-mission modules column');
+// Trames maison, listes de référence, modèles Word, partage par fichier (migration 053).
+requireText(read('database/migrations/053_mission_forms.js'), 'CREATE TABLE IF NOT EXISTS mission_form_entries', 'custom form entries table');
+requireText(read('MissionFormFillScreen.js'), 'enregistrerFiche', 'form entries autosave (rule 10: resumable without loss)');
+requireText(read('missionFormsQueries.js'), "'form_entry'", 'non-conform verdicts create traceable reserves');
+requireText(excelSchema, "['70_Fiches_Trames', 'mission_form_entries']", 'form entries in the relational Excel round-trip');
+requireText(read('missionPackCore.js'), 'Aucune donnée de\n * Mission', 'sharing files never contain Mission data');
+for (const file of ['missionFormEngine.js', 'missionFormsQueries.js', 'missionPackCore.js', 'docxTemplateEngine.js', 'missionTemplateContext.js', 'MissionFormsScreen.js', 'MissionFormFillScreen.js']) {
+  if (/from ['"][^'"]*intranet/i.test(read(file))) throw new Error(`${file} must not import Intranet modules`);
+}
+if (/from ['"][^'"]*intranet[^'"]*['"]|require\(['"][^'"]*intranet/i.test(missionSheet + read('missionSheetQueries.js') + read('missionSheetLayout.js') + read('missionSheetDb.js'))) throw new Error('Mission sheet must not import Intranet modules');
 requireText(read('MissionActionsScreen.js'), 'Synthèse Excel', 'direct actions summary export UX');
 requireText(app, "MissionSubjects", 'persistent subject history route');
 requireText(read('MissionSubjectsScreen.js'), 'Sujets · constats · décisions', 'subject timeline workspace');

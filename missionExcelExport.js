@@ -79,6 +79,14 @@ const QUERIES = Object.freeze({
   mission_visit_checks: `SELECT * FROM mission_visit_checks WHERE mission_id=? ORDER BY visit_id,severity,created_at`,
   mission_document_extractions: `SELECT * FROM mission_document_extractions WHERE mission_id=? ORDER BY document_id,page_number,created_at`,
   mission_document_review_items: `SELECT * FROM mission_document_review_items WHERE mission_id=? ORDER BY document_id,status,created_at`,
+  // Campagnes de mesures (feuilles 66-67, déclarées en v43 mais absentes des requêtes : l'export complet échouait).
+  mission_measure_campaigns: `SELECT * FROM mission_measure_campaigns WHERE mission_id=? ORDER BY created_at`,
+  mission_measure_campaign_points: `SELECT * FROM mission_measure_campaign_points WHERE mission_id=? ORDER BY campaign_id,sort_order,created_at`,
+  // Trames : celles rattachées à la Mission ou déjà remplies, et toutes les listes de référence (petites, partagées).
+  mission_forms: `SELECT f.* FROM mission_forms f WHERE f.id IN (SELECT form_id FROM mission_form_links WHERE mission_id=?1 UNION SELECT form_id FROM mission_form_entries WHERE mission_id=?1) ORDER BY f.label`,
+  mission_form_links: `SELECT * FROM mission_form_links WHERE mission_id=? ORDER BY sort_order`,
+  mission_form_entries: `SELECT * FROM mission_form_entries WHERE mission_id=? ORDER BY form_id,created_at`,
+  mission_ref_lists: `SELECT * FROM mission_ref_lists WHERE ? IS NOT NULL ORDER BY label`,
 });
 
 async function chargerExportMission(missionId) {

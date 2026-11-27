@@ -1,7 +1,7 @@
 /** Écran Accueil. */
 
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView, PanResponder } from 'react-native';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, styles } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
@@ -10,7 +10,6 @@ import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from
 import { SpiralActiveHome } from './visual-packs/spiral-active/SpiralActiveHome.js';
 import { PatrimoineThumbnail } from './PatrimoineImageCard.js';
 import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
-import { MISSION_COLORS } from './missionTheme.js';
 import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollOffset } from './navigationMemory.js';
 import { prewarmClientSites } from './navigationPrewarm.js';
 import { prewarmVisitInBackground } from './visitPrewarm.js';
@@ -26,7 +25,7 @@ const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null, quic
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
 function chargerEntityManagementModule(){return require('./entityManagementDb.js');}
 
-function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missionsEnabled = false, onCreditsLongPress = null }) {
+function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, onCreditsLongPress = null }) {
   const listRef = useRef(null);
   const scrollKey = 'home:clients';
   const [clients, setClients] = useState(() => HOME_FAST_CACHE.clients || []);
@@ -74,18 +73,6 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
   useEffect(() => onPatrimoineImageChanged((change) => {
     if (change?.type === 'client') charger().catch(() => {});
   }), [charger]);
-
-  const missionsSwipeResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, gesture) => (
-      missionsEnabled
-      && gesture.dx > 22
-      && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.45
-    ),
-    onPanResponderTerminationRequest: () => true,
-    onPanResponderRelease: (_, gesture) => {
-      if (missionsEnabled && gesture.dx > 85) navigation.navigate('Missions', { enteredBySwipe: true });
-    },
-  }), [missionsEnabled, navigation]);
 
   const onRefresh = async () => { setRefreshing(true); await charger(); setRefreshing(false); };
   const openDirectory = () => navigation.navigate('MetraDirectory', { query: quickSearch.trim() });
@@ -198,7 +185,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
   const autresVisites = visitesClients.slice(1);
   const ouvrirVisite = (v) => { markVisitHot(v.id, { preview: v }); navigation.navigate('Visite', { visiteId: v.id, visitePreview: v }); };
 
-  return <View style={{ flex: 1 }} {...missionsSwipeResponder.panHandlers}>
+  return <View style={{ flex: 1 }}>
     <View style={styles.homeTopRow}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, flex: 1, minWidth: 0 }}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Afficher les crédits" accessibilityHint="Maintenir appuyé pour afficher TCA, EAL et TSAI" delayLongPress={550} onLongPress={onCreditsLongPress} activeOpacity={0.85}>
@@ -227,7 +214,6 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
       data={clientsVisibles}
       keyExtractor={(i) => i.id}
       ListHeaderComponent={<>
-        {missionsEnabled ? <View style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: MISSION_COLORS.accentSoft }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, fontFamily: FONTS.bold }}>Glisser vers la droite → Missions</Text></View> : null}
         <FadeUp style={{ marginBottom: 14 }}>
           <View style={{ minHeight: 50, borderRadius: 16, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', flexDirection: 'row', alignItems: 'center', paddingLeft: 14, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 3 }}>
             <CvcIcon name="search" size={18} color="#98A2B3" strokeWidth={2.1} />

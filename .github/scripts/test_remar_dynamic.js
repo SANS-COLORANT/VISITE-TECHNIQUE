@@ -167,7 +167,7 @@ async function run(){
  const ui=read('TrameGenericPanel.js');
  ok(ui.includes("const { RemarDynamicPanel } = require('./RemarDynamicPanel.js')"),
    'dynamic REMAR is routed without rewriting other trame components');
- ok(read('database/constants.js').includes('DATABASE_SCHEMA_VERSION = 51')&&read('database/migrations/index.js').includes('migration050')&&read('database/migrations/index.js').includes('migration051'),'additive REMAR and ECS departure/return/storage migrations are registered');
+ ok(Number(read('database/constants.js').match(/DATABASE_SCHEMA_VERSION = (\d+)/)[1])>=51&&read('database/migrations/index.js').includes('migration050')&&read('database/migrations/index.js').includes('migration051'),'additive REMAR and ECS departure/return/storage migrations are registered');
  const panel=read('RemarDynamicPanel.js');
  ok(panel.includes('flushDurableAutosaves()')&&panel.includes('useDurableAutosave('),
    'before step navigation and app suspend, save uses durable METRA writer');
